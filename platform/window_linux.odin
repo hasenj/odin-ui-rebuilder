@@ -72,17 +72,8 @@ open_window_impl :: proc(title: string, width, height: int, frame: Frame_Proc, u
 	linux_require(window.native_window != nil, "Could not create the Wayland EGL window")
 	window.renderer.display = egl.GetPlatformDisplay(.WAYLAND_KHR, window.display, nil)
 	linux_require(bool(egl.Initialize(window.renderer.display, nil, nil)), "Could not initialize EGL on Wayland")
-	linux_require(bool(egl.BindAPI(egl.OPENGL_API)), "EGL OpenGL API is unavailable")
-	attributes := [?]i32{
-		egl.SURFACE_TYPE, egl.WINDOW_BIT, egl.RENDERABLE_TYPE, egl.OPENGL_BIT,
-		egl.RED_SIZE, 8, egl.GREEN_SIZE, 8, egl.BLUE_SIZE, 8, egl.ALPHA_SIZE, 8, egl.NONE,
-	}
-	config: egl.Config
-	config_count: i32
-	linux_require(bool(egl.ChooseConfig(window.renderer.display, raw_data(attributes[:]), &config, 1, &config_count) && config_count > 0), "No suitable EGL window configuration")
-	context_attributes := [?]i32{egl.CONTEXT_MAJOR_VERSION, 3, egl.CONTEXT_MINOR_VERSION, 3, egl.CONTEXT_OPENGL_PROFILE_MASK, egl.CONTEXT_OPENGL_CORE_PROFILE_BIT, egl.NONE}
-	window.egl_context = egl.CreateContext(window.renderer.display, config, nil, raw_data(context_attributes[:]))
-	linux_require(window.egl_context != nil, "OpenGL 3.3 core is required. Enable 3D acceleration in the VM, or install Mesa for software rendering.")
+	config := gles_config(window.renderer.display, egl.WINDOW_BIT)
+	window.egl_context = gles_context(window.renderer.display, config)
 	window.renderer.surface = egl.CreateWindowSurface(window.renderer.display, config, egl.NativeWindowType(window.native_window), nil)
 	linux_require(window.renderer.surface != nil, "Could not create EGL window surface")
 	linux_require(bool(egl.MakeCurrent(window.renderer.display, window.renderer.surface, window.renderer.surface, window.egl_context)), "Could not make EGL context current")

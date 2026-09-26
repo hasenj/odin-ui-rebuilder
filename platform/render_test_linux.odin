@@ -9,6 +9,7 @@ import "../core/images"
 
 // Uses Mesa's surfaceless EGL platform, so this test needs no visible desktop.
 // It exercises the actual GLSL shaders and image resource lifecycle.
+// -define:WAYLAND_RENDER_TEST=true uses the live compositor's EGL driver instead.
 @(test)
 gl_rectangle_rendering :: proc(t: ^testing.T) {
 	egl_state := test_egl_context()
@@ -158,21 +159,26 @@ gl_rectangle_rendering :: proc(t: ^testing.T) {
 }
 
 @(private)
-Test_EGL_Context :: struct {display: egl.Display, ctx: egl.Context}
+Test_EGL_Context :: struct {display: egl.Display, ctx: egl.Context, wayland: rawptr}
 
 @(private)
 test_egl_context :: proc() -> Test_EGL_Context {
-	display := egl.GetPlatformDisplay(.SURFACELESS_MESA, nil, nil)
-	assert(bool(egl.Initialize(display, nil, nil)), "Tests require Mesa EGL (surfaceless platform)")
-	assert(bool(egl.BindAPI(egl.OPENGL_API)))
-	attributes := [?]i32{egl.SURFACE_TYPE, 1, egl.RENDERABLE_TYPE, egl.OPENGL_BIT, egl.RED_SIZE, 8, egl.GREEN_SIZE, 8, egl.BLUE_SIZE, 8, egl.NONE}
-	config: egl.Config
-	count: i32
-	assert(bool(egl.ChooseConfig(display, raw_data(attributes[:]), &config, 1, &count)) && count > 0)
-	context_attributes := [?]i32{egl.CONTEXT_MAJOR_VERSION, 3, egl.CONTEXT_MINOR_VERSION, 3, egl.CONTEXT_OPENGL_PROFILE_MASK, egl.CONTEXT_OPENGL_CORE_PROFILE_BIT, egl.NONE}
-	ctx := egl.CreateContext(display, config, nil, raw_data(context_attributes[:]))
-	assert(ctx != nil && bool(egl.MakeCurrent(display, nil, nil, ctx)), "Tests require OpenGL 3.3")
-	return {display, ctx}
+	display: egl.Display
+	wayland: rawptr
+	surface_type: i32 = 1 // EGL_PBUFFER_BIT
+	when #config(WAYLAND_RENDER_TEST, false) {
+		wayland = wl_display_connect(nil)
+		linux_require(wayland != nil, "Tests require a live Wayland session")
+		display = egl.GetPlatformDisplay(.WAYLAND_KHR, wayland, nil)
+		surface_type = egl.WINDOW_BIT
+	} else {
+		display = egl.GetPlatformDisplay(.SURFACELESS_MESA, nil, nil)
+	}
+	linux_require(bool(egl.Initialize(display, nil, nil)), "Could not initialize test EGL display")
+	config := gles_config(display, surface_type)
+	ctx := gles_context(display, config)
+	linux_require(bool(egl.MakeCurrent(display, nil, nil, ctx)), "Could not make test GLES context current")
+	return {display, ctx, wayland}
 }
 
 @(private)
@@ -180,6 +186,9 @@ destroy_test_egl_context :: proc(state: Test_EGL_Context) {
 	egl.MakeCurrent(state.display, nil, nil, nil)
 	egl.DestroyContext(state.display, state.ctx)
 	egl.Terminate(state.display)
+	if state.wayland != nil {
+		wl_display_disconnect(state.wayland)
+	}
 }
 
 @(private)
@@ -212,10 +221,14 @@ test_render :: proc(t: ^testing.T, renderer: ^GL_Renderer, target: Test_Texture,
 	gl.ClearColor(0, 0, 0, 0)
 	gl.Clear(gl.COLOR_BUFFER_BIT)
 	encode_rectangles(renderer, rectangles, size)
-	gl.ReadPixels(0, 0, target.width, target.height, gl.BGRA, gl.UNSIGNED_BYTE, pixels)
+	gl.ReadPixels(0, 0, target.width, target.height, gl.RGBA, gl.UNSIGNED_BYTE, pixels)
 	testing.expect_value(t, gl.GetError(), u32(gl.NO_ERROR))
 	// ReadPixels returns bottom-to-top rows; expectations use the UI's top-left origin.
 	data := cast([^][4]u8)pixels
+	// GLES guarantees RGBA readback. Keep the BGRA expectations shared with Metal.
+	for i in 0..<target.width * target.height {
+		data[i][0], data[i][2] = data[i][2], data[i][0]
+	}
 	for y in 0..<target.height / 2 {
 		for x in 0..<target.width {
 			a := y * target.width + x

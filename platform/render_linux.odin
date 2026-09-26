@@ -44,6 +44,9 @@ gl_shader :: proc(kind: u32, source: string) -> u32 {
 
 @(private)
 gl_init :: proc(renderer: ^GL_Renderer) {
+	// Odin's GL bindings share these entry points with GLES. Load through 3.3
+	// to include VertexAttribDivisor (desktop 3.3, but core in GLES 3.0).
+	// Only GLES 3.0 entry points are used by this renderer.
 	gl.load_up_to(3, 3, egl.gl_set_proc_address)
 	gl.GetIntegerv(gl.MAX_TEXTURE_SIZE, &renderer.max_texture_size)
 	vertex := gl_shader(gl.VERTEX_SHADER, #load("rectangles.vert"))
