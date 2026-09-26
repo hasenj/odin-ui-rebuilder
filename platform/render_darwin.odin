@@ -19,6 +19,7 @@ Metal_Renderer :: struct {
 	user_data:    rawptr,
 	start:        time.Tick,
 	odin_context: runtime.Context,
+	profiler:     Frame_Profiler,
 }
 
 // Explicit padding keeps the array stride identical to the Metal struct.

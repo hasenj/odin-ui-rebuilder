@@ -4,13 +4,15 @@ import ns "core:sys/darwin/Foundation"
 import mtk "vendor:darwin/MetalKit"
 import "base:intrinsics"
 import "core:time"
+import "core:fmt"
 import "../core/primitives"
 
 // Odin selects this implementation by the _darwin file suffix.
 @(private)
-open_window_impl :: proc(title: string, width, height: int, frame: Frame_Proc, user_data: rawptr) {
+open_window_impl :: proc(title: string, width, height: int, frame: Frame_Proc, user_data: rawptr, frame_timing: Frame_Timing) {
 	app: ^ns.Application
 	renderer := Metal_Renderer{frame = frame, user_data = user_data, odin_context = context}
+	renderer.profiler.mode = frame_timing
 	{
 		// Drain startup temporaries before entering AppKit's event loop, which
 		// manages its own autorelease pools while processing events.
@@ -62,6 +64,9 @@ open_window_impl :: proc(title: string, width, height: int, frame: Frame_Proc, u
 		app->activateIgnoringOtherApps(true)
 	}
 
+	if frame_timing != .Disabled {
+		fmt.println("[frame timing] CPU wall time; submit includes drawable waits. GPU execution and logging are excluded. Interval measures callback spacing; the first interval is 0.")
+	}
 	app->run()
 }
 
@@ -89,17 +94,39 @@ install_view_delegate :: proc(renderer: ^Metal_Renderer) {
 draw_frame :: proc "c" (self: ns.id, _: ns.SEL, view: ^mtk.View) {
 	renderer := (cast(^^Metal_Renderer)ns.object_getIndexedIvars(self))^
 	context = renderer.odin_context
+	profiling := renderer.profiler.mode != .Disabled
+	start, update_start, submit_start: time.Tick
+	update_ms, submit_ms: f64
+	rectangles: []primitives.Rectangle
+	if profiling {
+		start = time.tick_now()
+	}
+	// This defer runs after the autorelease pool and temporary allocator cleanup.
+	defer {
+		if profiling {
+			record_frame_timing(&renderer.profiler, start, update_ms, submit_ms, len(rectangles))
+		}
+	}
 	ns.scoped_autoreleasepool()
 	// Temporary app allocations last through submission of this frame only.
 	defer free_all(context.temp_allocator)
 	bounds := view->bounds()
 	size := [2]f32{f32(bounds.size.width), f32(bounds.size.height)}
-	rectangles: []primitives.Rectangle
+	if profiling {
+		update_start = time.tick_now()
+	}
 	if renderer.frame != nil {
 		elapsed := time.duration_seconds(time.tick_since(renderer.start))
 		rectangles = renderer.frame(elapsed, size, renderer.user_data)
 	}
+	if profiling {
+		submit_start = time.tick_now()
+		update_ms = time.duration_milliseconds(time.tick_diff(update_start, submit_start))
+	}
 	render(Renderer(renderer), rectangles, size)
+	if profiling {
+		submit_ms = time.duration_milliseconds(time.tick_since(submit_start))
+	}
 }
 
 @(private)

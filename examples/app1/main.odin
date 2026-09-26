@@ -4,7 +4,9 @@ import ui "../../core"
 import "core:math"
 
 main :: proc() {
-	ui.open_window("Odin UI Rebuilder — rectangles", 960, 640, update)
+	// Use -define:PROFILE_EVERY_FRAME=true to print individual frame timings.
+	timing: ui.Frame_Timing = .Every_Frame when #config(PROFILE_EVERY_FRAME, false) else .Summary
+	ui.open_window("Odin UI Rebuilder — rectangles", 960, 640, update, frame_timing = timing)
 }
 
 update :: proc(frame: ^ui.Frame) {
