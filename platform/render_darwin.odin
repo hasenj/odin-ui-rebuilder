@@ -8,6 +8,7 @@ import ns "core:sys/darwin/Foundation"
 import mtl "vendor:darwin/Metal"
 import mtk "vendor:darwin/MetalKit"
 import "../core/primitives"
+import "../core/input"
 
 @(private)
 Metal_Renderer :: struct {
@@ -17,6 +18,7 @@ Metal_Renderer :: struct {
 	view:         ^mtk.View,
 	frame:        Frame_Proc,
 	user_data:    rawptr,
+	input_state:  ^input.State,
 	start:        time.Tick,
 	odin_context: runtime.Context,
 	profiler:     Frame_Profiler,

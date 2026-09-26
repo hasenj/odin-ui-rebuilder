@@ -1,15 +1,18 @@
 package ui
 
 import "primitives"
+import "input"
 
 Rectangle :: primitives.Rectangle
 Color :: primitives.Color
+Input :: input.State
 
 // The framework clears rectangles before each update, retaining its capacity.
 // Append this frame's primitives; do not retain the slice across updates.
 Frame :: struct {
 	time:       f64, // Monotonic seconds since the window opened.
 	size:       [2]f32, // Current content size in logical points.
+	input:      Input, // Current input snapshot; read this during update.
 	rectangles: [dynamic]Rectangle,
 }
 

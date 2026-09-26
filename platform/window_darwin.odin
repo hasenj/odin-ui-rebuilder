@@ -6,13 +6,15 @@ import "base:intrinsics"
 import "core:time"
 import "core:fmt"
 import "../core/primitives"
+import "../core/input"
 
 // Odin selects this implementation by the _darwin file suffix.
 @(private)
-open_window_impl :: proc(title: string, width, height: int, frame: Frame_Proc, user_data: rawptr, frame_timing: Frame_Timing) {
+open_window_impl :: proc(title: string, width, height: int, frame: Frame_Proc, user_data: rawptr, frame_timing: Frame_Timing, input_state: ^input.State) {
 	app: ^ns.Application
 	renderer := Metal_Renderer{frame = frame, user_data = user_data, odin_context = context}
 	renderer.profiler.mode = frame_timing
+	renderer.input_state = input_state
 	{
 		// Drain startup temporaries before entering AppKit's event loop, which
 		// manages its own autorelease pools while processing events.
@@ -112,6 +114,7 @@ draw_frame :: proc "c" (self: ns.id, _: ns.SEL, view: ^mtk.View) {
 	defer free_all(context.temp_allocator)
 	bounds := view->bounds()
 	size := [2]f32{f32(bounds.size.width), f32(bounds.size.height)}
+	sample_input(view, renderer.input_state)
 	if profiling {
 		update_start = time.tick_now()
 	}
