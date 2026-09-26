@@ -2,6 +2,7 @@ package ui
 
 import "primitives"
 import "input"
+import "../platform"
 
 Rectangle :: primitives.Rectangle
 Color :: primitives.Color
@@ -15,6 +16,7 @@ Frame :: struct {
 	time:       f64, // Monotonic seconds since the window opened.
 	size:       [2]f32, // Current content size in logical points.
 	input:      Input, // Current input snapshot; read this during update.
+	renderer:   platform.Renderer, // Used by image loading; owned by the window.
 	rectangles: [dynamic]Rectangle,
 }
 
@@ -27,10 +29,11 @@ Frame_State :: struct {
 }
 
 @(private)
-build_frame :: proc(elapsed: f64, size: [2]f32, user_data: rawptr) -> []Rectangle {
+build_frame :: proc(renderer: platform.Renderer, elapsed: f64, size: [2]f32, user_data: rawptr) -> []Rectangle {
 	state := cast(^Frame_State)user_data
 	state.frame.time = elapsed
 	state.frame.size = size
+	state.frame.renderer = renderer
 	clear(&state.frame.rectangles)
 	if state.update != nil {
 		state.update(&state.frame)

@@ -120,7 +120,7 @@ draw_frame :: proc "c" (self: ns.id, _: ns.SEL, view: ^mtk.View) {
 	}
 	if renderer.frame != nil {
 		elapsed := time.duration_seconds(time.tick_since(renderer.start))
-		rectangles = renderer.frame(elapsed, size, renderer.user_data)
+		rectangles = renderer.frame(Renderer(renderer), elapsed, size, renderer.user_data)
 	}
 	if profiling {
 		submit_start = time.tick_now()

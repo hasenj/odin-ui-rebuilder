@@ -12,16 +12,19 @@ import "../core/input"
 
 @(private)
 Metal_Renderer :: struct {
-	device:       ^mtl.Device,
-	queue:        ^mtl.CommandQueue,
-	pipeline:     ^mtl.RenderPipelineState,
-	view:         ^mtk.View,
-	frame:        Frame_Proc,
-	user_data:    rawptr,
-	input_state:  ^input.State,
-	start:        time.Tick,
-	odin_context: runtime.Context,
-	profiler:     Frame_Profiler,
+	device:        ^mtl.Device,
+	queue:         ^mtl.CommandQueue,
+	pipeline:      ^mtl.RenderPipelineState,
+	white_texture: ^mtl.Texture,
+	images:        map[u64]^mtl.Texture,
+	next_image_id:  u64,
+	view:          ^mtk.View,
+	frame:         Frame_Proc,
+	user_data:     rawptr,
+	input_state:   ^input.State,
+	start:         time.Tick,
+	odin_context:  runtime.Context,
+	profiler:      Frame_Profiler,
 }
 
 // Explicit padding keeps the array stride identical to the Metal struct.
@@ -79,10 +82,19 @@ metal_init :: proc(renderer: ^Metal_Renderer) {
 		metal_fail("Could not create the rectangle pipeline", pipeline_error)
 	}
 	renderer.pipeline = pipeline
+	renderer.images = make(map[u64]^mtl.Texture)
+	white := [4]u8{255, 255, 255, 255}
+	renderer.white_texture = upload_texture(renderer.device, white[:], {1, 1})
+	assert(renderer.white_texture != nil, "Could not create the solid-color texture")
 }
 
 @(private)
 metal_destroy :: proc(renderer: ^Metal_Renderer) {
+	for _, texture in renderer.images {
+		texture->release()
+	}
+	delete(renderer.images)
+	renderer.white_texture->release()
 	renderer.pipeline->release()
 	renderer.queue->release()
 	renderer.device->release()
@@ -132,10 +144,27 @@ encode_rectangles :: proc(renderer: ^Metal_Renderer, encoder: ^mtl.RenderCommand
 	// 64 * 48 bytes stays below Metal's 4 KiB inline-data limit.
 	batch: [64]GPU_Rectangle
 	count := 0
+	batch_texture: ^mtl.Texture
 	for rectangle in rectangles {
 		if rectangle.size.x <= 0 || rectangle.size.y <= 0 {
 			continue
 		}
+		texture := renderer.white_texture
+		if rectangle.image.id != 0 {
+			texture = renderer.images[rectangle.image.id]
+			if texture == nil {
+				continue // Released or invalid image handle.
+			}
+		}
+		// Only batch adjacent primitives with the same texture, preserving the
+		// original draw order across solid rectangles and overlapping images.
+		if count > 0 && texture != batch_texture {
+			encoder->setFragmentTexture(batch_texture, 0)
+			encoder->setVertexBytes(mem.slice_to_bytes(batch[:count]), 0)
+			encoder->drawPrimitivesWithInstanceCount(.TriangleStrip, 0, 4, ns.UInteger(count))
+			count = 0
+		}
+		batch_texture = texture
 		batch[count] = {
 			position = rectangle.position,
 			size = rectangle.size,
@@ -147,12 +176,14 @@ encode_rectangles :: proc(renderer: ^Metal_Renderer, encoder: ^mtl.RenderCommand
 		}
 		count += 1
 		if count == len(batch) {
+			encoder->setFragmentTexture(batch_texture, 0)
 			encoder->setVertexBytes(mem.slice_to_bytes(batch[:count]), 0)
 			encoder->drawPrimitivesWithInstanceCount(.TriangleStrip, 0, 4, ns.UInteger(count))
 			count = 0
 		}
 	}
 	if count > 0 {
+		encoder->setFragmentTexture(batch_texture, 0)
 		encoder->setVertexBytes(mem.slice_to_bytes(batch[:count]), 0)
 		encoder->drawPrimitivesWithInstanceCount(.TriangleStrip, 0, 4, ns.UInteger(count))
 	}

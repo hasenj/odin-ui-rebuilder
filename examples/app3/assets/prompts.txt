@@ -1,0 +1,11 @@
+Generated with the built-in imagegen tool.
+
+coast.png
+Use case: stylized-concept. Asset type: sample image for a native UI image-rendering demo. Create a square illustration of a tiny red lighthouse on a rocky island above a turquoise sea, warm evening light, soft painterly texture, clean readable shapes. Fill the canvas; no border, text, logos, or watermark.
+
+oranges.png
+Use case: photorealistic-natural. Asset type: sample image for a native UI image-rendering demo. Create a square close-up still life of three fresh oranges and a sliced orange on a cobalt-blue ceramic plate, natural window light, detailed peel texture and soft shadows. Fill the canvas; no border, text, logos, or watermark.
+
+robot.png
+Use case: stylized-concept. Asset type: transparent sample image for a native UI alpha-blending demo. A friendly small cream-and-orange retro robot with a round body and two antennae, polished 3D clay-like illustration, full body centered with generous clear padding. Genuinely transparent background with alpha, no opaque backdrop, no checkerboard, no text, logos, or watermark.
+

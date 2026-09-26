@@ -5,6 +5,7 @@ import "core:testing"
 import ns "core:sys/darwin/Foundation"
 import mtl "vendor:darwin/Metal"
 import "../core/primitives"
+import "../core/images"
 
 // Runs the actual shader and blend pipeline, then reads GPU output back.
 // Run on a Mac with a Metal GPU: odin test platform -out:bin/platform-tests
@@ -62,6 +63,44 @@ metal_rectangle_rendering :: proc(t: ^testing.T) {
 	test_render(t, &renderer, retina, scene[:], {128, 96}, raw_data(retina_pixels))
 	expect_pixel(t, retina_pixels[40 * 256 + 56], {0, 0, 255, 255})
 	expect_pixel(t, retina_pixels[18 * 256 + 18], {})
+
+	// Decode a known PNG and exercise upload, sampling, mixed draw order, tint,
+	// clipping, handle reuse, and destruction through the actual GPU pipeline.
+	decoded, decode_error := images.load_bytes(#load("../core/images/testdata/rgba.png", []u8))
+	if !testing.expect(t, decode_error == nil) {
+		return
+	}
+	image, image_error := create_image(Renderer(&renderer), decoded.pixels.buf[:], {decoded.width, decoded.height})
+	images.destroy(decoded) // Upload must not retain CPU pixels.
+	if !testing.expect_value(t, image_error, Image_Error.None) {
+		return
+	}
+	image_scene := [?]primitives.Rectangle{
+		{size = {128, 96}, background = {1, 1, 1, 1}},
+		{position = {8, 8}, size = {64, 64}, background = {1, 1, 1, 1}, image = image},
+		{position = {80, 8}, size = {40, 40}, background = {0.5, 1, 1, 0.5}, corner_radius = 12, image = image},
+		{position = {24, 24}, size = {8, 8}, background = {0, 0, 0, 1}},
+	}
+	test_render(t, &renderer, texture, image_scene[:], {128, 96}, raw_data(pixels[:]))
+	expect_pixel(t, pixels[16 * 128 + 16], {0, 0, 255, 255}) // Top-left red.
+	expect_pixel(t, pixels[16 * 128 + 64], {0, 255, 0, 255}) // Top-right green.
+	expect_pixel(t, pixels[64 * 128 + 16], {255, 127, 127, 255}) // Half-blue over white.
+	expect_pixel(t, pixels[64 * 128 + 64], {255, 255, 255, 255}) // Transparent texel.
+	expect_pixel(t, pixels[26 * 128 + 26], {0, 0, 0, 255}) // Solid overlays image.
+	expect_pixel(t, pixels[9 * 128 + 81], {255, 255, 255, 255}) // Rounded image corner.
+	expect_pixel(t, pixels[17 * 128 + 89], {128, 128, 191, 255}) // Tint and opacity.
+	testing.expect_value(t, len(renderer.images), 1) // One resource, multiple draws.
+
+	destroy_image(Renderer(&renderer), image)
+	destroy_image(Renderer(&renderer), image) // Repeated destruction is harmless.
+	testing.expect_value(t, len(renderer.images), 0)
+	test_render(t, &renderer, texture, image_scene[1:2], {128, 96}, raw_data(pixels[:]))
+	expect_pixel(t, pixels[16 * 128 + 16], {}) // Stale handles are skipped.
+	white := [4]u8{255, 255, 255, 255}
+	replacement, replacement_error := create_image(Renderer(&renderer), white[:], {1, 1})
+	testing.expect_value(t, replacement_error, Image_Error.None)
+	testing.expect(t, replacement.id != image.id, "Destroyed image ids must not be recycled")
+	destroy_image(Renderer(&renderer), replacement)
 }
 
 @(private)
