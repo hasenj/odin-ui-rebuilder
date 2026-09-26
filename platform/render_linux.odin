@@ -1,0 +1,164 @@
+package platform
+
+import "core:fmt"
+import gl "vendor:OpenGL"
+import egl "vendor:egl"
+import "../core/primitives"
+
+@(private)
+GL_Renderer :: struct {
+	display: egl.Display,
+	surface: egl.Surface,
+	program, vao, buffer, white_texture: u32,
+	viewport_location: i32,
+	pixel_size: [2]i32,
+	max_texture_size: i32,
+	images: [dynamic]Image_Slot,
+	free_image: u32,
+}
+
+@(private)
+GPU_Rectangle :: struct {
+	position, size: [2]f32,
+	color: [4]f32,
+	radius: f32,
+}
+
+@(private)
+gl_shader :: proc(kind: u32, source: string) -> u32 {
+	shader := gl.CreateShader(kind)
+	text := cstring(raw_data(source))
+	length := i32(len(source))
+	gl.ShaderSource(shader, 1, &text, &length)
+	gl.CompileShader(shader)
+	ok: i32
+	gl.GetShaderiv(shader, gl.COMPILE_STATUS, &ok)
+	if ok == 0 {
+		log: [4096]u8
+		gl.GetShaderInfoLog(shader, i32(len(log)), &length, raw_data(log[:]))
+		fmt.eprintln(string(log[:length]))
+		panic("Could not compile OpenGL rectangle shader")
+	}
+	return shader
+}
+
+@(private)
+gl_init :: proc(renderer: ^GL_Renderer) {
+	gl.load_up_to(3, 3, egl.gl_set_proc_address)
+	gl.GetIntegerv(gl.MAX_TEXTURE_SIZE, &renderer.max_texture_size)
+	vertex := gl_shader(gl.VERTEX_SHADER, #load("rectangles.vert"))
+	fragment := gl_shader(gl.FRAGMENT_SHADER, #load("rectangles.frag"))
+	defer gl.DeleteShader(vertex)
+	defer gl.DeleteShader(fragment)
+	renderer.program = gl.CreateProgram()
+	gl.AttachShader(renderer.program, vertex)
+	gl.AttachShader(renderer.program, fragment)
+	gl.LinkProgram(renderer.program)
+	ok: i32
+	gl.GetProgramiv(renderer.program, gl.LINK_STATUS, &ok)
+	if ok == 0 {
+		log: [4096]u8
+		length: i32
+		gl.GetProgramInfoLog(renderer.program, i32(len(log)), &length, raw_data(log[:]))
+		fmt.eprintln(string(log[:length]))
+		panic("Could not link OpenGL rectangle shaders")
+	}
+	gl.UseProgram(renderer.program)
+	renderer.viewport_location = gl.GetUniformLocation(renderer.program, "viewport")
+	gl.Uniform1i(gl.GetUniformLocation(renderer.program, "image"), 0)
+	gl.GenVertexArrays(1, &renderer.vao)
+	gl.GenBuffers(1, &renderer.buffer)
+	gl.BindVertexArray(renderer.vao)
+	gl.BindBuffer(gl.ARRAY_BUFFER, renderer.buffer)
+	counts := [?]i32{2, 2, 4, 1}
+	offsets := [?]uintptr{offset_of(GPU_Rectangle, position), offset_of(GPU_Rectangle, size), offset_of(GPU_Rectangle, color), offset_of(GPU_Rectangle, radius)}
+	for count, i in counts {
+		gl.EnableVertexAttribArray(u32(i))
+		gl.VertexAttribPointer(u32(i), count, gl.FLOAT, false, size_of(GPU_Rectangle), offsets[i])
+		gl.VertexAttribDivisor(u32(i), 1)
+	}
+	gl.Enable(gl.BLEND)
+	gl.BlendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA)
+	renderer.images = make([dynamic]Image_Slot)
+	white := [4]u8{255, 255, 255, 255}
+	renderer.white_texture = upload_texture(white[:], {1, 1})
+	linux_require(renderer.white_texture != 0, "Could not create the solid-color texture")
+}
+
+@(private)
+gl_destroy :: proc(renderer: ^GL_Renderer) {
+	for slot in renderer.images {
+		if slot.texture != 0 {
+			texture := slot.texture
+			gl.DeleteTextures(1, &texture)
+		}
+	}
+	delete(renderer.images)
+	gl.DeleteTextures(1, &renderer.white_texture)
+	gl.DeleteBuffers(1, &renderer.buffer)
+	gl.DeleteVertexArrays(1, &renderer.vao)
+	gl.DeleteProgram(renderer.program)
+}
+
+@(private)
+render_impl :: proc(handle: Renderer, rectangles: []primitives.Rectangle, size: [2]f32) {
+	renderer := cast(^GL_Renderer)handle
+	gl.Viewport(0, 0, renderer.pixel_size.x, renderer.pixel_size.y)
+	gl.ClearColor(0.035, 0.045, 0.065, 1)
+	gl.Clear(gl.COLOR_BUFFER_BIT)
+	encode_rectangles(renderer, rectangles, size)
+	linux_require(bool(egl.SwapBuffers(renderer.display, renderer.surface)), "EGL buffer swap failed")
+}
+
+@(private)
+encode_rectangles :: proc(renderer: ^GL_Renderer, rectangles: []primitives.Rectangle, size: [2]f32) {
+	if size.x <= 0 || size.y <= 0 {
+		return
+	}
+	gl.UseProgram(renderer.program)
+	gl.Uniform2f(renderer.viewport_location, size.x, size.y)
+	gl.BindVertexArray(renderer.vao)
+	gl.BindBuffer(gl.ARRAY_BUFFER, renderer.buffer)
+	gl.ActiveTexture(gl.TEXTURE0)
+	batch: [64]GPU_Rectangle
+	count := 0
+	batch_texture: u32
+	for rectangle in rectangles {
+		if rectangle.size.x <= 0 || rectangle.size.y <= 0 {
+			continue
+		}
+		texture := renderer.white_texture
+		if rectangle.image != (primitives.Image{}) {
+			slot := lookup_image(renderer, rectangle.image)
+			if slot == nil {
+				continue
+			}
+			texture = slot.texture
+		}
+		if count > 0 && texture != batch_texture {
+			gl_batch(batch[:count], batch_texture)
+			count = 0
+		}
+		batch_texture = texture
+		batch[count] = {rectangle.position, rectangle.size, rectangle.background, clamp(rectangle.corner_radius, 0, min(rectangle.size.x, rectangle.size.y) * 0.5)}
+		for &component in batch[count].color {
+			component = clamp(component, 0, 1)
+		}
+		count += 1
+		if count == len(batch) {
+			gl_batch(batch[:count], batch_texture)
+			count = 0
+		}
+	}
+	if count > 0 {
+		gl_batch(batch[:count], batch_texture)
+	}
+}
+
+@(private)
+gl_batch :: proc(batch: []GPU_Rectangle, texture: u32) {
+	gl.BindTexture(gl.TEXTURE_2D, texture)
+	// Orphaning gives the driver fresh backing storage while prior draws finish.
+	gl.BufferData(gl.ARRAY_BUFFER, len(batch) * size_of(GPU_Rectangle), raw_data(batch), gl.STREAM_DRAW)
+	gl.DrawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, i32(len(batch)))
+}

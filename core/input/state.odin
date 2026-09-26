@@ -10,11 +10,14 @@ Mouse_Buttons :: bit_set[Mouse_Button; u8]
 
 State :: struct {
 	// Logical points relative to the content area's top left, with Y down.
-	// Position continues updating outside the content area and is not clamped.
+	// May continue outside during a drag. Wayland retains the last known
+	// position after pointer leave; macOS can sample global pointer position.
 	mouse_position: [2]f32,
-	// Geometric containment in the content area, not an occlusion/focus test.
+	// Pointer is known to be inside the content area. Wayland also requires
+	// pointer focus, since global pointer position is not available.
 	mouse_inside: bool,
-	// Currently held buttons, refreshed every frame. Both flags may be set.
+	// Currently known held buttons. Both flags may be set. Wayland clears
+	// the set on pointer leave or loss of the pointer device.
 	// This is down-state, not a one-frame click or release event.
 	mouse_buttons: Mouse_Buttons,
 }

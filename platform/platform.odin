@@ -1,3 +1,3 @@
 package platform
 
-#assert(ODIN_OS == .Darwin, "odin-ui-rebuilder currently supports macOS only")
+#assert(ODIN_OS == .Darwin || ODIN_OS == .Linux, "odin-ui-rebuilder supports macOS and Linux/Wayland")

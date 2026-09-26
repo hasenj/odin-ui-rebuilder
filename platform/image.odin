@@ -19,7 +19,7 @@ create_image :: proc(renderer: Renderer, pixels: []u8, size: [2]int) -> (primiti
 	if size.x <= 0 || size.y <= 0 {
 		return {}, .Invalid_Pixels
 	}
-	// All supported desktop Metal GPU families allow at least 16384 per axis.
+	// Shared upper limit; the backend also checks any lower device limit.
 	if size.x > 16384 || size.y > 16384 {
 		return {}, .Too_Large
 	}
