@@ -27,9 +27,14 @@ The app exits when the window is closed
 
 Dir structure:
 
-    platform/darwin
+    platform/
     core/
     examples/app0
+
+The core imports only the general platform package. Common files in platform/
+define its public procedures and shared types; OS-specific files in the same
+package implement them. Odin selects implementations using file suffixes such as
+window_darwin.odin. There are no separate platform implementation subpackages.
 
 ## Milestone 1: Rendering primitives
 

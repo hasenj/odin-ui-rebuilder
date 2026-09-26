@@ -5,9 +5,10 @@ update. Milestone 0 establishes a native macOS window and the package boundaries
 
 - `examples/app0` imports the framework and calls `ui.open_window`.
 - `core` exposes the application-facing API and imports only `platform`.
-- `platform` selects the native implementation through OS-specific file suffixes.
-- `platform/darwin` owns the AppKit application, window, and event loop using
-  Odin's `core:sys/darwin/Foundation` bindings.
+- `platform/window.odin` defines the common platform API.
+- `platform/window_darwin.odin` implements that API in the same package, using
+  Odin's `core:sys/darwin/Foundation` bindings for the AppKit application, window,
+  and event loop. Odin selects this file by its OS suffix.
 
 All project code is Odin. It links to macOS system frameworks through Odin's
 bindings; no C or Objective-C source, third-party windowing library, or app bundle
