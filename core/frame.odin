@@ -6,6 +6,8 @@ import "input"
 Rectangle :: primitives.Rectangle
 Color :: primitives.Color
 Input :: input.State
+Mouse_Button :: input.Mouse_Button
+Mouse_Buttons :: input.Mouse_Buttons
 
 // The framework clears rectangles before each update, retaining its capacity.
 // Append this frame's primitives; do not retain the slice across updates.

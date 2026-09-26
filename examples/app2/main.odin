@@ -38,9 +38,19 @@ update :: proc(frame: ^ui.Frame) {
 	// Input is a snapshot, not an event callback. Emit the follower last so it
 	// stays above the animated rectangles. Its center tracks the pointer.
 	if frame.input.mouse_inside {
+		color: ui.Color = {1, 1, 1, 0.9}
+		left := .Left in frame.input.mouse_buttons
+		right := .Right in frame.input.mouse_buttons
+		if left && right {
+			color = {0.75, 0.25, 1, 1} // Both held: purple.
+		} else if left {
+			color = {1, 0.35, 0.12, 1} // Left held: orange.
+		} else if right {
+			color = {0.15, 0.5, 1, 1} // Right held: blue.
+		}
 		append(&frame.rectangles, ui.Rectangle{
 			position = frame.input.mouse_position - 20,
-			size = {40, 40}, background = {1, 1, 1, 0.9}, corner_radius = 8,
+			size = {40, 40}, background = color, corner_radius = 8,
 		})
 	}
 }
