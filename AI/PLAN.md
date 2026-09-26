@@ -1,3 +1,5 @@
+This file is maintained by the human programmer (Hasen). Do not edit it unles explicitly requested to.
+
 ## Project Description:
 
 UI framework where the whole UI is reconstructed each time we update the UI
@@ -59,4 +61,3 @@ Frame updates still happen at 60fps
 Example app still shows rectangles moving across the screen, but in addition, we show a rectangle that follows the mouse
 
 Input is not an "event"; just data. The app code simply reads the input data form `core` that was written by the `platform`
-
