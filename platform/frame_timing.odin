@@ -27,7 +27,7 @@ Frame_Profiler :: struct {
 // Called after frame cleanup. Printing and statistics bookkeeping are excluded
 // from CPU time, but their overhead is reflected in the next callback interval.
 @(private)
-record_frame_timing :: proc(p: ^Frame_Profiler, start: time.Tick, update_ms, submit_ms: f64, rectangles: int) {
+record_frame_timing :: proc(p: ^Frame_Profiler, start: time.Tick, update_ms, submit_ms: f64, surfaces: int) {
 	end := time.tick_now()
 	cpu_ms := time.duration_milliseconds(time.tick_diff(start, end))
 	interval_ms: f64
@@ -42,8 +42,8 @@ record_frame_timing :: proc(p: ^Frame_Profiler, start: time.Tick, update_ms, sub
 	p.frames += 1
 
 	if p.mode == .Every_Frame {
-		fmt.printf("[frame %d] CPU %.3f ms | update %.3f ms | submit %.3f ms | interval %.3f ms | rectangles %d\n",
-			p.frames, cpu_ms, update_ms, submit_ms, interval_ms, rectangles)
+		fmt.printf("[frame %d] CPU %.3f ms | update %.3f ms | submit %.3f ms | interval %.3f ms | surfaces %d\n",
+			p.frames, cpu_ms, update_ms, submit_ms, interval_ms, surfaces)
 		return
 	}
 
@@ -60,9 +60,9 @@ record_frame_timing :: proc(p: ^Frame_Profiler, start: time.Tick, update_ms, sub
 		fps = 1000 * f64(p.interval_count) / p.interval_sum_ms
 	}
 	n := f64(p.count)
-	fmt.printf("[frames %d..%d] CPU avg/max %.3f/%.3f ms | update avg %.3f ms | submit avg %.3f ms | callbacks %.1f/s | rectangles %d\n",
+	fmt.printf("[frames %d..%d] CPU avg/max %.3f/%.3f ms | update avg %.3f ms | submit avg %.3f ms | callbacks %.1f/s | surfaces %d\n",
 		p.frames - u64(p.count) + 1, p.frames, p.cpu_sum_ms / n, p.cpu_max_ms,
-		p.update_sum_ms / n, p.submit_sum_ms / n, fps, rectangles)
+		p.update_sum_ms / n, p.submit_sum_ms / n, fps, surfaces)
 	p.report_start = end
 	p.count = 0
 	p.interval_count = 0

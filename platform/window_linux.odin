@@ -115,13 +115,13 @@ wayland_frame :: proc(window: ^Wayland_Window, frame: Frame_Proc, user_data: raw
 	profiling := profiler.mode != .Disabled
 	frame_start, update_start, submit_start: time.Tick
 	update_ms, submit_ms: f64
-	rectangles: []primitives.Rectangle
+	surfaces: []primitives.Surface
 	if profiling {
 		frame_start = time.tick_now()
 	}
 	defer {
 		if profiling {
-			record_frame_timing(profiler, frame_start, update_ms, submit_ms, len(rectangles))
+			record_frame_timing(profiler, frame_start, update_ms, submit_ms, len(surfaces))
 		}
 	}
 	defer free_all(context.temp_allocator)
@@ -138,13 +138,13 @@ wayland_frame :: proc(window: ^Wayland_Window, frame: Frame_Proc, user_data: raw
 	}
 	size := [2]f32{f32(window.width), f32(window.height)}
 	if frame != nil {
-		rectangles = frame(Renderer(&window.renderer), time.duration_seconds(time.tick_since(start)), size, user_data)
+		surfaces = frame(Renderer(&window.renderer), time.duration_seconds(time.tick_since(start)), size, user_data)
 	}
 	if profiling {
 		submit_start = time.tick_now()
 		update_ms = time.duration_milliseconds(time.tick_diff(update_start, submit_start))
 	}
-	render(Renderer(&window.renderer), rectangles, size)
+	render(Renderer(&window.renderer), surfaces, size)
 	if profiling {
 		submit_ms = time.duration_milliseconds(time.tick_since(submit_start))
 	}

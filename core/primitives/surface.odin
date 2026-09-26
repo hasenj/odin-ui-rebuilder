@@ -5,13 +5,13 @@ package primitives
 Color :: [4]f32
 
 // Coordinates are logical points, with the origin at the top left and Y down.
-// Rectangles draw in slice order, with later rectangles on top.
-Rectangle :: struct {
+// Surfaces draw in slice order, with later surfaces on top.
+Surface :: struct {
 	position:      [2]f32,
 	size:          [2]f32,
 	background:    Color,
 	corner_radius: f32,
-	// Optional image stretched over this rectangle. background becomes a tint;
+	// Optional image stretched over this surface. background becomes a tint;
 	// use opaque white for the original image colors. Corners clip the image.
 	image:         Image,
 }

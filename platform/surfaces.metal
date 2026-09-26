@@ -1,8 +1,8 @@
 #include <metal_stdlib>
 using namespace metal;
 
-// Matches GPU_Rectangle in render_darwin.odin (48-byte stride).
-struct Rectangle {
+// Matches GPU_Surface in render_darwin.odin (48-byte stride).
+struct Surface {
     float2 position;
     float2 size;
     float4 color;
@@ -18,15 +18,15 @@ struct Vertex_Out {
     float radius [[flat]];
 };
 
-vertex Vertex_Out rectangle_vertex(
+vertex Vertex_Out surface_vertex(
     uint vertex_id [[vertex_id]],
     uint instance_id [[instance_id]],
-    constant Rectangle *rectangles [[buffer(0)]],
+    constant Surface *surfaces [[buffer(0)]],
     constant float2 &viewport [[buffer(1)]])
 {
     constexpr float2 corners[] = {{0, 0}, {1, 0}, {0, 1}, {1, 1}};
-    Rectangle r = rectangles[instance_id];
-    // Extend the quad for antialiasing outside the rectangle's boundary.
+    Surface r = surfaces[instance_id];
+    // Extend the quad for antialiasing outside the surface's boundary.
     float2 local = corners[vertex_id] * (r.size + 2.0) - 1.0;
     float2 point = r.position + local;
     Vertex_Out out;
@@ -39,7 +39,7 @@ vertex Vertex_Out rectangle_vertex(
     return out;
 }
 
-fragment float4 rectangle_fragment(Vertex_Out in [[stage_in]], texture2d<float> image [[texture(0)]])
+fragment float4 surface_fragment(Vertex_Out in [[stage_in]], texture2d<float> image [[texture(0)]])
 {
     float2 half_size = in.size * 0.5;
     float2 q = abs(in.local - half_size) - (half_size - in.radius);

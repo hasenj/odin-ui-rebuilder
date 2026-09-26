@@ -11,6 +11,6 @@ Frame_Timing :: platform.Frame_Timing
 open_window :: proc(title: string, width: int = 800, height: int = 600, update: Update = nil, frame_timing: Frame_Timing = .Disabled) {
 	assert(width > 0 && height > 0, "Window dimensions must be positive")
 	state := Frame_State{update = update}
-	defer delete(state.frame.rectangles)
+	defer destroy_frame_state(&state)
 	platform.open_window(title, width, height, build_frame, &state, frame_timing, &state.frame.input)
 }

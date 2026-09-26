@@ -99,14 +99,14 @@ draw_frame :: proc "c" (self: ns.id, _: ns.SEL, view: ^mtk.View) {
 	profiling := renderer.profiler.mode != .Disabled
 	start, update_start, submit_start: time.Tick
 	update_ms, submit_ms: f64
-	rectangles: []primitives.Rectangle
+	surfaces: []primitives.Surface
 	if profiling {
 		start = time.tick_now()
 	}
 	// This defer runs after the autorelease pool and temporary allocator cleanup.
 	defer {
 		if profiling {
-			record_frame_timing(&renderer.profiler, start, update_ms, submit_ms, len(rectangles))
+			record_frame_timing(&renderer.profiler, start, update_ms, submit_ms, len(surfaces))
 		}
 	}
 	ns.scoped_autoreleasepool()
@@ -120,13 +120,13 @@ draw_frame :: proc "c" (self: ns.id, _: ns.SEL, view: ^mtk.View) {
 	}
 	if renderer.frame != nil {
 		elapsed := time.duration_seconds(time.tick_since(renderer.start))
-		rectangles = renderer.frame(Renderer(renderer), elapsed, size, renderer.user_data)
+		surfaces = renderer.frame(Renderer(renderer), elapsed, size, renderer.user_data)
 	}
 	if profiling {
 		submit_start = time.tick_now()
 		update_ms = time.duration_milliseconds(time.tick_diff(update_start, submit_start))
 	}
-	render(Renderer(renderer), rectangles, size)
+	render(Renderer(renderer), surfaces, size)
 	if profiling {
 		submit_ms = time.duration_milliseconds(time.tick_since(submit_start))
 	}

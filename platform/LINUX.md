@@ -27,7 +27,8 @@ Wayland client 1.20+ is required for `wl_proxy_marshal_array_flags`.
 Run the application from a terminal in the graphical Wayland session, as your
 normal user. `WAYLAND_DISPLAY` and `XDG_RUNTIME_DIR` must refer to that session;
 running it through an unrelated SSH session or with sudo will not set those up.
-The existing app0–app3 examples work on either platform; app3 embeds its assets.
+The app0–app4 examples target either platform; app3 embeds its assets, and app4
+demonstrates nested row/column layout and animated content sizing.
 
 For a VM without working accelerated OpenGL, try Mesa software rendering:
 
@@ -50,7 +51,8 @@ shared function bindings; loading those bindings does not select desktop GL.
 ./scripts/check-linux.sh
 ```
 
-This runs image decoder tests, Linux GLES pixel-readback tests, and optimized
+This runs layout and frame integration tests, image decoder tests, Linux GLES
+pixel-readback tests, and optimized
 builds of all examples. The rendering tests use Mesa's surfaceless EGL platform
 and do not require a visible window. They cover rounded corners, alpha blending,
 image orientation, tint, draw order, batching, Retina-style scaling, slot reuse,

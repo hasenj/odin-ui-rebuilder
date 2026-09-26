@@ -6,13 +6,14 @@ import "core:math"
 main :: proc() {
 	// Use -define:PROFILE_EVERY_FRAME=true to print individual frame timings.
 	timing: ui.Frame_Timing = .Every_Frame when #config(PROFILE_EVERY_FRAME, false) else .Summary
-	ui.open_window("Odin UI Rebuilder — rectangles", 960, 640, update, frame_timing = timing)
+	ui.open_window("Odin UI Rebuilder — surfaces", 960, 640, update, frame_timing = timing)
 }
 
-update :: proc(frame: ^ui.Frame) {
+update :: proc() {
+	frame := ui.current_frame()
 	t := f32(frame.time)
 	// A stationary background primitive makes the moving shapes easy to read.
-	append(&frame.rectangles, ui.Rectangle{
+	append(&frame.surfaces, ui.Surface{
 		position = {24, 24}, size = {max(frame.size.x - 48, 0), max(frame.size.y - 48, 0)},
 		background = {0.07, 0.09, 0.13, 1}, corner_radius = 24,
 	})
@@ -30,7 +31,7 @@ update :: proc(frame: ^ui.Frame) {
 			48 + travel.x * (0.5 + 0.5 * math.sin(t * (0.45 + f32(i) * 0.035) + phase)),
 			48 + travel.y * (0.5 + 0.5 * math.cos(t * 0.38 + phase * 1.7)),
 		}
-		append(&frame.rectangles, ui.Rectangle{
+		append(&frame.surfaces, ui.Surface{
 			position = position, size = sizes[i], background = color, corner_radius = radii[i],
 		})
 	}

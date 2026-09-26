@@ -29,7 +29,7 @@ Metal_Renderer :: struct {
 
 // Explicit padding keeps the array stride identical to the Metal struct.
 @(private)
-GPU_Rectangle :: struct {
+GPU_Surface :: struct {
 	position: [2]f32,
 	size:     [2]f32,
 	color:    [4]f32,
@@ -37,9 +37,9 @@ GPU_Rectangle :: struct {
 	_padding: [3]f32,
 }
 
-#assert(size_of(GPU_Rectangle) == 48)
-#assert(offset_of(GPU_Rectangle, color) == 16)
-#assert(offset_of(GPU_Rectangle, radius) == 32)
+#assert(size_of(GPU_Surface) == 48)
+#assert(offset_of(GPU_Surface, color) == 16)
+#assert(offset_of(GPU_Surface, radius) == 32)
 
 @(private)
 metal_init :: proc(renderer: ^Metal_Renderer) {
@@ -49,20 +49,20 @@ metal_init :: proc(renderer: ^Metal_Renderer) {
 	assert(renderer.queue != nil, "Could not create the Metal command queue")
 
 	// Embedded at build time: the executable can run from any directory.
-	source := ns.String.alloc()->initWithOdinString(#load("rectangles.metal"))
+	source := ns.String.alloc()->initWithOdinString(#load("surfaces.metal"))
 	defer source->release()
 	library, library_error := renderer.device->newLibraryWithSource(source, nil)
 	if library == nil {
-		metal_fail("Could not compile rectangle shaders", library_error)
+		metal_fail("Could not compile surface shaders", library_error)
 	}
 	defer library->release()
-	vertex_name := ns.String.alloc()->initWithOdinString("rectangle_vertex")
-	fragment_name := ns.String.alloc()->initWithOdinString("rectangle_fragment")
+	vertex_name := ns.String.alloc()->initWithOdinString("surface_vertex")
+	fragment_name := ns.String.alloc()->initWithOdinString("surface_fragment")
 	defer vertex_name->release()
 	defer fragment_name->release()
 	vertex := library->newFunctionWithName(vertex_name)
 	fragment := library->newFunctionWithName(fragment_name)
-	assert(vertex != nil && fragment != nil, "Rectangle shader entry points are missing")
+	assert(vertex != nil && fragment != nil, "Surface shader entry points are missing")
 	defer vertex->release()
 	defer fragment->release()
 
@@ -79,7 +79,7 @@ metal_init :: proc(renderer: ^Metal_Renderer) {
 	attachment->setDestinationAlphaBlendFactor(.OneMinusSourceAlpha)
 	pipeline, pipeline_error := renderer.device->newRenderPipelineStateWithDescriptor(descriptor)
 	if pipeline == nil {
-		metal_fail("Could not create the rectangle pipeline", pipeline_error)
+		metal_fail("Could not create the surface pipeline", pipeline_error)
 	}
 	renderer.pipeline = pipeline
 	renderer.images = make([dynamic]Image_Slot)
@@ -111,7 +111,7 @@ metal_fail :: proc(message: string, error: ^ns.Error) {
 }
 
 @(private)
-render_impl :: proc(handle: Renderer, rectangles: []primitives.Rectangle, size: [2]f32) {
+render_impl :: proc(handle: Renderer, surfaces: []primitives.Surface, size: [2]f32) {
 	renderer := cast(^Metal_Renderer)handle
 	if size.x <= 0 || size.y <= 0 {
 		return
@@ -129,14 +129,14 @@ render_impl :: proc(handle: Renderer, rectangles: []primitives.Rectangle, size: 
 	assert(command != nil, "Could not create a Metal command buffer")
 	encoder := command->renderCommandEncoderWithDescriptor(pass)
 	assert(encoder != nil, "Could not create a Metal render encoder")
-	encode_rectangles(renderer, encoder, rectangles, size)
+	encode_surfaces(renderer, encoder, surfaces, size)
 	encoder->endEncoding()
 	command->presentDrawable(drawable)
 	command->commit()
 }
 
 @(private)
-encode_rectangles :: proc(renderer: ^Metal_Renderer, encoder: ^mtl.RenderCommandEncoder, rectangles: []primitives.Rectangle, size: [2]f32) {
+encode_surfaces :: proc(renderer: ^Metal_Renderer, encoder: ^mtl.RenderCommandEncoder, surfaces: []primitives.Surface, size: [2]f32) {
 	encoder->setRenderPipelineState(renderer.pipeline)
 	viewport := size
 	encoder->setVertexBytes(mem.ptr_to_bytes(&viewport), 1)
@@ -144,23 +144,23 @@ encode_rectangles :: proc(renderer: ^Metal_Renderer, encoder: ^mtl.RenderCommand
 	// setVertexBytes copies each batch into Metal-owned storage, so the CPU can
 	// reuse this memory immediately without racing an in-flight GPU frame.
 	// 64 * 48 bytes stays below Metal's 4 KiB inline-data limit.
-	batch: [64]GPU_Rectangle
+	batch: [64]GPU_Surface
 	count := 0
 	batch_texture: ^mtl.Texture
-	for rectangle in rectangles {
-		if rectangle.size.x <= 0 || rectangle.size.y <= 0 {
+	for surface in surfaces {
+		if surface.size.x <= 0 || surface.size.y <= 0 {
 			continue
 		}
 		texture := renderer.white_texture
-		if rectangle.image != (primitives.Image{}) {
-			slot := lookup_image(renderer, rectangle.image)
+		if surface.image != (primitives.Image{}) {
+			slot := lookup_image(renderer, surface.image)
 			if slot == nil {
 				continue // Released or invalid image handle.
 			}
 			texture = slot.texture
 		}
 		// Only batch adjacent primitives with the same texture, preserving the
-		// original draw order across solid rectangles and overlapping images.
+		// original draw order across solid surfaces and overlapping images.
 		if count > 0 && texture != batch_texture {
 			encoder->setFragmentTexture(batch_texture, 0)
 			encoder->setVertexBytes(mem.slice_to_bytes(batch[:count]), 0)
@@ -169,10 +169,10 @@ encode_rectangles :: proc(renderer: ^Metal_Renderer, encoder: ^mtl.RenderCommand
 		}
 		batch_texture = texture
 		batch[count] = {
-			position = rectangle.position,
-			size = rectangle.size,
-			color = rectangle.background,
-			radius = clamp(rectangle.corner_radius, 0, min(rectangle.size.x, rectangle.size.y) * 0.5),
+			position = surface.position,
+			size = surface.size,
+			color = surface.background,
+			radius = clamp(surface.corner_radius, 0, min(surface.size.x, surface.size.y) * 0.5),
 		}
 		for &component in batch[count].color {
 			component = clamp(component, 0, 1)

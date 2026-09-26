@@ -10,7 +10,7 @@ import "../core/images"
 // Runs the actual shader and blend pipeline, then reads GPU output back.
 // Run on a Mac with a Metal GPU: odin test platform -out:bin/platform-tests
 @(test)
-metal_rectangle_rendering :: proc(t: ^testing.T) {
+metal_surface_rendering :: proc(t: ^testing.T) {
 	ns.scoped_autoreleasepool()
 	renderer: Metal_Renderer
 	metal_init(&renderer)
@@ -18,7 +18,7 @@ metal_rectangle_rendering :: proc(t: ^testing.T) {
 	texture := test_texture(renderer.device, 128, 96)
 	defer texture->release()
 	pixels: [128 * 96][4]u8
-	scene := [?]primitives.Rectangle{
+	scene := [?]primitives.Surface{
 		{position = {8, 8}, size = {40, 40}, background = {1, 0, 0, 1}, corner_radius = 16},
 		{position = {28, 24}, size = {32, 24}, background = {0, 0, 1, 0.5}},
 		{position = {70, 8}, size = {24, 30}, background = {0, 1, 0, 1}},
@@ -45,10 +45,10 @@ metal_rectangle_rendering :: proc(t: ^testing.T) {
 		}
 	}
 
-	// More than two inline batches, including a skipped degenerate rectangle.
-	batch_scene: [131]primitives.Rectangle
-	for &rectangle in batch_scene {
-		rectangle = {position = {8, 8}, size = {40, 40}, background = {1, 0, 0, 1}}
+	// More than two inline batches, including a skipped degenerate surface.
+	batch_scene: [131]primitives.Surface
+	for &surface in batch_scene {
+		surface = {position = {8, 8}, size = {40, 40}, background = {1, 0, 0, 1}}
 	}
 	batch_scene[64].size = {0, 40}
 	batch_scene[130].background = {0, 1, 0, 1}
@@ -75,7 +75,7 @@ metal_rectangle_rendering :: proc(t: ^testing.T) {
 	if !testing.expect_value(t, image_error, Image_Error.None) {
 		return
 	}
-	image_scene := [?]primitives.Rectangle{
+	image_scene := [?]primitives.Surface{
 		{size = {128, 96}, background = {1, 1, 1, 1}},
 		{position = {8, 8}, size = {64, 64}, background = {1, 1, 1, 1}, image = image},
 		{position = {80, 8}, size = {40, 40}, background = {0.5, 1, 1, 0.5}, corner_radius = 12, image = image},
@@ -167,7 +167,7 @@ test_texture :: proc(device: ^mtl.Device, width, height: int) -> ^mtl.Texture {
 }
 
 @(private)
-test_render :: proc(t: ^testing.T, renderer: ^Metal_Renderer, texture: ^mtl.Texture, rectangles: []primitives.Rectangle, size: [2]f32, pixels: rawptr) {
+test_render :: proc(t: ^testing.T, renderer: ^Metal_Renderer, texture: ^mtl.Texture, surfaces: []primitives.Surface, size: [2]f32, pixels: rawptr) {
 	pass := mtl.RenderPassDescriptor.renderPassDescriptor()
 	attachment := pass->colorAttachments()->object(0)
 	attachment->setTexture(texture)
@@ -176,7 +176,7 @@ test_render :: proc(t: ^testing.T, renderer: ^Metal_Renderer, texture: ^mtl.Text
 	attachment->setClearColor({0, 0, 0, 0})
 	command := renderer.queue->commandBuffer()
 	encoder := command->renderCommandEncoderWithDescriptor(pass)
-	encode_rectangles(renderer, encoder, rectangles, size)
+	encode_surfaces(renderer, encoder, surfaces, size)
 	encoder->endEncoding()
 	command->commit()
 	command->waitUntilCompleted()

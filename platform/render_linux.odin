@@ -18,7 +18,7 @@ GL_Renderer :: struct {
 }
 
 @(private)
-GPU_Rectangle :: struct {
+GPU_Surface :: struct {
 	position, size: [2]f32,
 	color: [4]f32,
 	radius: f32,
@@ -37,7 +37,7 @@ gl_shader :: proc(kind: u32, source: string) -> u32 {
 		log: [4096]u8
 		gl.GetShaderInfoLog(shader, i32(len(log)), &length, raw_data(log[:]))
 		fmt.eprintln(string(log[:length]))
-		panic("Could not compile OpenGL rectangle shader")
+		panic("Could not compile OpenGL surface shader")
 	}
 	return shader
 }
@@ -49,8 +49,8 @@ gl_init :: proc(renderer: ^GL_Renderer) {
 	// Only GLES 3.0 entry points are used by this renderer.
 	gl.load_up_to(3, 3, egl.gl_set_proc_address)
 	gl.GetIntegerv(gl.MAX_TEXTURE_SIZE, &renderer.max_texture_size)
-	vertex := gl_shader(gl.VERTEX_SHADER, #load("rectangles.vert"))
-	fragment := gl_shader(gl.FRAGMENT_SHADER, #load("rectangles.frag"))
+	vertex := gl_shader(gl.VERTEX_SHADER, #load("surfaces.vert"))
+	fragment := gl_shader(gl.FRAGMENT_SHADER, #load("surfaces.frag"))
 	defer gl.DeleteShader(vertex)
 	defer gl.DeleteShader(fragment)
 	renderer.program = gl.CreateProgram()
@@ -64,7 +64,7 @@ gl_init :: proc(renderer: ^GL_Renderer) {
 		length: i32
 		gl.GetProgramInfoLog(renderer.program, i32(len(log)), &length, raw_data(log[:]))
 		fmt.eprintln(string(log[:length]))
-		panic("Could not link OpenGL rectangle shaders")
+		panic("Could not link OpenGL surface shaders")
 	}
 	gl.UseProgram(renderer.program)
 	renderer.viewport_location = gl.GetUniformLocation(renderer.program, "viewport")
@@ -74,10 +74,10 @@ gl_init :: proc(renderer: ^GL_Renderer) {
 	gl.BindVertexArray(renderer.vao)
 	gl.BindBuffer(gl.ARRAY_BUFFER, renderer.buffer)
 	counts := [?]i32{2, 2, 4, 1}
-	offsets := [?]uintptr{offset_of(GPU_Rectangle, position), offset_of(GPU_Rectangle, size), offset_of(GPU_Rectangle, color), offset_of(GPU_Rectangle, radius)}
+	offsets := [?]uintptr{offset_of(GPU_Surface, position), offset_of(GPU_Surface, size), offset_of(GPU_Surface, color), offset_of(GPU_Surface, radius)}
 	for count, i in counts {
 		gl.EnableVertexAttribArray(u32(i))
-		gl.VertexAttribPointer(u32(i), count, gl.FLOAT, false, size_of(GPU_Rectangle), offsets[i])
+		gl.VertexAttribPointer(u32(i), count, gl.FLOAT, false, size_of(GPU_Surface), offsets[i])
 		gl.VertexAttribDivisor(u32(i), 1)
 	}
 	gl.Enable(gl.BLEND)
@@ -104,17 +104,17 @@ gl_destroy :: proc(renderer: ^GL_Renderer) {
 }
 
 @(private)
-render_impl :: proc(handle: Renderer, rectangles: []primitives.Rectangle, size: [2]f32) {
+render_impl :: proc(handle: Renderer, surfaces: []primitives.Surface, size: [2]f32) {
 	renderer := cast(^GL_Renderer)handle
 	gl.Viewport(0, 0, renderer.pixel_size.x, renderer.pixel_size.y)
 	gl.ClearColor(0.035, 0.045, 0.065, 1)
 	gl.Clear(gl.COLOR_BUFFER_BIT)
-	encode_rectangles(renderer, rectangles, size)
+	encode_surfaces(renderer, surfaces, size)
 	linux_require(bool(egl.SwapBuffers(renderer.display, renderer.surface)), "EGL buffer swap failed")
 }
 
 @(private)
-encode_rectangles :: proc(renderer: ^GL_Renderer, rectangles: []primitives.Rectangle, size: [2]f32) {
+encode_surfaces :: proc(renderer: ^GL_Renderer, surfaces: []primitives.Surface, size: [2]f32) {
 	if size.x <= 0 || size.y <= 0 {
 		return
 	}
@@ -123,16 +123,16 @@ encode_rectangles :: proc(renderer: ^GL_Renderer, rectangles: []primitives.Recta
 	gl.BindVertexArray(renderer.vao)
 	gl.BindBuffer(gl.ARRAY_BUFFER, renderer.buffer)
 	gl.ActiveTexture(gl.TEXTURE0)
-	batch: [64]GPU_Rectangle
+	batch: [64]GPU_Surface
 	count := 0
 	batch_texture: u32
-	for rectangle in rectangles {
-		if rectangle.size.x <= 0 || rectangle.size.y <= 0 {
+	for surface in surfaces {
+		if surface.size.x <= 0 || surface.size.y <= 0 {
 			continue
 		}
 		texture := renderer.white_texture
-		if rectangle.image != (primitives.Image{}) {
-			slot := lookup_image(renderer, rectangle.image)
+		if surface.image != (primitives.Image{}) {
+			slot := lookup_image(renderer, surface.image)
 			if slot == nil {
 				continue
 			}
@@ -143,7 +143,7 @@ encode_rectangles :: proc(renderer: ^GL_Renderer, rectangles: []primitives.Recta
 			count = 0
 		}
 		batch_texture = texture
-		batch[count] = {rectangle.position, rectangle.size, rectangle.background, clamp(rectangle.corner_radius, 0, min(rectangle.size.x, rectangle.size.y) * 0.5)}
+		batch[count] = {surface.position, surface.size, surface.background, clamp(surface.corner_radius, 0, min(surface.size.x, surface.size.y) * 0.5)}
 		for &component in batch[count].color {
 			component = clamp(component, 0, 1)
 		}
@@ -159,9 +159,9 @@ encode_rectangles :: proc(renderer: ^GL_Renderer, rectangles: []primitives.Recta
 }
 
 @(private)
-gl_batch :: proc(batch: []GPU_Rectangle, texture: u32) {
+gl_batch :: proc(batch: []GPU_Surface, texture: u32) {
 	gl.BindTexture(gl.TEXTURE_2D, texture)
 	// Orphaning gives the driver fresh backing storage while prior draws finish.
-	gl.BufferData(gl.ARRAY_BUFFER, len(batch) * size_of(GPU_Rectangle), raw_data(batch), gl.STREAM_DRAW)
+	gl.BufferData(gl.ARRAY_BUFFER, len(batch) * size_of(GPU_Surface), raw_data(batch), gl.STREAM_DRAW)
 	gl.DrawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, i32(len(batch)))
 }
