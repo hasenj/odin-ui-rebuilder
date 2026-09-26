@@ -45,6 +45,10 @@ update :: proc(frame: ^ui.Frame) {
 	width := max((frame.size.x - 2 * margin - 2 * gap) / 3, 1)
 	height := max(min(frame.size.y - 2 * margin, 470), 1)
 	for image, i in images {
+		image_size, ok := ui.image_size(frame, image)
+		if !ok {
+			continue
+		}
 		position := [2]f32{margin + f32(i) * (width + gap), margin}
 		// A checkerboard makes alpha and rounded image corners visible.
 		append(&frame.rectangles, ui.Rectangle{
@@ -63,8 +67,8 @@ update :: proc(frame: ^ui.Frame) {
 		}
 		// Preserve aspect ratio while fitting the image within its panel.
 		available := [2]f32{max(width - 32, 1), max(height - 32, 1)}
-		scale := min(available.x / f32(image.size.x), available.y / f32(image.size.y))
-		size := [2]f32{f32(image.size.x), f32(image.size.y)} * scale
+		scale := min(available.x / f32(image_size.x), available.y / f32(image_size.y))
+		size := [2]f32{f32(image_size.x), f32(image_size.y)} * scale
 		append(&frame.rectangles, ui.Rectangle{
 			position = position + ([2]f32{width, height} - size) * 0.5,
 			size = size, background = {1, 1, 1, 1}, corner_radius = 18, image = image,

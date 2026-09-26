@@ -90,17 +90,70 @@ metal_rectangle_rendering :: proc(t: ^testing.T) {
 	expect_pixel(t, pixels[9 * 128 + 81], {255, 255, 255, 255}) // Rounded image corner.
 	expect_pixel(t, pixels[17 * 128 + 89], {128, 128, 191, 255}) // Tint and opacity.
 	testing.expect_value(t, len(renderer.images), 1) // One resource, multiple draws.
+	original_size, size_ok := image_size(Renderer(&renderer), image)
+	testing.expect(t, size_ok)
+	testing.expect_value(t, original_size, [2]int{2, 2})
+	invalid_handles := [?]primitives.Image{
+		{},
+		{index = max(u32), generation = 1},
+		{index = image.index, generation = image.generation + 1},
+	}
+	for invalid in invalid_handles {
+		_, ok := image_size(Renderer(&renderer), invalid)
+		testing.expect(t, !ok)
+		destroy_image(Renderer(&renderer), invalid)
+	}
 
 	destroy_image(Renderer(&renderer), image)
 	destroy_image(Renderer(&renderer), image) // Repeated destruction is harmless.
-	testing.expect_value(t, len(renderer.images), 0)
+	_, released_ok := image_size(Renderer(&renderer), image)
+	testing.expect(t, !released_ok)
 	test_render(t, &renderer, texture, image_scene[1:2], {128, 96}, raw_data(pixels[:]))
 	expect_pixel(t, pixels[16 * 128 + 16], {}) // Stale handles are skipped.
 	white := [4]u8{255, 255, 255, 255}
 	replacement, replacement_error := create_image(Renderer(&renderer), white[:], {1, 1})
 	testing.expect_value(t, replacement_error, Image_Error.None)
-	testing.expect(t, replacement.id != image.id, "Destroyed image ids must not be recycled")
+	testing.expect_value(t, replacement.index, image.index)
+	testing.expect(t, replacement.generation != image.generation)
+	testing.expect_value(t, len(renderer.images), 1) // Reuses the original slot.
+	// The old handle must neither draw nor destroy its replacement.
+	test_render(t, &renderer, texture, image_scene[1:2], {128, 96}, raw_data(pixels[:]))
+	expect_pixel(t, pixels[16 * 128 + 16], {})
+	destroy_image(Renderer(&renderer), image)
+	replacement_size, replacement_ok := image_size(Renderer(&renderer), replacement)
+	testing.expect(t, replacement_ok)
+	testing.expect_value(t, replacement_size, [2]int{1, 1})
+	_, stale_ok := image_size(Renderer(&renderer), image)
+	testing.expect(t, !stale_ok)
+	image_scene[1].image = replacement
+	test_render(t, &renderer, texture, image_scene[1:2], {128, 96}, raw_data(pixels[:]))
+	expect_pixel(t, pixels[16 * 128 + 16], {255, 255, 255, 255})
+
+	// Exercise a free list with multiple slots, including a repeated release.
+	second, second_error := create_image(Renderer(&renderer), white[:], {1, 1})
+	testing.expect_value(t, second_error, Image_Error.None)
 	destroy_image(Renderer(&renderer), replacement)
+	destroy_image(Renderer(&renderer), second)
+	destroy_image(Renderer(&renderer), second)
+	reused_second, reused_second_error := create_image(Renderer(&renderer), white[:], {1, 1})
+	reused_first, reused_first_error := create_image(Renderer(&renderer), white[:], {1, 1})
+	testing.expect_value(t, reused_second_error, Image_Error.None)
+	testing.expect_value(t, reused_first_error, Image_Error.None)
+	testing.expect_value(t, reused_second.index, second.index)
+	testing.expect_value(t, reused_first.index, replacement.index)
+	testing.expect_value(t, len(renderer.images), 2)
+
+	// Exhausted generations retire the slot rather than reviving old handles.
+	renderer.images[reused_first.index - 1].generation = max(u32)
+	exhausted := primitives.Image{index = reused_first.index, generation = max(u32)}
+	destroy_image(Renderer(&renderer), exhausted)
+	after_exhaustion, exhaustion_error := create_image(Renderer(&renderer), white[:], {1, 1})
+	testing.expect_value(t, exhaustion_error, Image_Error.None)
+	testing.expect(t, after_exhaustion.index != exhausted.index)
+	_, exhausted_ok := image_size(Renderer(&renderer), exhausted)
+	testing.expect(t, !exhausted_ok)
+	destroy_image(Renderer(&renderer), reused_second)
+	destroy_image(Renderer(&renderer), after_exhaustion)
 }
 
 @(private)

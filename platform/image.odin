@@ -30,7 +30,15 @@ create_image :: proc(renderer: Renderer, pixels: []u8, size: [2]int) -> (primiti
 }
 
 destroy_image :: proc(renderer: Renderer, image: primitives.Image) {
-	if renderer != nil && image.id != 0 {
+	if renderer != nil {
 		destroy_image_impl(renderer, image)
 	}
+}
+
+// Original dimensions in pixels; handles must belong to this renderer.
+image_size :: proc(renderer: Renderer, image: primitives.Image) -> (size: [2]int, ok: bool) {
+	if renderer == nil {
+		return {}, false
+	}
+	return image_size_impl(renderer, image)
 }

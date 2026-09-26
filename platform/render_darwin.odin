@@ -16,8 +16,8 @@ Metal_Renderer :: struct {
 	queue:         ^mtl.CommandQueue,
 	pipeline:      ^mtl.RenderPipelineState,
 	white_texture: ^mtl.Texture,
-	images:        map[u64]^mtl.Texture,
-	next_image_id:  u64,
+	images:        [dynamic]Image_Slot,
+	free_image:    u32,
 	view:          ^mtk.View,
 	frame:         Frame_Proc,
 	user_data:     rawptr,
@@ -82,7 +82,7 @@ metal_init :: proc(renderer: ^Metal_Renderer) {
 		metal_fail("Could not create the rectangle pipeline", pipeline_error)
 	}
 	renderer.pipeline = pipeline
-	renderer.images = make(map[u64]^mtl.Texture)
+	renderer.images = make([dynamic]Image_Slot)
 	white := [4]u8{255, 255, 255, 255}
 	renderer.white_texture = upload_texture(renderer.device, white[:], {1, 1})
 	assert(renderer.white_texture != nil, "Could not create the solid-color texture")
@@ -90,8 +90,10 @@ metal_init :: proc(renderer: ^Metal_Renderer) {
 
 @(private)
 metal_destroy :: proc(renderer: ^Metal_Renderer) {
-	for _, texture in renderer.images {
-		texture->release()
+	for slot in renderer.images {
+		if slot.texture != nil {
+			slot.texture->release()
+		}
 	}
 	delete(renderer.images)
 	renderer.white_texture->release()
@@ -150,11 +152,12 @@ encode_rectangles :: proc(renderer: ^Metal_Renderer, encoder: ^mtl.RenderCommand
 			continue
 		}
 		texture := renderer.white_texture
-		if rectangle.image.id != 0 {
-			texture = renderer.images[rectangle.image.id]
-			if texture == nil {
+		if rectangle.image != (primitives.Image{}) {
+			slot := lookup_image(renderer, rectangle.image)
+			if slot == nil {
 				continue // Released or invalid image handle.
 			}
+			texture = slot.texture
 		}
 		// Only batch adjacent primitives with the same texture, preserving the
 		// original draw order across solid rectangles and overlapping images.

@@ -5,6 +5,27 @@ import mtl "vendor:darwin/Metal"
 import "../core/primitives"
 
 @(private)
+Image_Slot :: struct {
+	texture:    ^mtl.Texture,
+	size:       [2]int,
+	generation: u32,
+	next_free:  u32, // One-based index; zero ends the free list.
+}
+
+// Do not retain this pointer across image creation: appending can move the array.
+@(private)
+lookup_image :: proc(renderer: ^Metal_Renderer, image: primitives.Image) -> ^Image_Slot {
+	if image.index == 0 || int(image.index) > len(renderer.images) {
+		return nil
+	}
+	slot := &renderer.images[image.index - 1]
+	if slot.texture == nil || slot.generation != image.generation {
+		return nil
+	}
+	return slot
+}
+
+@(private)
 upload_texture :: proc(device: ^mtl.Device, pixels: []u8, size: [2]int) -> ^mtl.Texture {
 	ns.scoped_autoreleasepool()
 	descriptor := mtl.TextureDescriptor.texture2DDescriptorWithPixelFormat(.RGBA8Unorm, ns.UInteger(size.x), ns.UInteger(size.y), false)
@@ -24,18 +45,43 @@ create_image_impl :: proc(handle: Renderer, pixels: []u8, size: [2]int) -> (prim
 	if texture == nil {
 		return {}, .Texture_Creation_Failed
 	}
-	// Never reuse ids: copies of a released handle cannot select a later image.
-	renderer.next_image_id += 1
-	assert(renderer.next_image_id != 0, "Image id overflow")
-	renderer.images[renderer.next_image_id] = texture
-	return {id = renderer.next_image_id, size = size}, .None
+	index := renderer.free_image
+	if index != 0 {
+		slot := &renderer.images[index - 1]
+		renderer.free_image = slot.next_free
+		slot.texture = texture
+		slot.size = size
+		slot.next_free = 0
+	} else {
+		assert(len(renderer.images) < int(max(u32)), "Image slot limit reached")
+		append(&renderer.images, Image_Slot{texture = texture, size = size, generation = 1})
+		index = u32(len(renderer.images))
+	}
+	return {index = index, generation = renderer.images[index - 1].generation}, .None
 }
 
 @(private)
 destroy_image_impl :: proc(handle: Renderer, image: primitives.Image) {
 	renderer := cast(^Metal_Renderer)handle
-	if texture, ok := renderer.images[image.id]; ok {
-		delete_key(&renderer.images, image.id)
-		texture->release()
+	slot := lookup_image(renderer, image)
+	if slot == nil {
+		return
 	}
+	slot.texture->release()
+	slot.texture = nil
+	slot.size = {}
+	// Retire an exhausted slot instead of wrapping and reviving stale handles.
+	if slot.generation != max(u32) {
+		slot.generation += 1
+		slot.next_free = renderer.free_image
+		renderer.free_image = image.index
+	}
+}
+
+@(private)
+image_size_impl :: proc(handle: Renderer, image: primitives.Image) -> (size: [2]int, ok: bool) {
+	if slot := lookup_image(cast(^Metal_Renderer)handle, image); slot != nil {
+		return slot.size, true
+	}
+	return {}, false
 }

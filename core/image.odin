@@ -30,6 +30,11 @@ load_image_from_bytes :: proc(frame: ^Frame, data: []u8) -> (Image, Image_Error)
 	return upload_image(frame, decoded)
 }
 
+// Original dimensions in pixels. Returns false for invalid or released handles.
+image_size :: proc(frame: ^Frame, image: Image) -> (size: [2]int, ok: bool) {
+	return platform.image_size(frame.renderer, image)
+}
+
 // Call from update when the image is no longer needed. Clears this handle;
 // other copies become invalid and are skipped if emitted. Already submitted
 // GPU work retains its own references until completion.

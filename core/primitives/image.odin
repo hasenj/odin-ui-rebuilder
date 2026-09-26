@@ -1,8 +1,10 @@
 package primitives
 
 // An immutable image resource belonging to one window's renderer.
-// A zero id means no image. Copying this value does not duplicate the texture.
+// The zero value means no image. Copying this value does not duplicate the texture.
+// Index is one-based; generation prevents released handles from selecting a
+// new image when their slot is reused. Handles are local to their renderer.
 Image :: struct {
-	id:   u64,
-	size: [2]int, // Original dimensions in pixels.
+	index:      u32,
+	generation: u32,
 }
