@@ -3,7 +3,6 @@
 set -eu
 cd "$(dirname "$0")/.."
 mkdir -p bin
-odin test core/layout -out:bin/layout-tests -o:speed -vet -strict-style
 odin test core -out:bin/core-tests -o:speed -vet -strict-style
 odin test core/images -out:bin/image-tests -o:speed -vet -strict-style
 odin test platform -out:bin/platform-tests -o:speed -vet -strict-style

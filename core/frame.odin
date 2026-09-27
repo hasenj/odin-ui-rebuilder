@@ -2,7 +2,6 @@ package ui
 
 import "primitives"
 import "input"
-import "layout"
 import "../platform"
 
 Surface :: primitives.Surface
@@ -31,10 +30,9 @@ current_frame :: proc() -> ^Frame {
 
 @(private)
 Frame_State :: struct {
-	frame:           Frame,
-	update:          Update,
-	tree:            layout.Tree,
-	surface_indices: [dynamic]int, // Indexed by layout node; -1 means no paint.
+	frame: Frame,
+	update: Update,
+	rects: [dynamic]Rect_Context,
 }
 
 @(private)
@@ -43,8 +41,7 @@ active_state: ^Frame_State
 @(private)
 destroy_frame_state :: proc(state: ^Frame_State) {
 	delete(state.frame.surfaces)
-	delete(state.surface_indices)
-	layout.destroy(&state.tree)
+	delete(state.rects)
 }
 
 @(private)
@@ -57,21 +54,13 @@ build_frame :: proc(renderer: platform.Renderer, elapsed: f64, size: [2]f32, use
 	state.frame.size = size
 	state.frame.renderer = renderer
 	clear(&state.frame.surfaces)
-	layout.reset(&state.tree, size)
-	clear(&state.surface_indices)
-	append(&state.surface_indices, -1) // Implicit root only arranges children.
+	assert(valid_length(size.x) && valid_length(size.y), "Invalid viewport size")
+	clear(&state.rects)
+	root := Rect{size = size}
+	append(&state.rects, Rect_Context{bounds = root, remaining = root})
 	if state.update != nil {
 		state.update()
 	}
-	layout.resolve(&state.tree)
-	// Surfaces were reserved in declaration order, including manually appended
-	// primitives. Fill their geometry now without changing that draw order.
-	for surface_index, node_index in state.surface_indices {
-		if surface_index >= 0 {
-			surface := &state.frame.surfaces[surface_index]
-			surface.position = state.tree.positions[node_index]
-			surface.size = state.tree.sizes[node_index]
-		}
-	}
+	assert(len(state.rects) == 1, "Unclosed rects at end of update")
 	return state.frame.surfaces[:]
 }
