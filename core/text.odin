@@ -22,11 +22,16 @@ find_font :: proc(name: string) -> (Font, bool) {
 // Draw one Latin line at the current rect's top-left. Size is em size in logical
 // points. Weight 0 uses the font default; other values select its 'wght' axis.
 // Does not consume space, wrap, clip, perform bidi, or discover fallback fonts.
+// Empty rects emit nothing, but still return the same metrics/errors as measurement.
 text :: proc(value: string, font: Font_Ref, size: f32 = 16, color: Color = {1, 1, 1, 1}, weight: f32 = 0) -> (Text_Metrics, Text_Error) {
 	frame := current_frame()
 	handle := resolve_font(font)
+	rect := current_rect()
+	if rect.size.x == 0 || rect.size.y == 0 {
+		return fonts.measure(&active_state.text, handle, value, size, frame.scale, weight)
+	}
 	return fonts.draw(&active_state.text, frame.renderer, handle, value, size, frame.scale, weight,
-		current_rect().position, color, &frame.surfaces)
+		rect.position, color, &frame.surfaces)
 }
 
 // Same shaping/metrics as text(), without rasterizing or emitting any surfaces.

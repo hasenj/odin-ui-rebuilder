@@ -65,7 +65,9 @@ without changing the rect or creating layout nodes. Size is the font's em size
 in logical window points, not the height of its visible ink. The first baseline
 is top + ascent; glyph bearings and HarfBuzz offsets position the ink. Ascenders
 or overhangs can extend beyond the nominal line box. Color uses straight RGBA,
-just like other surfaces. No clipping is applied when text exceeds its rect.
+just like other surfaces. Empty rects (zero width or height) emit no glyphs, but still return text metrics
+and validation errors. This prevents exhausted rect cuts from piling text at
+one position. Nonempty rects do not clip text that exceeds their bounds.
 
 ```odin
 metrics, err := ui.measure_text("Continue", font = "body", size = 16, weight = 600)

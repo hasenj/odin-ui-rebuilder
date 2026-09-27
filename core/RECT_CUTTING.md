@@ -46,6 +46,11 @@ right/bottom, each clamped to what remains. Exhausted dimensions become zero;
 positions remain inside the previous rect. Negative or nonfinite lengths are
 programming errors. Padding never changes original bounds.
 
+After an axis is exhausted, further cuts along that axis are empty and share
+the same edge position. Empty surfaces do not render; `text()` also suppresses
+glyph emission when either current dimension is zero. This is not clipping:
+text in a nonempty rect can still extend beyond its bounds.
+
 ## Painting
 
 `paint(color = ..., img = ..., corners = ...)` immediately appends a `Surface`

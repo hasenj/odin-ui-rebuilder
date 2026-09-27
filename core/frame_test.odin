@@ -2,6 +2,7 @@ package ui
 
 import "core:testing"
 import "core:mem"
+import "core:path/filepath"
 
 // Full public API -> emitted surfaces, including nested cuts, padding, image
 // tint defaults, original bounds, and interleaved low-level drawing.
@@ -45,6 +46,7 @@ rect_frame_pipeline :: proc(t: ^testing.T) {
 	// sequentially rather than asking the test runner to build windows in parallel.
 	exhausted_rects(t)
 	deep_rect_scopes(t)
+	empty_rect_text(t)
 }
 
 @(private)
@@ -147,6 +149,55 @@ deep_rect_scene :: proc() {
 	}
 	paint()
 	for _ in 0..<10_000 {
+		close_rect()
+	}
+}
+
+// Regression for shrinking app5: after height runs out, repeated line cuts
+// share an origin. They must not emit overlapping glyphs at that origin.
+@(private)
+empty_rect_text :: proc(t: ^testing.T) {
+	state := Frame_State{update = empty_rect_text_scene}
+	defer destroy_frame_state(&state)
+	viewports := [?][2]f32{{200, 100}, {200, 0}, {0, 100}, {0, 0}}
+	for viewport in viewports {
+		surfaces := build_frame(nil, 0, viewport, &state)
+		testing.expect_value(t, len(surfaces), 0)
+		testing.expect_value(t, len(state.text.pages), 0)
+		testing.expect_value(t, len(state.rects), 1)
+	}
+}
+
+@(private)
+empty_rect_text_scene :: proc() {
+	font, loaded := find_font("test-body")
+	if !loaded {
+		path, _ := filepath.join({filepath.dir(#location().file_path), "../examples/app5/assets/NotoSansDisplay-VariableFont.ttf"})
+		defer delete(path)
+		err: Text_Error
+		font, err = load_font(path, name = "test-body")
+		assert(err == .None)
+	}
+	// Zero-width cuts should also be invisible, with full metrics preserved.
+	open_rect(.Left, 0)
+	{
+		expected, _ := measure_text("invisible", font)
+		actual, err := text("invisible", font)
+		assert(err == .None && actual == expected)
+	}
+	close_rect()
+	open_rect(.Top, current_rect().size.y)
+	close_rect()
+	for _ in 0..<4 {
+		open_rect(.Top, 30)
+		{
+			pad(4)
+			expected, _ := measure_text("exhausted line", font, size = 20)
+			actual, err := text("exhausted line", "test-body", size = 20)
+			assert(err == .None && actual == expected)
+			_, err = text("bad font", "missing")
+			assert(err == .Invalid_Font)
+		}
 		close_rect()
 	}
 }
