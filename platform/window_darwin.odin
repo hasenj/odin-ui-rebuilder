@@ -96,6 +96,13 @@ install_view_delegate :: proc(renderer: ^Metal_Renderer) {
 draw_frame :: proc "c" (self: ns.id, _: ns.SEL, view: ^mtk.View) {
 	renderer := (cast(^^Metal_Renderer)ns.object_getIndexedIvars(self))^
 	context = renderer.odin_context
+	// Drawable acquisition may deliver a resize notification during this draw.
+	// The current frame handles it; do not recursively invoke the UI update.
+	if renderer.drawing {
+		return
+	}
+	renderer.drawing = true
+	defer { renderer.drawing = false }
 	profiling := renderer.profiler.mode != .Disabled
 	start, update_start, submit_start: time.Tick
 	update_ms, submit_ms: f64
@@ -133,6 +140,13 @@ draw_frame :: proc "c" (self: ns.id, _: ns.SEL, view: ^mtk.View) {
 }
 
 @(private)
-drawable_size_changed :: proc "c" (_: ns.id, _: ns.SEL, _: ^mtk.View, _: ns.Size) {
-	// Each frame reads the current logical bounds; MTKView resizes its drawable.
+drawable_size_changed :: proc "c" (self: ns.id, _: ns.SEL, view: ^mtk.View, _: ns.Size) {
+	renderer := (cast(^^Metal_Renderer)ns.object_getIndexedIvars(self))^
+	context = renderer.odin_context
+	renderer.resize_pending = true
+	// Draw inside the resize transaction rather than waiting for the next timer
+	// tick. Layout still uses logical view bounds, not drawable pixel dimensions.
+	if !renderer.drawing {
+		view->draw()
+	}
 }

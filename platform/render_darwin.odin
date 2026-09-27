@@ -1,6 +1,7 @@
 package platform
 
 import "base:runtime"
+import "base:intrinsics"
 import "core:fmt"
 import "core:mem"
 import "core:time"
@@ -25,6 +26,8 @@ Metal_Renderer :: struct {
 	start:         time.Tick,
 	odin_context:  runtime.Context,
 	profiler:      Frame_Profiler,
+	drawing:       bool,
+	resize_pending: bool,
 }
 
 // Explicit padding keeps the array stride identical to the Metal struct.
@@ -125,14 +128,29 @@ render_impl :: proc(handle: Renderer, surfaces: []primitives.Surface, size: [2]f
 	if drawable == nil {
 		return
 	}
+	// A resize must present with the window's Core Animation transaction;
+	// otherwise the compositor can stretch the old frame to the new bounds.
+	// Keep ordinary animation on the asynchronous presentation path.
+	resize_present := renderer.resize_pending || bool(intrinsics.objc_send(ns.BOOL, renderer.view, "inLiveResize"))
+	renderer.view->setPresentsWithTransaction(resize_present)
 	command := renderer.queue->commandBuffer()
 	assert(command != nil, "Could not create a Metal command buffer")
 	encoder := command->renderCommandEncoderWithDescriptor(pass)
 	assert(encoder != nil, "Could not create a Metal render encoder")
 	encode_surfaces(renderer, encoder, surfaces, size)
 	encoder->endEncoding()
-	command->presentDrawable(drawable)
-	command->commit()
+	if resize_present {
+		// https://developer.apple.com/documentation/quartzcore/cametallayer/presentswithtransaction
+		// Transaction presentation requires commit -> scheduled -> drawable present,
+		// not CommandBuffer.presentDrawable. No wait for GPU completion is needed.
+		command->commit()
+		command->waitUntilScheduled()
+		drawable->present()
+	} else {
+		command->presentDrawable(drawable)
+		command->commit()
+	}
+	renderer.resize_pending = false
 }
 
 @(private)
