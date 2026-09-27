@@ -85,3 +85,23 @@ image_size_impl :: proc(handle: Renderer, image: primitives.Image) -> (size: [2]
 	}
 	return {}, false
 }
+
+@(private)
+update_image_impl :: proc(handle: Renderer, image: primitives.Image, pixels: []u8, position, size: [2]int) -> Image_Error {
+	renderer := cast(^Metal_Renderer)handle
+	slot := lookup_image(renderer, image)
+	// Stage into a fresh texture; never CPU-write an atlas still read by the GPU.
+	staging := upload_texture(renderer.device, pixels, size)
+	if staging == nil {
+		return .Texture_Creation_Failed
+	}
+	defer staging->release()
+	command := renderer.queue->commandBuffer()
+	encoder := command->blitCommandEncoder()
+	encoder->copyFromTextureWithDestinationOrigin(staging, 0, 0, {},
+		{ns.Integer(size.x), ns.Integer(size.y), 1}, slot.texture, 0, 0,
+		{ns.Integer(position.x), ns.Integer(position.y), 0})
+	encoder->endEncoding()
+	command->commit()
+	return .None
+}

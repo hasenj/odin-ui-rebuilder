@@ -92,3 +92,12 @@ image_size_impl :: proc(handle: Renderer, image: primitives.Image) -> (size: [2]
 	}
 	return {}, false
 }
+
+@(private)
+update_image_impl :: proc(handle: Renderer, image: primitives.Image, pixels: []u8, position, size: [2]int) -> Image_Error {
+	slot := lookup_image(cast(^GL_Renderer)handle, image)
+	gl.BindTexture(gl.TEXTURE_2D, slot.texture)
+	gl.PixelStorei(gl.UNPACK_ALIGNMENT, 1)
+	gl.TexSubImage2D(gl.TEXTURE_2D, 0, i32(position.x), i32(position.y), i32(size.x), i32(size.y), gl.RGBA, gl.UNSIGNED_BYTE, raw_data(pixels))
+	return .None if gl.GetError() == gl.NO_ERROR else .Texture_Creation_Failed
+}

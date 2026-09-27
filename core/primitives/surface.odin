@@ -14,4 +14,6 @@ Surface :: struct {
 	// Optional image stretched over this surface. background becomes a tint;
 	// use opaque white for the original image colors. Corners clip the image.
 	image:         Image,
+	// Normalized UV min/max; zero means the entire image.
+	image_region:  [4]f32,
 }

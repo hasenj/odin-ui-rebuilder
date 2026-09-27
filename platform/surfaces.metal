@@ -1,13 +1,14 @@
 #include <metal_stdlib>
 using namespace metal;
 
-// Matches GPU_Surface in render_darwin.odin (48-byte stride).
+// Matches GPU_Surface in render_darwin.odin (64-byte stride).
 struct Surface {
     float2 position;
     float2 size;
     float4 color;
     float radius;
     float padding[3];
+    float4 uv;
 };
 
 struct Vertex_Out {
@@ -16,6 +17,7 @@ struct Vertex_Out {
     float2 size [[flat]];
     float4 color [[flat]];
     float radius [[flat]];
+    float4 uv [[flat]];
 };
 
 vertex Vertex_Out surface_vertex(
@@ -36,6 +38,7 @@ vertex Vertex_Out surface_vertex(
     out.size = r.size;
     out.color = r.color;
     out.radius = r.radius;
+    out.uv = r.uv;
     return out;
 }
 
@@ -47,7 +50,7 @@ fragment float4 surface_fragment(Vertex_Out in [[stage_in]], texture2d<float> im
     float aa = max(fwidth(distance), 0.0001);
     float coverage = 1.0 - smoothstep(-aa * 0.5, aa * 0.5, distance);
     constexpr sampler image_sampler(coord::normalized, address::clamp_to_edge, filter::linear);
-    float4 texel = image.sample(image_sampler, clamp(in.local / in.size, 0.0, 1.0));
+    float4 texel = image.sample(image_sampler, mix(in.uv.xy, in.uv.zw, clamp(in.local / in.size, 0.0, 1.0)));
     // Textures already contain premultiplied alpha. Tint and coverage preserve
     // that representation for source-over blending. Solids use a white texel.
     float opacity = in.color.a * coverage;

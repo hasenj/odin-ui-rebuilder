@@ -13,6 +13,7 @@ GL_Renderer :: struct {
 	viewport_location: i32,
 	pixel_size: [2]i32,
 	max_texture_size: i32,
+	logical_scale: f32,
 	images: [dynamic]Image_Slot,
 	free_image: u32,
 }
@@ -22,6 +23,7 @@ GPU_Surface :: struct {
 	position, size: [2]f32,
 	color: [4]f32,
 	radius: f32,
+	uv: [4]f32,
 }
 
 @(private)
@@ -73,8 +75,8 @@ gl_init :: proc(renderer: ^GL_Renderer) {
 	gl.GenBuffers(1, &renderer.buffer)
 	gl.BindVertexArray(renderer.vao)
 	gl.BindBuffer(gl.ARRAY_BUFFER, renderer.buffer)
-	counts := [?]i32{2, 2, 4, 1}
-	offsets := [?]uintptr{offset_of(GPU_Surface, position), offset_of(GPU_Surface, size), offset_of(GPU_Surface, color), offset_of(GPU_Surface, radius)}
+	counts := [?]i32{2, 2, 4, 1, 4}
+	offsets := [?]uintptr{offset_of(GPU_Surface, position), offset_of(GPU_Surface, size), offset_of(GPU_Surface, color), offset_of(GPU_Surface, radius), offset_of(GPU_Surface, uv)}
 	for count, i in counts {
 		gl.EnableVertexAttribArray(u32(i))
 		gl.VertexAttribPointer(u32(i), count, gl.FLOAT, false, size_of(GPU_Surface), offsets[i])
@@ -143,7 +145,8 @@ encode_surfaces :: proc(renderer: ^GL_Renderer, surfaces: []primitives.Surface, 
 			count = 0
 		}
 		batch_texture = texture
-		batch[count] = {surface.position, surface.size, surface.background, clamp(surface.corner_radius, 0, min(surface.size.x, surface.size.y) * 0.5)}
+		batch[count] = {surface.position, surface.size, surface.background, clamp(surface.corner_radius, 0, min(surface.size.x, surface.size.y) * 0.5),
+			surface.image_region if surface.image_region != ([4]f32{}) else [4]f32{0, 0, 1, 1}}
 		for &component in batch[count].color {
 			component = clamp(component, 0, 1)
 		}
@@ -164,4 +167,9 @@ gl_batch :: proc(batch: []GPU_Surface, texture: u32) {
 	// Orphaning gives the driver fresh backing storage while prior draws finish.
 	gl.BufferData(gl.ARRAY_BUFFER, len(batch) * size_of(GPU_Surface), raw_data(batch), gl.STREAM_DRAW)
 	gl.DrawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, i32(len(batch)))
+}
+
+@(private)
+pixel_scale_impl :: proc(handle: Renderer) -> f32 {
+	return max((cast(^GL_Renderer)handle).logical_scale, 1)
 }

@@ -5,11 +5,13 @@ layout(location = 0) in vec2 rect_position;
 layout(location = 1) in vec2 rect_size;
 layout(location = 2) in vec4 rect_color;
 layout(location = 3) in float rect_radius;
+layout(location = 4) in vec4 rect_uv;
 uniform vec2 viewport;
 out vec2 local;
 flat out vec2 size;
 flat out vec4 color;
 flat out float radius;
+flat out vec4 uv;
 void main() {
     const vec2 corners[4] = vec2[4](vec2(0,0), vec2(1,0), vec2(0,1), vec2(1,1));
     local = corners[gl_VertexID] * (rect_size + 2.0) - 1.0;
@@ -19,4 +21,5 @@ void main() {
     size = rect_size;
     color = rect_color;
     radius = rect_radius;
+    uv = rect_uv;
 }

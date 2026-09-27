@@ -154,6 +154,26 @@ metal_surface_rendering :: proc(t: ^testing.T) {
 	testing.expect(t, !exhausted_ok)
 	destroy_image(Renderer(&renderer), reused_second)
 	destroy_image(Renderer(&renderer), after_exhaustion)
+
+	// Atlas UVs select distinct regions of one texture. Updating the right half
+	// must be ordered before drawing without disturbing the left half.
+	atlas_pixels: [4 * 4 * 4]u8
+	for i in 0..<16 { atlas_pixels[i * 4] = 255; atlas_pixels[i * 4 + 3] = 255 }
+	atlas, atlas_error := create_image(Renderer(&renderer), atlas_pixels[:], {4, 4})
+	testing.expect_value(t, atlas_error, Image_Error.None)
+	defer destroy_image(Renderer(&renderer), atlas)
+	patch: [2 * 4 * 4]u8
+	for &channel in patch { channel = 128 }
+	testing.expect_value(t, update_image(Renderer(&renderer), atlas, patch[:], {2, 0}, {2, 4}), Image_Error.None)
+	testing.expect_value(t, update_image(Renderer(&renderer), atlas, patch[:], {3, 0}, {2, 4}), Image_Error.Invalid_Pixels)
+	testing.expect_value(t, update_image(Renderer(&renderer), {}, patch[:], {0, 0}, {2, 4}), Image_Error.Invalid_Image)
+	atlas_scene := [?]primitives.Surface{
+		{position = {8, 8}, size = {40, 40}, background = {1, 1, 1, 1}, image = atlas, image_region = {0, 0, 0.5, 1}},
+		{position = {60, 8}, size = {40, 40}, background = {0, 0, 1, 1}, image = atlas, image_region = {0.5, 0, 1, 1}},
+	}
+	test_render(t, &renderer, texture, atlas_scene[:], {128, 96}, raw_data(pixels[:]))
+	expect_pixel(t, pixels[28 * 128 + 28], {0, 0, 255, 255})
+	expect_pixel(t, pixels[28 * 128 + 80], {128, 0, 0, 128})
 }
 
 @(private)

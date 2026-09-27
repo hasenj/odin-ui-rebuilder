@@ -208,6 +208,7 @@ update_window_scale :: proc(window: ^Wayland_Window) {
 		wl_request(window.surface, 8, []WL_Argument{{i = scale}})
 	}
 	window.renderer.pixel_size = {window.width * scale, window.height * scale}
+	window.renderer.logical_scale = f32(scale)
 	if window.native_window != nil {
 		wl_egl_window_resize(window.native_window, window.renderer.pixel_size.x, window.renderer.pixel_size.y, 0, 0)
 	}

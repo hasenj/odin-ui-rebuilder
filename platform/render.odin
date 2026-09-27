@@ -10,3 +10,11 @@ Renderer :: distinct rawptr
 render :: proc(renderer: Renderer, surfaces: []primitives.Surface, size: [2]f32) {
 	render_impl(renderer, surfaces, size)
 }
+
+// Physical pixels per logical point, for rasterizing text at the display scale.
+pixel_scale :: proc(renderer: Renderer) -> f32 {
+	if renderer == nil {
+		return 1
+	}
+	return pixel_scale_impl(renderer)
+}
