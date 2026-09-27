@@ -1,4 +1,4 @@
-// Single-line Latin shaping and cached grayscale glyphs. Geometry uses physical
+// Single-line bidi/script shaping and cached grayscale glyphs. Geometry uses physical
 // pixels internally; the UI wrapper converts to/from logical window points.
 package text
 
@@ -6,6 +6,7 @@ import "native"
 import c "core:c"
 import "core:math"
 import "core:strings"
+import "core:unicode/utf8"
 import "../../platform"
 import "../primitives"
 
@@ -18,6 +19,7 @@ Error :: enum {
 	Shaping_Failed, Rasterization_Failed, Atlas_Full, Upload_Failed,
 }
 Metrics :: struct {width, height, ascent, descent: f32}
+Direction :: enum u8 {Auto, LTR, RTL}
 
 Store :: struct {
 	library: native.FT_Library,
@@ -30,6 +32,11 @@ Store :: struct {
 	shape_calls, shape_cache_hits: u64,
 	geometry_builds: u64,
 	quad_scratch: [dynamic]Glyph_Quad,
+	script_locator: native.SB_Script_Locator,
+	script_runs: [dynamic]Script_Run,
+	info_scratch: [dynamic]native.HB_Glyph_Info,
+	position_scratch: [dynamic]native.HB_Glyph_Position,
+	bidi_calls: u64,
 }
 
 @(private)
@@ -143,6 +150,10 @@ destroy :: proc(store: ^Store, renderer: platform.Renderer) {
 	delete(store.pages)
 	delete(store.upload)
 	delete(store.quad_scratch)
+	delete(store.script_runs)
+	delete(store.info_scratch)
+	delete(store.position_scratch)
+	if store.script_locator != nil { native.SBScriptLocatorRelease(store.script_locator) }
 	if store.buffer != nil { native.hb_buffer_destroy(store.buffer) }
 	if store.library != nil { native.FT_Done_FreeType(store.library) }
 	store^ = {}
@@ -162,11 +173,11 @@ Shape :: struct {
 // Returned glyph slices are borrowed until the next shape call. Cache hits
 // avoid HarfBuzz and leave the current native font size/weight untouched.
 @(private)
-shape :: proc(store: ^Store, handle: Font, value: string, pixel_size, weight: f32) -> (Shape, Error) {
+shape :: proc(store: ^Store, handle: Font, value: string, pixel_size, weight: f32, direction: Direction = .Auto, language: string = "") -> (Shape, Error) {
 	if handle == 0 || int(handle) > len(store.fonts) { return {}, .Invalid_Font }
 	if !(pixel_size > 0 && pixel_size <= 2048) { return {}, .Invalid_Size }
 	if !(weight >= 0 && weight <= 32767) { return {}, .Invalid_Weight }
-	if len(value) > int(max(i32)) { return {}, .Unsupported_Text }
+	if len(value) > int(max(i32)) || len(language) > int(max(i32)) { return {}, .Unsupported_Text }
 	font := &store.fonts[int(handle) - 1]
 	px := max(i32(math.round(pixel_size * 64)), 1)
 	w: c.long
@@ -177,27 +188,19 @@ shape :: proc(store: ^Store, handle: Font, value: string, pixel_size, weight: f3
 	} else if weight != 0 {
 		return {}, .Unsupported_Weight
 	}
-	key := Run_Key{handle, px, w, value}
+	key := Run_Key{font = handle, pixel_size = px, weight = w, value = value, direction = direction, language = language}
 	if cached, ok := lookup_run(&store.runs, key, font); ok {
 		store.shape_cache_hits += 1
 		return cached, .None
 	}
+	if !utf8.valid_string(value) { return {}, .Unsupported_Text }
 	for ch in value {
-		if ch == '\n' || ch == '\r' || ch == '\t' { return {}, .Unsupported_Text }
+		if ch == '\n' || ch == '\r' || ch == '\t' || ch == '\u2028' || ch == '\u2029' || ch == '\u0085' || ch == '\v' || ch == '\f' || (ch >= '\u001c' && ch <= '\u001e') { return {}, .Unsupported_Text }
 	}
 	if err := configure_font(font, px, w); err != .None { return {}, err }
-	buffer := store.buffer
-	native.hb_buffer_clear_contents(buffer)
-	native.hb_buffer_add_utf8(buffer, raw_data(value), c.int(len(value)), 0, c.int(len(value)))
-	native.hb_buffer_set_direction(buffer, 4) // HB_DIRECTION_LTR
-	native.hb_buffer_set_script(buffer, 0x4c61746e) // 'Latn'
-	native.hb_buffer_set_language(buffer, native.hb_language_from_string("en", -1))
-	store.shape_calls += 1
-	native.hb_shape(font.hb, buffer, nil, 0)
-	if native.hb_buffer_allocation_successful(buffer) == 0 { return {}, .Shaping_Failed }
-	count := native.hb_buffer_get_length(buffer)
-	infos := native.hb_buffer_get_glyph_infos(buffer, nil)[:count]
-	positions := native.hb_buffer_get_glyph_positions(buffer, nil)[:count]
+	if err := shape_line(store, font, value, direction, language); err != .None { return {}, err }
+	infos := store.info_scratch[:]
+	positions := store.position_scratch[:]
 	advance: f32
 	for info, i in infos {
 		if info.codepoint == 0 { return {}, .Missing_Glyph }
@@ -209,18 +212,18 @@ shape :: proc(store: ^Store, handle: Font, value: string, pixel_size, weight: f3
 	return store_run(&store.runs, key, run), .None
 }
 
-measure :: proc(store: ^Store, font: Font, value: string, size, scale, weight: f32) -> (Metrics, Error) {
+measure :: proc(store: ^Store, font: Font, value: string, size, scale, weight: f32, direction: Direction = .Auto, language: string = "") -> (Metrics, Error) {
 	if !(scale > 0 && scale <= 16) { return {}, .Invalid_Size }
-	run, err := shape(store, font, value, size * scale, weight)
+	run, err := shape(store, font, value, size * scale, weight, direction, language)
 	return logical_metrics(run.metrics, scale), err
 }
 
 // Measurement and drawing share shaped runs. Warm text avoids shaping, native
 // font reconfiguration, rasterization, uploads, and allocation.
 draw :: proc(store: ^Store, renderer: platform.Renderer, font: Font, value: string, size, scale, weight: f32,
-	position: [2]f32, color: primitives.Color, surfaces: ^[dynamic]primitives.Surface) -> (Metrics, Error) {
+	position: [2]f32, color: primitives.Color, surfaces: ^[dynamic]primitives.Surface, direction: Direction = .Auto, language: string = "") -> (Metrics, Error) {
 	if !(scale > 0 && scale <= 16) { return {}, .Invalid_Size }
-	run, err := shape(store, font, value, size * scale, weight)
+	run, err := shape(store, font, value, size * scale, weight, direction, language)
 	if err != .None { return {}, err }
 	quads, prepare_error := prepare_quads(store, run)
 	if prepare_error != .None { return {}, prepare_error }

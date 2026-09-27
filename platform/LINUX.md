@@ -2,7 +2,8 @@
 
 The Linux backend uses native Wayland (xdg-shell), EGL, and OpenGL ES 3.0.
 The implementation and protocol metadata are Odin; shaders are GLSL ES 3.00. No GLFW,
-SDL, C source compilation, or protocol-generation step is required to build.
+SDL or protocol-generation step is required. The text dependency SheenBidi is
+compiled from vendored C source by the build helper.
 Core continues to import the general `platform` package. Odin selects `_linux`
 and `_darwin` files for the target OS.
 
@@ -26,9 +27,9 @@ Wayland client 1.20+ is required for `wl_proxy_marshal_array_flags`.
 Run the application from a terminal in the graphical Wayland session, as your
 normal user. `WAYLAND_DISPLAY` and `XDG_RUNTIME_DIR` must refer to that session;
 running it through an unrelated SSH session or with sudo will not set those up.
-The app0–app5 examples target either platform; app3 embeds its assets, and app4
+The app0–app6 examples target either platform; app3 embeds its assets, and app4
 demonstrates nested rect cuts, padding, and painting. app5 demonstrates Latin
-text with HarfBuzz and FreeType; see [text API and setup](../core/TEXT.md).
+text with HarfBuzz and FreeType, and app6 adds Arabic/bidi via SheenBidi; see [text API and setup](../core/TEXT.md).
 
 For a VM without working accelerated OpenGL, try Mesa software rendering:
 

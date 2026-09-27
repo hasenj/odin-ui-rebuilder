@@ -1,9 +1,10 @@
 #!/bin/sh
-# Build an example with system HarfBuzz and FreeType (including Homebrew paths).
+# Build with system HarfBuzz/FreeType and the vendored static SheenBidi.
 set -eu
 cd "$(dirname "$0")/.."
-app=${1:-app5}
-case "$app" in app[0-5]) ;; *) echo "Usage: $0 [app0..app5]" >&2; exit 1 ;; esac
+app=${1:-app6}
+case "$app" in app[0-6]) ;; *) echo "Usage: $0 [app0..app6]" >&2; exit 1 ;; esac
 mkdir -p bin
+text_deps=$(./scripts/build-text-deps.sh)
 odin build "examples/$app" "-out:bin/$app" -o:speed -vet -strict-style \
-    "-extra-linker-flags:$(pkg-config --libs-only-L harfbuzz freetype2)"
+    "-extra-linker-flags:-L$text_deps $(pkg-config --libs-only-L harfbuzz freetype2)"

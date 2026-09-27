@@ -97,6 +97,7 @@ foreign harfbuzz {
 	hb_buffer_destroy :: proc(buffer: HB_Buffer) ---
 	hb_buffer_clear_contents :: proc(buffer: HB_Buffer) ---
 	hb_buffer_add_utf8 :: proc(buffer: HB_Buffer, text: rawptr, length: c.int, item_offset: c.uint, item_length: c.int) ---
+	hb_buffer_set_flags :: proc(buffer: HB_Buffer, flags: u32) ---
 	hb_buffer_set_direction :: proc(buffer: HB_Buffer, direction: c.int) ---
 	hb_buffer_set_script :: proc(buffer: HB_Buffer, script: u32) ---
 	hb_buffer_set_language :: proc(buffer: HB_Buffer, language: HB_Language) ---

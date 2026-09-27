@@ -7,7 +7,7 @@ import "core:strings"
 // Entries own their string and glyph slices. A string value in the key compares
 // contents, including for callers that reuse a stack buffer each frame.
 @(private)
-Run_Key :: struct {font: Font, pixel_size: i32, weight: c.long, value: string}
+Run_Key :: struct {font: Font, pixel_size: i32, weight: c.long, value: string, direction: Direction, language: string}
 @(private)
 Run_Entry :: struct {
 	key: Run_Key,
@@ -44,7 +44,7 @@ lookup_run :: proc(cache: ^Run_Cache, key: Run_Key, font: ^Font_Record) -> (Shap
 
 @(private)
 store_run :: proc(cache: ^Run_Cache, key: Run_Key, run: Shape) -> Shape {
-	bytes := len(key.value) + len(run.infos) * size_of(native.HB_Glyph_Info) + len(run.positions) * size_of(native.HB_Glyph_Position)
+	bytes := len(key.value) + len(key.language) + len(run.infos) * size_of(native.HB_Glyph_Info) + len(run.positions) * size_of(native.HB_Glyph_Position)
 	// Very large runs still render, but do not displace the entire working set.
 	if bytes > MAX_RUN_BYTES { return run }
 	for len(cache.lookup) >= MAX_RUNS || cache.bytes + bytes > MAX_RUN_BYTES {
@@ -59,6 +59,7 @@ store_run :: proc(cache: ^Run_Cache, key: Run_Key, run: Shape) -> Shape {
 	}
 	owned_key := key
 	owned_key.value = strings.clone(key.value)
+	owned_key.language = strings.clone(key.language)
 	entry := &cache.entries[index - 1]
 	entry^ = {key = owned_key, infos = make([]native.HB_Glyph_Info, len(run.infos)),
 		positions = make([]native.HB_Glyph_Position, len(run.positions)), metrics = run.metrics}
@@ -96,6 +97,7 @@ evict_run :: proc(cache: ^Run_Cache) {
 	cache.bytes -= run_entry_bytes(entry)
 	delete_key(&cache.lookup, entry.key)
 	delete(entry.key.value)
+	delete(entry.key.language)
 	delete(entry.infos)
 	delete(entry.positions)
 	delete(entry.quads)
@@ -114,6 +116,6 @@ destroy_run_cache :: proc(cache: ^Run_Cache) {
 
 @(private)
 run_entry_bytes :: proc(entry: ^Run_Entry) -> int {
-	return len(entry.key.value) + len(entry.infos) * size_of(native.HB_Glyph_Info) +
+	return len(entry.key.value) + len(entry.key.language) + len(entry.infos) * size_of(native.HB_Glyph_Info) +
 		len(entry.positions) * size_of(native.HB_Glyph_Position) + len(entry.quads) * size_of(Glyph_Quad)
 }

@@ -1,10 +1,11 @@
-# Latin text
+# Text rendering
 
-Text uses HarfBuzz for shaping and FreeType for grayscale outline rasterization.
-No native platform text APIs are used. The first iteration supports one
-left-to-right Latin line per call, including kerning, ligatures, combining marks,
-and variable-font weight. Arabic/bidi, fallback, wrapping, clipping, color glyphs,
-and system font discovery are deferred.
+Text uses SheenBidi for directional/script analysis, HarfBuzz for shaping, and
+FreeType for grayscale outline rasterization. No native platform text APIs are
+used. Each call renders one unwrapped line, including Latin, Arabic, mixed bidi,
+kerning, ligatures, combining marks, and variable-font weight. Fallback, wrapping,
+clipping, color glyphs, and system font discovery are deferred. The explicit font
+must cover every character; the current samples/tests focus on Latin and Arabic.
 
 ## Build
 
@@ -21,16 +22,22 @@ sudo pacman -S --needed freetype2 harfbuzz pkgconf
 From the repository root:
 
 ```sh
-./scripts/build.sh app5
-./bin/app5
+./scripts/build.sh app6
+./bin/app6
 ./scripts/check.sh
 ```
 
 The build helper passes pkg-config's library search paths to Odin, including
 Homebrew's non-default locations. The Odin bindings link system FreeType and
 HarfBuzz directly. These shared libraries must also be installed on the machine
-running the binary. The app5 fonts are read from files, so run it from the
-repository root. Existing examples remain available as app0 through app4.
+running the binary. SheenBidi 3.0.0 is vendored under `third_party/SheenBidi`
+and compiled/linked statically by the helper, using `cc` and `ar` (macOS Command
+Line Tools or Linux base-devel). No separate SheenBidi installation is needed.
+The archive is cached under `bin/text-deps/<OS>-<architecture>` and rebuilt when
+its source changes. `CC` and `AR` can select the host compiler/archive tool.
+Build Linux executables inside the VM; this helper does not set up a cross sysroot.
+The app5/app6 fonts are read from files, so run them from the repository root.
+Existing examples remain available as app0 through app5.
 
 ## Usage
 
@@ -84,8 +91,8 @@ ui.close_rect()
 Both calls return `(Text_Metrics, Text_Error)`. Metrics contain `width` (advance
 width, including spaces), `height` (line advance), `ascent`, and positive
 `descent`, all in logical points. Measurement shapes text but never rasterizes
-or uploads glyphs. Missing fonts/glyphs and tabs/newlines produce explicit errors;
-this API accepts Latin text and does not automatically segment other scripts.
+or uploads glyphs. Missing fonts/glyphs, malformed UTF-8, tabs, and line/paragraph
+separators produce explicit errors.
 A failed `text` call leaves no partial surfaces for that call.
 
 Weight 0 selects the font's default. A nonzero value selects the variable font's
@@ -94,6 +101,37 @@ Weight 0 selects the font's default. A nonzero value selects the variable font's
 `Unsupported_Weight` for nonzero weights. Other variation axes use defaults.
 No synthetic bolding is applied. Rasterization uses scalable outlines with
 hinting and embedded bitmap strikes disabled.
+
+## Reading direction and language
+
+Both `text` and `measure_text` accept the same additional options:
+
+```odin
+_, err = ui.text("مرحبا بالعالم — Hello 123", font = "body", size = 28,
+    direction = .Auto, language = "ar")
+```
+
+`Text_Direction` is `.Auto` (default), `.LTR`, or `.RTL`. Auto follows Unicode's
+first-strong rule, including isolate handling, and defaults to LTR for a line
+without strong characters. Explicit values set the paragraph's base direction;
+they do not force every character to run in that direction. Digits and embedded
+English retain their bidi behavior within an RTL paragraph.
+
+`language` is an optional BCP-47 tag. Empty uses `ar` for Arabic script runs,
+`en` for Latin, and `und` for others. An explicit tag applies to every shaped
+segment. Strings remain in logical UTF-8 order; callers must not reverse them.
+Direction does not imply right alignment: the line's visual left edge is placed
+at the current rect's origin. app6 demonstrates separate right alignment by
+measuring the line and cutting a rect of that width from `.Right`.
+
+On a cache miss, SheenBidi resolves the paragraph and visual line runs, and its
+script locator resolves common/inherited characters and paired punctuation.
+The implementation intersects directional and script runs, shapes each segment
+with HarfBuzz using the full source string as context, then concatenates the
+results in visual order. HarfBuzz handles RTL glyph mirroring; the source is not
+mirrored separately. Directional formatting controls and join controls influence
+analysis/shaping but do not produce visible glyphs. Glyph clusters retain source
+UTF-8 byte offsets, which may span multiple code points.
 
 ## Storage and drawing
 
@@ -111,15 +149,15 @@ in order with draws, and GLES uses ordered texture subimage uploads. Warm glyphs
 need neither rasterization nor texture upload.
 
 Measurement and drawing share a shaped-run cache. Its key is the font handle,
-text contents, physical size (1/64 pixel), and effective variable weight (16.16).
-Each entry owns its text, glyph IDs/clusters, positions, and metrics. Color and
+text contents, physical size (1/64 pixel), effective variable weight (16.16),
+requested base direction, and language. Each entry owns its text/language strings,
+assembled visual glyph IDs/clusters, positions, and metrics. Color and
 screen position do not affect shaping and are not part of the key; display scale
 is represented by physical font size. Equivalent physical sizes reuse a run,
-with metrics converted to logical points for each call. Language, direction,
-and features are fixed in this Latin-only API; if exposed later they must also
-become part of the key.
+with metrics converted to logical points for each call. OpenType feature options
+are not yet exposed; adding them will require extending the key.
 
-A cache hit skips HarfBuzz and native size/weight changes. A bitmap miss restores
+A cache hit skips bidi/script analysis, HarfBuzz, and native size/weight changes. A bitmap miss restores
 the requested native font configuration before rasterizing. The first draw of a
 run also prepares a compact array of glyph quads: relative
 physical-pixel positions, sizes, atlas UVs, and atlas page indices. It resolves
@@ -140,7 +178,7 @@ the run being prepared remains pinned. If its shaping plus quads would exceed
 the budget, it uses reusable scratch geometry without caching the quads. The
 scratch buffer retains capacity for the largest prepared run, outside the LRU
 budget (as do the native shaping buffer and emitted frame surfaces).
-Repeated cached calls make no new Odin allocations. Native HarfBuzz allocations
+Repeated cached calls make no new Odin allocations. Native HarfBuzz/SheenBidi allocations
 on misses are outside Odin's allocation tracker.
 
 Atlas storage grows on demand to at most 16 pages (64 MiB CPU + 64 MiB GPU,
@@ -152,7 +190,9 @@ exits the process when its single window closes.
 
 The example includes Noto Sans Display and Noto Serif Display variable fonts,
 copied from the supplied local font collection. Their SIL Open Font License and
-copyright notices are in `examples/app5/assets/OFL.txt`.
+copyright notices are in `examples/app5/assets/OFL.txt`. app6 adds Amiri Regular
+from the same collection, covering Arabic and Latin, with its license in
+`examples/app6/assets/OFL.txt`.
 
 ## Validation
 
@@ -166,3 +206,9 @@ upload rollback, and shared-budget eviction during preparation. The platform tes
 atlas regions and subregion updates through the actual GPU pipeline and read
 back pixels. On Linux they use the existing surfaceless EGL test harness;
 `WAYLAND_RENDER_TEST` remains available for the compositor's driver.
+
+Arabic integration tests compare shaping to `hb-shape` output for the bundled
+Amiri font and check base-direction overrides, mixed-script run order, numbers,
+mirrored parentheses, isolates, joining controls, input validation, and warm
+cache reuse without new bidi/shaping/geometry work or Odin allocations.
+The pinned SheenBidi upstream test suite also passed separately on macOS.
