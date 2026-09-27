@@ -28,6 +28,8 @@ Store :: struct {
 	upload: [dynamic]u8,
 	runs: Run_Cache,
 	shape_calls, shape_cache_hits: u64,
+	geometry_builds: u64,
+	quad_scratch: [dynamic]Glyph_Quad,
 }
 
 @(private)
@@ -140,6 +142,7 @@ destroy :: proc(store: ^Store, renderer: platform.Renderer) {
 	delete(store.names)
 	delete(store.pages)
 	delete(store.upload)
+	delete(store.quad_scratch)
 	if store.buffer != nil { native.hb_buffer_destroy(store.buffer) }
 	if store.library != nil { native.FT_Done_FreeType(store.library) }
 	store^ = {}
@@ -153,6 +156,7 @@ Shape :: struct {
 	metrics: Metrics,
 	pixel_size: i32,
 	weight: c.long,
+	cache_index: int, // Borrowed run-cache slot; zero for an uncached oversized run.
 }
 
 // Returned glyph slices are borrowed until the next shape call. Cache hits
@@ -201,7 +205,7 @@ shape :: proc(store: ^Store, handle: Font, value: string, pixel_size, weight: f3
 	}
 	m := font.face.size.metrics
 	metrics := Metrics{width = advance, height = f32(m.height) / 64, ascent = f32(m.ascender) / 64, descent = -f32(m.descender) / 64}
-	run := Shape{font, infos, positions, metrics, px, w}
+	run := Shape{font = font, infos = infos, positions = positions, metrics = metrics, pixel_size = px, weight = w}
 	return store_run(&store.runs, key, run), .None
 }
 
@@ -218,33 +222,23 @@ draw :: proc(store: ^Store, renderer: platform.Renderer, font: Font, value: stri
 	if !(scale > 0 && scale <= 16) { return {}, .Invalid_Size }
 	run, err := shape(store, font, value, size * scale, weight)
 	if err != .None { return {}, err }
+	quads, prepare_error := prepare_quads(store, run)
+	if prepare_error != .None { return {}, prepare_error }
 	start := len(surfaces^)
+	// Grow once for the entire run, then write directly into the output slice.
 	// Failure must not leave partially emitted text in the frame.
 	succeeded := false
 	defer { if !succeeded { resize(surfaces, start) } }
-	pen: [2]f32
-	for info, i in run.infos {
-		glyph, glyph_error := cache_glyph(store, run.font, info.codepoint, run.pixel_size, run.weight)
-		if glyph_error != .None { return {}, glyph_error }
-		p := run.positions[i]
-		if glyph.page >= 0 {
-			page := &store.pages[glyph.page]
-			if page.image == (primitives.Image{}) {
-				image, image_error := platform.create_image(renderer, page.pixels, {ATLAS_SIZE, ATLAS_SIZE})
-				if image_error != .None { return {}, .Upload_Failed }
-				page.image = image
-				page.dirty = false
-			}
-			offset := [2]f32{f32(p.x_offset) / 64, -f32(p.y_offset) / 64}
-			append(surfaces, primitives.Surface{
-				position = position + (pen + offset + glyph.bearing + [2]f32{0, run.metrics.ascent}) / scale,
-				size = [2]f32{f32(glyph.size.x), f32(glyph.size.y)} / scale,
-				background = color, image = page.image,
-				image_region = {f32(glyph.position.x) / ATLAS_SIZE, f32(glyph.position.y) / ATLAS_SIZE,
-					f32(glyph.position.x + glyph.size.x) / ATLAS_SIZE, f32(glyph.position.y + glyph.size.y) / ATLAS_SIZE},
-			})
+	resize(surfaces, start + len(quads))
+	for quad, i in quads {
+		page := &store.pages[quad.page]
+		if page.image == (primitives.Image{}) {
+			image, image_error := platform.create_image(renderer, page.pixels, {ATLAS_SIZE, ATLAS_SIZE})
+			if image_error != .None { return {}, .Upload_Failed }
+			page.image = image
+			page.dirty = false
 		}
-		pen += [2]f32{f32(p.x_advance), -f32(p.y_advance)} / 64
+		surfaces^[start + i] = place_quad(quad, page.image, position, color, scale)
 	}
 	succeeded = true
 	return logical_metrics(run.metrics, scale), .None

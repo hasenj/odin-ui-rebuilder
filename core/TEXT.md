@@ -120,15 +120,26 @@ and features are fixed in this Latin-only API; if exposed later they must also
 become part of the key.
 
 A cache hit skips HarfBuzz and native size/weight changes. A bitmap miss restores
-the requested native font configuration before rasterizing. Glyph lookup and
-surface emission still run per visible glyph each frame. No API changes are
-required: the usual measure-then-draw sequence shares one cached result.
+the requested native font configuration before rasterizing. The first draw of a
+run also prepares a compact array of glyph quads: relative
+physical-pixel positions, sizes, atlas UVs, and atlas page indices. It resolves
+glyph bearings, shaping offsets, advances, and the baseline once. Measurement
+does not prepare quads or rasterize. Warm draws skip glyph-map lookup and geometry
+preparation, grow the output array once, and fill surfaces by converting physical
+geometry to logical points, adding the current origin, and applying color.
+Atlas page indices stay valid because the atlas never repacks or evicts glyphs.
+No API changes are required: the usual measure-then-draw sequence shares one cached result.
 
-The shaped-run cache has an LRU limit of 1024 entries and 4 MiB of owned text/glyph
-data, plus bounded array/hash-map metadata. Entries are stored in a linear array;
+The shaped-run cache has an LRU limit of 1024 entries and 4 MiB of owned text,
+shaping, and quad data, plus bounded array/hash-map metadata. Entries are stored in a linear array;
 LRU links are array indices. New labels evict the least recently used runs as
 needed; a run larger than the byte budget is shaped without caching. Input strings
 are copied only on cache insertion, so callers may reuse temporary buffers.
+Lazy quad insertion counts against the same byte budget and may evict other runs;
+the run being prepared remains pinned. If its shaping plus quads would exceed
+the budget, it uses reusable scratch geometry without caching the quads. The
+scratch buffer retains capacity for the largest prepared run, outside the LRU
+budget (as do the native shaping buffer and emitted frame surfaces).
 Repeated cached calls make no new Odin allocations. Native HarfBuzz allocations
 on misses are outside Odin's allocation tracker.
 
@@ -149,7 +160,9 @@ The font test uses the real bundled font files to check shaping, ligatures,
 kerning, composed/decomposed accents, variable weights, scale, bitmap coverage,
 cache reuse, error handling, and resource teardown. Shaped-run tests cover
 mutable input buffers, native size/weight changes, font-table growth, LRU/byte
-limits, oversized runs, and allocation-free cache hits. The platform tests render
+limits, oversized runs, and allocation-free cache hits. Geometry tests cover
+translation/tint/scale changes, warm reuse after font changes, empty geometry,
+upload rollback, and shared-budget eviction during preparation. The platform tests render
 atlas regions and subregion updates through the actual GPU pipeline and read
 back pixels. On Linux they use the existing surfaceless EGL test harness;
 `WAYLAND_RENDER_TEST` remains available for the compositor's driver.

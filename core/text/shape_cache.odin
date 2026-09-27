@@ -14,6 +14,8 @@ Run_Entry :: struct {
 	infos: []native.HB_Glyph_Info,
 	positions: []native.HB_Glyph_Position,
 	metrics: Metrics,
+	quads: []Glyph_Quad,
+	prepared: bool,
 	previous, next: int, // One-based array indices; zero terminates the LRU list.
 }
 @(private)
@@ -26,7 +28,7 @@ Run_Cache :: struct {
 @(private)
 MAX_RUNS :: 1024
 @(private)
-MAX_RUN_BYTES :: 4 * 1024 * 1024 // Owned text and glyph data; metadata is bounded separately.
+MAX_RUN_BYTES :: 4 * 1024 * 1024 // Owned text, shaping, and quad data; metadata is bounded separately.
 
 // The returned slices are borrowed until the next shape call. Font pointers are
 // never stored: loading another font can relocate the font array.
@@ -37,7 +39,7 @@ lookup_run :: proc(cache: ^Run_Cache, key: Run_Key, font: ^Font_Record) -> (Shap
 	touch_run(cache, index)
 	entry := &cache.entries[index - 1]
 	return {font = font, infos = entry.infos, positions = entry.positions,
-		metrics = entry.metrics, pixel_size = key.pixel_size, weight = key.weight}, true
+		metrics = entry.metrics, pixel_size = key.pixel_size, weight = key.weight, cache_index = index}, true
 }
 
 @(private)
@@ -67,6 +69,7 @@ store_run :: proc(cache: ^Run_Cache, key: Run_Key, run: Shape) -> Shape {
 	touch_run(cache, index)
 	result := run
 	result.infos, result.positions = entry.infos, entry.positions
+	result.cache_index = index
 	return result
 }
 
@@ -90,11 +93,12 @@ evict_run :: proc(cache: ^Run_Cache) {
 	entry := &cache.entries[index - 1]
 	cache.last = entry.previous
 	if cache.last != 0 { cache.entries[cache.last - 1].next = 0 } else { cache.first = 0 }
-	cache.bytes -= len(entry.key.value) + len(entry.infos) * size_of(native.HB_Glyph_Info) + len(entry.positions) * size_of(native.HB_Glyph_Position)
+	cache.bytes -= run_entry_bytes(entry)
 	delete_key(&cache.lookup, entry.key)
 	delete(entry.key.value)
 	delete(entry.infos)
 	delete(entry.positions)
+	delete(entry.quads)
 	entry^ = {}
 	append(&cache.free, index)
 }
@@ -106,4 +110,10 @@ destroy_run_cache :: proc(cache: ^Run_Cache) {
 	delete(cache.entries)
 	delete(cache.free)
 	cache^ = {}
+}
+
+@(private)
+run_entry_bytes :: proc(entry: ^Run_Entry) -> int {
+	return len(entry.key.value) + len(entry.infos) * size_of(native.HB_Glyph_Info) +
+		len(entry.positions) * size_of(native.HB_Glyph_Position) + len(entry.quads) * size_of(Glyph_Quad)
 }
