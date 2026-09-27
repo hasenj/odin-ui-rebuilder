@@ -2,6 +2,7 @@ package ui
 
 import "primitives"
 import "input"
+import fonts "text"
 import "../platform"
 
 Surface :: primitives.Surface
@@ -15,6 +16,7 @@ Mouse_Buttons :: input.Mouse_Buttons
 Frame :: struct {
 	time:       f64, // Monotonic seconds since the window opened.
 	size:       [2]f32, // Current content size in logical points.
+	scale:      f32, // Physical pixels per logical point.
 	input:      Input, // Current input snapshot; read this during update.
 	renderer:   platform.Renderer, // Used by image loading; owned by the window.
 	surfaces:   [dynamic]Surface,
@@ -33,6 +35,7 @@ Frame_State :: struct {
 	frame: Frame,
 	update: Update,
 	rects: [dynamic]Rect_Context,
+	text: fonts.Store,
 }
 
 @(private)
@@ -42,6 +45,8 @@ active_state: ^Frame_State
 destroy_frame_state :: proc(state: ^Frame_State) {
 	delete(state.frame.surfaces)
 	delete(state.rects)
+	// The platform has already released its renderer and all GPU images.
+	fonts.destroy(&state.text, nil)
 }
 
 @(private)
@@ -53,6 +58,7 @@ build_frame :: proc(renderer: platform.Renderer, elapsed: f64, size: [2]f32, use
 	state.frame.time = elapsed
 	state.frame.size = size
 	state.frame.renderer = renderer
+	state.frame.scale = platform.pixel_scale(renderer)
 	clear(&state.frame.surfaces)
 	assert(valid_length(size.x) && valid_length(size.y), "Invalid viewport size")
 	clear(&state.rects)
@@ -62,5 +68,6 @@ build_frame :: proc(renderer: platform.Renderer, elapsed: f64, size: [2]f32, use
 		state.update()
 	}
 	assert(len(state.rects) == 1, "Unclosed rects at end of update")
+	assert(fonts.flush(&state.text, renderer) == .None, "Could not upload text atlas")
 	return state.frame.surfaces[:]
 }

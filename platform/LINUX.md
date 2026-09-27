@@ -9,13 +9,12 @@ and `_darwin` files for the target OS.
 ## Build and run in Omarchy
 
 Use a recent Odin compiler with `core:image` PNG/JPEG support and `vendor:egl`.
-Development cross-checks used `dev-2026-05-nightly`. Run the following from the
+Development cross-checks used `dev-2026-09-nightly`. Run the following from the
 repository root inside the VM:
 
 ```sh
-sudo pacman -S --needed base-devel wayland libglvnd mesa
-mkdir -p bin
-odin build examples/app3 -out:bin/app3 -o:speed -vet -strict-style
+sudo pacman -S --needed base-devel wayland libglvnd mesa freetype2 harfbuzz pkgconf
+./scripts/build.sh app3
 ./bin/app3
 ```
 
@@ -27,8 +26,9 @@ Wayland client 1.20+ is required for `wl_proxy_marshal_array_flags`.
 Run the application from a terminal in the graphical Wayland session, as your
 normal user. `WAYLAND_DISPLAY` and `XDG_RUNTIME_DIR` must refer to that session;
 running it through an unrelated SSH session or with sudo will not set those up.
-The app0–app4 examples target either platform; app3 embeds its assets, and app4
-demonstrates nested rect cuts, padding, and painting.
+The app0–app5 examples target either platform; app3 embeds its assets, and app4
+demonstrates nested rect cuts, padding, and painting. app5 demonstrates Latin
+text with HarfBuzz and FreeType; see [text API and setup](../core/TEXT.md).
 
 For a VM without working accelerated OpenGL, try Mesa software rendering:
 
@@ -51,7 +51,7 @@ shared function bindings; loading those bindings does not select desktop GL.
 ./scripts/check-linux.sh
 ```
 
-This runs rect-cutting frame integration tests, image decoder tests, Linux GLES
+This runs rect-cutting frame integration tests, font shaping/cache tests, image decoder tests, Linux GLES
 pixel-readback tests, and optimized
 builds of all examples. The rendering tests use Mesa's surfaceless EGL platform
 and do not require a visible window. They cover rounded corners, alpha blending,

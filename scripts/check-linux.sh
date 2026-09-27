@@ -1,11 +1,4 @@
 #!/bin/sh
-# Run from any directory inside a Linux installation with Odin and Mesa.
+# Compatibility entry point; the shared check script supports both backends.
 set -eu
-cd "$(dirname "$0")/.."
-mkdir -p bin
-odin test core -out:bin/core-tests -o:speed -vet -strict-style
-odin test core/images -out:bin/image-tests -o:speed -vet -strict-style
-odin test platform -out:bin/platform-tests -o:speed -vet -strict-style
-for app in app0 app1 app2 app3 app4; do
-    odin build "examples/$app" "-out:bin/$app" -o:speed -vet -strict-style
-done
+exec "$(dirname "$0")/check.sh"
