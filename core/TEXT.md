@@ -108,8 +108,29 @@ transparent texel gutter. Glyph coverage is premultiplied white and tinted by
 the normal surface shader. Adjacent glyphs using the same atlas share renderer
 batches. Dirty regions upload after the UI update; Metal queues staging blits
 in order with draws, and GLES uses ordered texture subimage uploads. Warm glyphs
-need neither rasterization nor texture upload. Shaping still runs on every
-call; there is no shaped-string cache yet.
+need neither rasterization nor texture upload.
+
+Measurement and drawing share a shaped-run cache. Its key is the font handle,
+text contents, physical size (1/64 pixel), and effective variable weight (16.16).
+Each entry owns its text, glyph IDs/clusters, positions, and metrics. Color and
+screen position do not affect shaping and are not part of the key; display scale
+is represented by physical font size. Equivalent physical sizes reuse a run,
+with metrics converted to logical points for each call. Language, direction,
+and features are fixed in this Latin-only API; if exposed later they must also
+become part of the key.
+
+A cache hit skips HarfBuzz and native size/weight changes. A bitmap miss restores
+the requested native font configuration before rasterizing. Glyph lookup and
+surface emission still run per visible glyph each frame. No API changes are
+required: the usual measure-then-draw sequence shares one cached result.
+
+The shaped-run cache has an LRU limit of 1024 entries and 4 MiB of owned text/glyph
+data, plus bounded array/hash-map metadata. Entries are stored in a linear array;
+LRU links are array indices. New labels evict the least recently used runs as
+needed; a run larger than the byte budget is shaped without caching. Input strings
+are copied only on cache insertion, so callers may reuse temporary buffers.
+Repeated cached calls make no new Odin allocations. Native HarfBuzz allocations
+on misses are outside Odin's allocation tracker.
 
 Atlas storage grows on demand to at most 16 pages (64 MiB CPU + 64 MiB GPU,
 excluding transient upload storage). It currently has no eviction: many unique
@@ -126,7 +147,9 @@ copyright notices are in `examples/app5/assets/OFL.txt`.
 
 The font test uses the real bundled font files to check shaping, ligatures,
 kerning, composed/decomposed accents, variable weights, scale, bitmap coverage,
-cache reuse, error handling, and resource teardown. The platform tests render
+cache reuse, error handling, and resource teardown. Shaped-run tests cover
+mutable input buffers, native size/weight changes, font-table growth, LRU/byte
+limits, oversized runs, and allocation-free cache hits. The platform tests render
 atlas regions and subregion updates through the actual GPU pipeline and read
 back pixels. On Linux they use the existing surfaceless EGL test harness;
 `WAYLAND_RENDER_TEST` remains available for the compositor's driver.

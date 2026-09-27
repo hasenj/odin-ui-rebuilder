@@ -29,7 +29,7 @@ latin_font_pipeline :: proc(t: ^testing.T) {
 		testing.expect(t, len(run.infos) < 6, "The ffi sequence should form a ligature")
 		testing.expect(t, run.metrics.width > 50 && run.metrics.ascent > 20 && run.metrics.height > 30)
 		glyph_id := run.infos[0].codepoint
-		regular, raster_error := cache_glyph(&store, run.font, glyph_id)
+		regular, raster_error := cache_glyph(&store, run.font, glyph_id, run.pixel_size, run.weight)
 		testing.expect_value(t, raster_error, Error.None)
 		testing.expect(t, regular.page >= 0 && regular.size.x > 5 && regular.size.y > 5)
 		coverage := false
@@ -41,18 +41,18 @@ latin_font_pipeline :: proc(t: ^testing.T) {
 		warm_allocations := tracking.total_allocation_count
 		for _ in 0..<20 {
 			run, shape_error = shape(&store, font, "office", 32, 400)
-			cached, _ := cache_glyph(&store, run.font, glyph_id)
+			cached, _ := cache_glyph(&store, run.font, glyph_id, run.pixel_size, run.weight)
 			testing.expect_value(t, cached, regular)
 		}
 		testing.expect_value(t, tracking.total_allocation_count, warm_allocations)
 		testing.expect_value(t, len(run.font.glyphs), cache_count)
 		run, shape_error = shape(&store, font, "office", 32, 700)
 		testing.expect_value(t, shape_error, Error.None)
-		bold, bold_error := cache_glyph(&store, run.font, glyph_id)
+		bold, bold_error := cache_glyph(&store, run.font, glyph_id, run.pixel_size, run.weight)
 		testing.expect_value(t, bold_error, Error.None)
 		testing.expect(t, bold.position != regular.position, "Weights need separate cached bitmaps")
 		run, shape_error = shape(&store, font, "office", 32, 400)
-		again, _ := cache_glyph(&store, run.font, glyph_id)
+		again, _ := cache_glyph(&store, run.font, glyph_id, run.pixel_size, run.weight)
 		testing.expect_value(t, again, regular)
 		plain, _ := measure(&store, font, "café", 24, 1, 400)
 		combining, _ := measure(&store, font, "cafe\u0301", 24, 1, 400)
@@ -67,7 +67,7 @@ latin_font_pipeline :: proc(t: ^testing.T) {
 		testing.expect_value(t, empty_error, Error.None)
 		testing.expect_value(t, empty.width, f32(0))
 		run, _ = shape(&store, font, " ", 16, 0)
-		space, _ := cache_glyph(&store, run.font, run.infos[0].codepoint)
+		space, _ := cache_glyph(&store, run.font, run.infos[0].codepoint, run.pixel_size, run.weight)
 		testing.expect_value(t, space.page, -1)
 		_, err = measure(&store, 0, "hi", 16, 1, 0)
 		testing.expect_value(t, err, Error.Invalid_Font)

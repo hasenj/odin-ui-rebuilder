@@ -26,6 +26,8 @@ Store :: struct {
 	names: map[string]Font,
 	pages: [dynamic]Page,
 	upload: [dynamic]u8,
+	runs: Run_Cache,
+	shape_calls, shape_cache_hits: u64,
 }
 
 @(private)
@@ -119,6 +121,7 @@ find :: proc(store: ^Store, name: string) -> (Font, bool) {
 
 // All fonts, glyph caches, atlas pages, and native objects belong to the window.
 destroy :: proc(store: ^Store, renderer: platform.Renderer) {
+	destroy_run_cache(&store.runs)
 	for &font in store.fonts {
 		native.hb_font_destroy(font.hb)
 		if font.axes != nil {
@@ -148,18 +151,18 @@ Shape :: struct {
 	infos: []native.HB_Glyph_Info,
 	positions: []native.HB_Glyph_Position,
 	metrics: Metrics,
+	pixel_size: i32,
+	weight: c.long,
 }
 
-// The buffer is reused; returned glyph slices are valid until the next shape.
+// Returned glyph slices are borrowed until the next shape call. Cache hits
+// avoid HarfBuzz and leave the current native font size/weight untouched.
 @(private)
 shape :: proc(store: ^Store, handle: Font, value: string, pixel_size, weight: f32) -> (Shape, Error) {
 	if handle == 0 || int(handle) > len(store.fonts) { return {}, .Invalid_Font }
 	if !(pixel_size > 0 && pixel_size <= 2048) { return {}, .Invalid_Size }
 	if !(weight >= 0 && weight <= 32767) { return {}, .Invalid_Weight }
 	if len(value) > int(max(i32)) { return {}, .Unsupported_Text }
-	for ch in value {
-		if ch == '\n' || ch == '\r' || ch == '\t' { return {}, .Unsupported_Text }
-	}
 	font := &store.fonts[int(handle) - 1]
 	px := max(i32(math.round(pixel_size * 64)), 1)
 	w: c.long
@@ -170,21 +173,22 @@ shape :: proc(store: ^Store, handle: Font, value: string, pixel_size, weight: f3
 	} else if weight != 0 {
 		return {}, .Unsupported_Weight
 	}
-	if font.pixel_size != px || font.weight != w {
-		if font.weight_axis >= 0 && (font.pixel_size == 0 || font.weight != w) {
-			font.coords[font.weight_axis] = w
-			if native.FT_Set_Var_Design_Coordinates(font.face, font.axes.num_axis, raw_data(font.coords)) != 0 { return {}, .Invalid_Weight }
-		}
-		if native.FT_Set_Char_Size(font.face, 0, c.long(px), 72, 72) != 0 { return {}, .Invalid_Size }
-		native.hb_ft_font_changed(font.hb)
-		font.pixel_size, font.weight = px, w
+	key := Run_Key{handle, px, w, value}
+	if cached, ok := lookup_run(&store.runs, key, font); ok {
+		store.shape_cache_hits += 1
+		return cached, .None
 	}
+	for ch in value {
+		if ch == '\n' || ch == '\r' || ch == '\t' { return {}, .Unsupported_Text }
+	}
+	if err := configure_font(font, px, w); err != .None { return {}, err }
 	buffer := store.buffer
 	native.hb_buffer_clear_contents(buffer)
 	native.hb_buffer_add_utf8(buffer, raw_data(value), c.int(len(value)), 0, c.int(len(value)))
 	native.hb_buffer_set_direction(buffer, 4) // HB_DIRECTION_LTR
 	native.hb_buffer_set_script(buffer, 0x4c61746e) // 'Latn'
 	native.hb_buffer_set_language(buffer, native.hb_language_from_string("en", -1))
+	store.shape_calls += 1
 	native.hb_shape(font.hb, buffer, nil, 0)
 	if native.hb_buffer_allocation_successful(buffer) == 0 { return {}, .Shaping_Failed }
 	count := native.hb_buffer_get_length(buffer)
@@ -197,7 +201,8 @@ shape :: proc(store: ^Store, handle: Font, value: string, pixel_size, weight: f3
 	}
 	m := font.face.size.metrics
 	metrics := Metrics{width = advance, height = f32(m.height) / 64, ascent = f32(m.ascender) / 64, descent = -f32(m.descender) / 64}
-	return {font, infos, positions, metrics}, .None
+	run := Shape{font, infos, positions, metrics, px, w}
+	return store_run(&store.runs, key, run), .None
 }
 
 measure :: proc(store: ^Store, font: Font, value: string, size, scale, weight: f32) -> (Metrics, Error) {
@@ -206,8 +211,8 @@ measure :: proc(store: ^Store, font: Font, value: string, size, scale, weight: f
 	return logical_metrics(run.metrics, scale), err
 }
 
-// All text calls use the same reusable HB buffer. Only uncached glyphs allocate
-// or rasterize. A single font can be drawn at multiple sizes/weights in one frame.
+// Measurement and drawing share shaped runs. Warm text avoids shaping, native
+// font reconfiguration, rasterization, uploads, and allocation.
 draw :: proc(store: ^Store, renderer: platform.Renderer, font: Font, value: string, size, scale, weight: f32,
 	position: [2]f32, color: primitives.Color, surfaces: ^[dynamic]primitives.Surface) -> (Metrics, Error) {
 	if !(scale > 0 && scale <= 16) { return {}, .Invalid_Size }
@@ -219,7 +224,7 @@ draw :: proc(store: ^Store, renderer: platform.Renderer, font: Font, value: stri
 	defer { if !succeeded { resize(surfaces, start) } }
 	pen: [2]f32
 	for info, i in run.infos {
-		glyph, glyph_error := cache_glyph(store, run.font, info.codepoint)
+		glyph, glyph_error := cache_glyph(store, run.font, info.codepoint, run.pixel_size, run.weight)
 		if glyph_error != .None { return {}, glyph_error }
 		p := run.positions[i]
 		if glyph.page >= 0 {
@@ -251,9 +256,12 @@ logical_metrics :: proc(m: Metrics, scale: f32) -> Metrics {
 }
 
 @(private)
-cache_glyph :: proc(store: ^Store, font: ^Font_Record, id: u32) -> (Glyph, Error) {
-	key := Glyph_Key{id, font.pixel_size, font.weight}
+cache_glyph :: proc(store: ^Store, font: ^Font_Record, id: u32, pixel_size: i32, weight: c.long) -> (Glyph, Error) {
+	key := Glyph_Key{id, pixel_size, weight}
 	if cached, ok := font.glyphs[key]; ok { return cached, .None }
+	// A cached shape may refer to a different size/weight than the last native
+	// operation. Restore it only if a bitmap actually needs rasterization.
+	if err := configure_font(font, pixel_size, weight); err != .None { return {}, err }
 	if native.FT_Load_Glyph(font.face, id, native.FT_LOAD_NO_HINTING | native.FT_LOAD_NO_BITMAP) != 0 ||
 	   native.FT_Render_Glyph(font.face.glyph, 0) != 0 { return {}, .Rasterization_Failed }
 	slot := font.face.glyph
@@ -321,6 +329,20 @@ flush :: proc(store: ^Store, renderer: platform.Renderer) -> Error {
 		}
 		if platform.update_image(renderer, page.image, store.upload[:], page.dirty_min, size) != .None { return .Upload_Failed }
 		page.dirty = false
+	}
+	return .None
+}
+
+@(private)
+configure_font :: proc(font: ^Font_Record, px: i32, w: c.long) -> Error {
+	if font.pixel_size != px || font.weight != w {
+		if font.weight_axis >= 0 && (font.pixel_size == 0 || font.weight != w) {
+			font.coords[font.weight_axis] = w
+			if native.FT_Set_Var_Design_Coordinates(font.face, font.axes.num_axis, raw_data(font.coords)) != 0 { return .Invalid_Weight }
+		}
+		if native.FT_Set_Char_Size(font.face, 0, c.long(px), 72, 72) != 0 { return .Invalid_Size }
+		native.hb_ft_font_changed(font.hb)
+		font.pixel_size, font.weight = px, w
 	}
 	return .None
 }
