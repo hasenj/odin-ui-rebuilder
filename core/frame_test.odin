@@ -190,6 +190,10 @@ empty_rect_text_scene :: proc() {
 		fitted, fit_error := layout_text_fit("invisible", font, max_width = expected.width * 0.75)
 		assert(fit_error == .None && fitted.size < 16 && !fitted.overflow)
 		assert(draw_text_layout(fitted, align = .Center, valign = .Center) == .None)
+		multiline, multiline_error := layout_text_fit("invisible invisible", "test-body",
+			max_width = expected.width * 0.5 + 0.1, max_height = 0, wrap_at_min = true)
+		assert(multiline_error == .None && multiline.line_count == 2 && multiline.overflow)
+		assert(draw_text_layout(multiline, align = .Center, valign = .Center) == .None)
 	}
 	close_rect()
 	open_rect(.Top, current_rect().size.y)

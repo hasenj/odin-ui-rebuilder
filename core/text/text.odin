@@ -16,7 +16,7 @@ Font :: distinct u32
 Error :: enum {
 	None, Font_Load_Failed, Invalid_Font, Name_Exists, Invalid_Size,
 	Invalid_Weight, Unsupported_Weight, Unsupported_Text, Missing_Glyph,
-	Shaping_Failed, Rasterization_Failed, Atlas_Full, Upload_Failed, Invalid_Width, Invalid_Scale,
+	Shaping_Failed, Rasterization_Failed, Atlas_Full, Upload_Failed, Invalid_Width, Invalid_Scale, Invalid_Height,
 }
 Metrics :: struct {width, height, ascent, descent: f32}
 Direction :: enum u8 {Auto, LTR, RTL}

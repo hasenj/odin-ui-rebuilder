@@ -67,11 +67,13 @@ layout_text :: proc(value: string, font: Font_Ref, max_width: f32, size: f32 = 1
 	return fonts.layout(&active_state.text, resolve_font(font), value, size, frame.scale, weight, max_width, direction, language)
 }
 
-// One line, reduced uniformly only as far as min_scale (default 50%). Reports
-// overflow if it still exceeds max_width. Uses the desired-size glyph atlas.
-layout_text_fit :: proc(value: string, font: Font_Ref, max_width: f32, size: f32 = 16, min_scale: f32 = 0.5, weight: f32 = 0, direction: Text_Direction = .Auto, language: string = "") -> (Text_Layout, Text_Error) {
+// Shrink one line to fit width and optional height, stopping at min_scale (50%).
+// With wrap_at_min, wrap words if the minimum-size line still exceeds the width.
+// Reports overflow if either limit is still exceeded. No clipping or truncation.
+// Uses the desired-size glyph atlas; newlines remain unsupported.
+layout_text_fit :: proc(value: string, font: Font_Ref, max_width: f32, size: f32 = 16, min_scale: f32 = 0.5, weight: f32 = 0, direction: Text_Direction = .Auto, language: string = "", max_height: f32 = max(f32), wrap_at_min: bool = false) -> (Text_Layout, Text_Error) {
 	frame := current_frame()
-	return fonts.fit(&active_state.text, resolve_font(font), value, size, frame.scale, weight, max_width, min_scale, direction, language)
+	return fonts.fit(&active_state.text, resolve_font(font), value, size, frame.scale, weight, max_width, min_scale, direction, language, max_height, wrap_at_min)
 }
 
 // Paint a measured layout into the current rect without consuming it or clipping.

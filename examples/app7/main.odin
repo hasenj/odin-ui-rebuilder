@@ -25,7 +25,7 @@ update :: proc() {
 	ui.pad(28)
 	label("TEXT / 03", 13)
 	label("A little room. The right words.", 30, ink)
-	label("Resize the window: paragraphs wrap; button labels shrink only when needed.", 15)
+	label("Resize the window: paragraphs wrap; button labels shrink, then wrap at 12 px.", 15)
 	ui.pad4(18, 0, 0, 0)
 
 	label("FIXED BUTTONS / 24 PX DESIRED / 12 PX MINIMUM", 12)
@@ -40,7 +40,7 @@ update :: proc() {
 	}
 	ui.close_rect()
 	ui.pad4(10, 0, 0, 0)
-	label("Blue: fits. Amber: still too wide at the minimum size. Clipping comes later.", 13)
+	label("Blue: fits. Amber: width or height still overflows at 12 px. Clipping comes later.", 13)
 	ui.pad4(18, 0, 0, 0)
 
 	paragraph("WORD WRAPPING / HEIGHT COMES FROM THE TEXT",
@@ -55,13 +55,15 @@ update :: proc() {
 button :: proc(width: f32, value: string) {
 	ui.open_rect(.Left, width)
 	{
-		// A fixed box: measure its inner width, then center the same layout in it.
-		text, err := ui.layout_text_fit(value, sans, max_width = max(width - 24, 0), size = 24, weight = 600)
+		// Use the actual cut bounds: available height may shrink with the window.
+		bounds := ui.current_rect()
+		text, err := ui.layout_text_fit(value, sans, max_width = max(bounds.size.x - 24, 0),
+			max_height = max(bounds.size.y - 12, 0), size = 24, weight = 600, wrap_at_min = true)
 		assert(err == .None)
 		color := ui.Color{0.19, 0.39, 0.68, 1}
 		if text.overflow { color = {0.48, 0.29, 0.10, 1} }
 		ui.paint(color = color, corners = 9)
-		ui.pad2(0, 12)
+		ui.pad2(6, 12)
 		err = ui.draw_text_layout(text, ink, align = .Center, valign = .Center)
 		assert(err == .None)
 	}
