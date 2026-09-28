@@ -48,6 +48,7 @@ rect_frame_pipeline :: proc(t: ^testing.T) {
 	deep_rect_scopes(t)
 	empty_rect_text(t)
 	hover_rects(t)
+	identity_animation_pipeline(t)
 }
 
 // Frame input -> nested/padded rect queries -> paint, including shared edges,

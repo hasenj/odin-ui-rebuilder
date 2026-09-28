@@ -30,7 +30,9 @@ update :: proc() {
 `close_rect` returns to the already-reduced parent. Changes inside a child do
 not affect its parent. Pair every open with a close, including zero-sized cuts.
 The root cannot be closed, and all child scopes must close before update returns.
-Braces are ordinary Odin variable scopes; the calls manage rect scopes.
+Braces are ordinary Odin variable scopes; the calls manage rect scopes. Each rect
+scope also opens/closes a corresponding [identity node](IDENTITY.md). This does
+not change the geometry calculations or introduce a layout resolution pass.
 
 ## Padding and queries
 
@@ -90,16 +92,17 @@ Painting captures geometry at that moment. Paint before padding/cutting to make
 a background; paint afterward to draw in the remaining space. Surfaces retain
 declaration order, including those appended directly to `current_frame().surfaces`.
 Rounded backgrounds do not clip later surfaces, and radii do not inherit through
-cuts. Clipping, stable identity, and retained hierarchy are not implemented.
+cuts. Clipping is not implemented.
 
 ## Storage
 
-Each scope holds only its original bounds and remaining rect. A dynamic stack
-keeps the active scopes; closed scopes leave no tree nodes behind. Cuts, padding,
-and closing take constant work, with amortized growth when pushing the stack or
-emitting surfaces. Stack storage is proportional to maximum nesting depth;
-surface storage is proportional to emitted paint. Both buffers retain capacity
-between frames and are freed when the window closes.
+Each geometry scope holds only its original bounds and remaining rect. A dynamic
+stack keeps the active geometry scopes. The separate identity store retains
+matching nodes across frames; it does not retain rect geometry. Padding and
+closing take constant work; opening also performs identity hash lookups. Stack
+storage is proportional to maximum nesting depth; surface storage is proportional
+to emitted paint. Buffers retain capacity between frames and are freed when the
+window closes.
 
 The frame is implicit and valid only during the window's update callback, on
 its main thread. `examples/app4` demonstrates nested cuts, padding, HSL colors,

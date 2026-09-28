@@ -1,5 +1,7 @@
 package ui
 
+import "base:intrinsics"
+
 // Window-relative logical points, origin at the top left, Y increasing downwards.
 Rect :: struct {position, size: [2]f32}
 Direction :: enum u8 {Top, Right, Bottom, Left}
@@ -20,7 +22,20 @@ current_bounds :: proc() -> Rect {
 // Consume a strip from the current remaining area, then enter that strip.
 // Top/Bottom sizes are heights; Left/Right sizes are widths. Oversized cuts
 // consume all available space. Even a zero-sized cut must be closed.
-open_rect :: proc(direction: Direction, size: f32) {
+open_rect :: proc{open_rect_implicit, open_rect_keyed}
+
+@(private)
+open_rect_implicit :: proc(direction: Direction, size: f32, loc := #caller_location) {
+	open_rect_with_key(direction, size, Identity_Key{location = loc})
+}
+
+@(private)
+open_rect_keyed :: proc(direction: Direction, size: f32, key: $T) where intrinsics.type_is_integer(T) {
+	open_rect_with_key(direction, size, integer_identity_key(key))
+}
+
+@(private)
+open_rect_with_key :: proc(direction: Direction, size: f32, key: Identity_Key) {
 	assert(valid_length(size), "Cut size must be finite and nonnegative")
 	parent := current_rect_context()
 	axis := 1 if direction == .Top || direction == .Bottom else 0
@@ -35,12 +50,14 @@ open_rect :: proc(direction: Direction, size: f32) {
 	}
 	// Appending can relocate the stack; do not use parent after this point.
 	append(&active_state.rects, Rect_Context{bounds = cut, remaining = cut})
+	identity_enter(key, .Rect)
 }
 
 // Return to the already-reduced parent. Child padding/cuts cannot affect it.
 close_rect :: proc() {
 	assert(active_state != nil, "Rect calls must run inside the window update")
 	assert(len(active_state.rects) > 1, "Unbalanced close_rect")
+	identity_leave(.Rect)
 	pop(&active_state.rects)
 }
 

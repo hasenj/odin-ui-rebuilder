@@ -36,6 +36,7 @@ Frame_State :: struct {
 	update: Update,
 	rects: [dynamic]Rect_Context,
 	text: fonts.Store,
+	identities: Identity_Store,
 }
 
 @(private)
@@ -45,6 +46,7 @@ active_state: ^Frame_State
 destroy_frame_state :: proc(state: ^Frame_State) {
 	delete(state.frame.surfaces)
 	delete(state.rects)
+	destroy_identities(&state.identities)
 	// The platform has already released its renderer and all GPU images.
 	fonts.destroy(&state.text, nil)
 }
@@ -62,12 +64,14 @@ build_frame :: proc(renderer: platform.Renderer, elapsed: f64, size: [2]f32, use
 	clear(&state.frame.surfaces)
 	assert(valid_length(size.x) && valid_length(size.y), "Invalid viewport size")
 	clear(&state.rects)
+	identity_begin_frame(&state.identities)
 	root := Rect{size = size}
 	append(&state.rects, Rect_Context{bounds = root, remaining = root})
 	if state.update != nil {
 		state.update()
 	}
 	assert(len(state.rects) == 1, "Unclosed rects at end of update")
+	identity_end_frame(&state.identities)
 	assert(fonts.flush(&state.text, renderer) == .None, "Could not upload text atlas")
 	return state.frame.surfaces[:]
 }

@@ -7,7 +7,7 @@ ink :: ui.Color{0.91, 0.94, 0.98, 1}
 muted :: ui.Color{0.55, 0.63, 0.74, 1}
 
 main :: proc() {
-	ui.open_window("Odin UI Rebuilder — Hover", 960, 640, update, frame_timing = .Summary)
+	ui.open_window("Odin UI Rebuilder — Animated hover", 960, 640, update, frame_timing = .Summary)
 }
 
 update :: proc() {
@@ -55,11 +55,14 @@ update :: proc() {
 	ui.close_rect()
 }
 
-mode_button :: proc(label: string, hover_color: ui.Color) {
-	ui.open_rect(.Top, 80)
+mode_button :: proc(label: string, hover_color: ui.Color, loc := #caller_location) {
+	ui.open_rect(.Top, 80, loc = loc)
 	{
-		color := ui.Color{0.13, 0.17, 0.23, 1}
-		if ui.hovered() { color = hover_color }
+		target: f32 = 0
+		if ui.hovered() { target = 1 }
+		amount := ui.animate_f32(target, half_life = 0.06)
+		normal := ui.Color{0.13, 0.17, 0.23, 1}
+		color := normal + (hover_color - normal) * amount
 		ui.paint(color = color, corners = 12)
 		ui.pad(8)
 		caption(label, 17, ink, .Center, 600)
