@@ -81,7 +81,7 @@ open_window_impl :: proc(title: string, width, height: int, frame: Frame_Proc, u
 	gl_init(&window.renderer)
 	update_window_scale(&window)
 	if frame_timing != .Disabled {
-		fmt.println("[frame timing] CPU wall time; submit includes EGL swap waits. GPU execution and logging are excluded. Interval measures callback spacing; the first interval is 0.")
+		fmt.println("[frame timing] Wall-clock durations; submit excludes waits (EGL swap/presentation calls, including API overhead). GPU execution is not measured separately. Logging is excluded; interval measures callback spacing.")
 	}
 	profiler := Frame_Profiler{mode = frame_timing}
 	start := time.tick_now()
@@ -113,15 +113,16 @@ open_window_impl :: proc(title: string, width, height: int, frame: Frame_Proc, u
 @(private)
 wayland_frame :: proc(window: ^Wayland_Window, frame: Frame_Proc, user_data: rawptr, input_state: ^input.State, start: time.Tick, profiler: ^Frame_Profiler) {
 	profiling := profiler.mode != .Disabled
-	frame_start, update_start, submit_start: time.Tick
-	update_ms, submit_ms: f64
+	frame_start, update_start: time.Tick
+	update_ms: f64
+	render_time: Render_Timing
 	surfaces: []primitives.Surface
 	if profiling {
 		frame_start = time.tick_now()
 	}
 	defer {
 		if profiling {
-			record_frame_timing(profiler, frame_start, update_ms, submit_ms, len(surfaces))
+			record_frame_timing(profiler, frame_start, update_ms, render_time, len(surfaces))
 		}
 	}
 	defer free_all(context.temp_allocator)
@@ -141,13 +142,9 @@ wayland_frame :: proc(window: ^Wayland_Window, frame: Frame_Proc, user_data: raw
 		surfaces = frame(Renderer(&window.renderer), time.duration_seconds(time.tick_since(start)), size, user_data)
 	}
 	if profiling {
-		submit_start = time.tick_now()
-		update_ms = time.duration_milliseconds(time.tick_diff(update_start, submit_start))
+		update_ms = time.duration_milliseconds(time.tick_since(update_start))
 	}
-	render(Renderer(&window.renderer), surfaces, size)
-	if profiling {
-		submit_ms = time.duration_milliseconds(time.tick_since(submit_start))
-	}
+	render(Renderer(&window.renderer), surfaces, size, &render_time if profiling else nil)
 }
 
 @(private)

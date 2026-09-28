@@ -115,17 +115,22 @@ metal_fail :: proc(message: string, error: ^ns.Error) {
 }
 
 @(private)
-render_impl :: proc(handle: Renderer, surfaces: []primitives.Surface, size: [2]f32) {
+render_impl :: proc(handle: Renderer, surfaces: []primitives.Surface, size: [2]f32, timing: ^Render_Timing) {
 	renderer := cast(^Metal_Renderer)handle
 	if size.x <= 0 || size.y <= 0 {
 		return
 	}
+	// MetalKit can acquire (and wait for) a drawable through either accessor.
+	wait_start := render_wait_begin(timing)
 	pass := renderer.view->currentRenderPassDescriptor()
+	render_wait_end(timing, wait_start)
 	// A drawable can be unavailable while minimized or during a resize.
 	if pass == nil {
 		return
 	}
+	wait_start = render_wait_begin(timing)
 	drawable := renderer.view->currentDrawable()
+	render_wait_end(timing, wait_start)
 	if drawable == nil {
 		return
 	}
@@ -145,8 +150,10 @@ render_impl :: proc(handle: Renderer, surfaces: []primitives.Surface, size: [2]f
 		// Transaction presentation requires commit -> scheduled -> drawable present,
 		// not CommandBuffer.presentDrawable. No wait for GPU completion is needed.
 		command->commit()
+		wait_start = render_wait_begin(timing)
 		command->waitUntilScheduled()
 		drawable->present()
+		render_wait_end(timing, wait_start)
 	} else {
 		command->presentDrawable(drawable)
 		command->commit()

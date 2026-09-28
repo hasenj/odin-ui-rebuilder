@@ -106,13 +106,18 @@ gl_destroy :: proc(renderer: ^GL_Renderer) {
 }
 
 @(private)
-render_impl :: proc(handle: Renderer, surfaces: []primitives.Surface, size: [2]f32) {
+render_impl :: proc(handle: Renderer, surfaces: []primitives.Surface, size: [2]f32, timing: ^Render_Timing) {
 	renderer := cast(^GL_Renderer)handle
 	gl.Viewport(0, 0, renderer.pixel_size.x, renderer.pixel_size.y)
 	gl.ClearColor(0.035, 0.045, 0.065, 1)
 	gl.Clear(gl.COLOR_BUFFER_BIT)
 	encode_surfaces(renderer, surfaces, size)
-	linux_require(bool(egl.SwapBuffers(renderer.display, renderer.surface)), "EGL buffer swap failed")
+	// EGL combines presentation work and pacing in one call; account for its
+	// entire duration as waits rather than pretending to isolate sleep time.
+	wait_start := render_wait_begin(timing)
+	swapped := bool(egl.SwapBuffers(renderer.display, renderer.surface))
+	render_wait_end(timing, wait_start)
+	linux_require(swapped, "EGL buffer swap failed")
 }
 
 @(private)

@@ -67,7 +67,7 @@ open_window_impl :: proc(title: string, width, height: int, frame: Frame_Proc, u
 	}
 
 	if frame_timing != .Disabled {
-		fmt.println("[frame timing] CPU wall time; submit includes drawable waits. GPU execution and logging are excluded. Interval measures callback spacing; the first interval is 0.")
+		fmt.println("[frame timing] Wall-clock durations; submit excludes waits (drawable acquisition and scheduling/presentation calls, including API overhead). GPU execution is not measured separately. Logging is excluded; interval measures callback spacing.")
 	}
 	app->run()
 }
@@ -104,8 +104,9 @@ draw_frame :: proc "c" (self: ns.id, _: ns.SEL, view: ^mtk.View) {
 	renderer.drawing = true
 	defer { renderer.drawing = false }
 	profiling := renderer.profiler.mode != .Disabled
-	start, update_start, submit_start: time.Tick
-	update_ms, submit_ms: f64
+	start, update_start: time.Tick
+	update_ms: f64
+	render_time: Render_Timing
 	surfaces: []primitives.Surface
 	if profiling {
 		start = time.tick_now()
@@ -113,7 +114,7 @@ draw_frame :: proc "c" (self: ns.id, _: ns.SEL, view: ^mtk.View) {
 	// This defer runs after the autorelease pool and temporary allocator cleanup.
 	defer {
 		if profiling {
-			record_frame_timing(&renderer.profiler, start, update_ms, submit_ms, len(surfaces))
+			record_frame_timing(&renderer.profiler, start, update_ms, render_time, len(surfaces))
 		}
 	}
 	ns.scoped_autoreleasepool()
@@ -130,13 +131,9 @@ draw_frame :: proc "c" (self: ns.id, _: ns.SEL, view: ^mtk.View) {
 		surfaces = renderer.frame(Renderer(renderer), elapsed, size, renderer.user_data)
 	}
 	if profiling {
-		submit_start = time.tick_now()
-		update_ms = time.duration_milliseconds(time.tick_diff(update_start, submit_start))
+		update_ms = time.duration_milliseconds(time.tick_since(update_start))
 	}
-	render(Renderer(renderer), surfaces, size)
-	if profiling {
-		submit_ms = time.duration_milliseconds(time.tick_since(submit_start))
-	}
+	render(Renderer(renderer), surfaces, size, &render_time if profiling else nil)
 }
 
 @(private)
