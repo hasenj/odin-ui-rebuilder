@@ -9,7 +9,7 @@ import "core:fmt"
 // native face changes, caller buffer reuse, font-table growth, and LRU eviction.
 @(test)
 shaped_run_cache_pipeline :: proc(t: ^testing.T) {
-	path, _ := filepath.join({filepath.dir(#location().file_path), "../../examples/app5/assets/NotoSansDisplay-VariableFont.ttf"})
+	path, _ := filepath.join({filepath.dir(#location().file_path), "../../examples/assets/fonts/NotoSansDisplay-VariableFont.ttf"})
 	defer delete(path)
 	tracking: mem.Tracking_Allocator
 	mem.tracking_allocator_init(&tracking, context.allocator)

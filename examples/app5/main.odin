@@ -15,9 +15,9 @@ main :: proc() {
 update :: proc() {
 	if !loaded {
 		err: ui.Text_Error
-		sans, err = ui.load_font("examples/app5/assets/NotoSansDisplay-VariableFont.ttf", name = "sans")
+		sans, err = ui.load_font("examples/assets/fonts/NotoSansDisplay-VariableFont.ttf", name = "sans")
 		assert(err == .None, "Run app5 from the repository root; could not load Noto Sans Display")
-		serif, err = ui.load_font("examples/app5/assets/NotoSerifDisplay-VariableFont.ttf", name = "serif")
+		serif, err = ui.load_font("examples/assets/fonts/NotoSerifDisplay-VariableFont.ttf", name = "serif")
 		assert(err == .None, "Could not load Noto Serif Display")
 		loaded = true
 	}

@@ -188,11 +188,11 @@ CPU caches/native font objects are released when the window returns; GPU atlas
 textures are owned and destroyed by the platform renderer. macOS currently
 exits the process when its single window closes.
 
-The example includes Noto Sans Display and Noto Serif Display variable fonts,
-copied from the supplied local font collection. Their SIL Open Font License and
-copyright notices are in `examples/app5/assets/OFL.txt`. app6 adds Amiri Regular
-from the same collection, covering Arabic and Latin, with its license in
-`examples/app6/assets/OFL.txt`.
+The examples share fonts in `examples/assets/fonts/`, copied from the supplied
+local font collection. Noto Sans Display and Noto Serif Display are variable
+fonts; their SIL Open Font License and copyright notices are in `Noto-OFL.txt`.
+Amiri Regular covers Arabic and Latin, with its license in `Amiri-OFL.txt` in
+the same directory.
 
 ## Validation
 

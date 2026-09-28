@@ -13,7 +13,7 @@ resize_benchmark :: proc(t: ^testing.T) {
 	store: Store
 	defer destroy(&store, nil)
 	root := filepath.dir(#location().file_path)
-	paths := [?]string{"../../examples/app5/assets/NotoSansDisplay-VariableFont.ttf", "../../examples/app6/assets/Amiri-Regular.ttf"}
+	paths := [?]string{"../../examples/assets/fonts/NotoSansDisplay-VariableFont.ttf", "../../examples/assets/fonts/Amiri-Regular.ttf"}
 	fonts: [2]Font
 	for path, i in paths {
 		full_path, _ := filepath.join({root, path})

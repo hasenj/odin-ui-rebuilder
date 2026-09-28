@@ -15,9 +15,9 @@ main :: proc() {
 update :: proc() {
 	if !loaded {
 		err: ui.Text_Error
-		sans, err = ui.load_font("examples/app5/assets/NotoSansDisplay-VariableFont.ttf", name = "sans")
+		sans, err = ui.load_font("examples/assets/fonts/NotoSansDisplay-VariableFont.ttf", name = "sans")
 		assert(err == .None, "Run app7 from the repository root")
-		arabic, err = ui.load_font("examples/app6/assets/Amiri-Regular.ttf", name = "arabic")
+		arabic, err = ui.load_font("examples/assets/fonts/Amiri-Regular.ttf", name = "arabic")
 		assert(err == .None)
 		loaded = true
 	}

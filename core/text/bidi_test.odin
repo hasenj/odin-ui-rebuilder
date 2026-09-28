@@ -10,7 +10,7 @@ Reference_Glyph :: struct {g, cl: u32, dx, dy, ax, ay: i32}
 
 @(test)
 arabic_bidi_pipeline :: proc(t: ^testing.T) {
-	path, _ := filepath.join({filepath.dir(#location().file_path), "../../examples/app6/assets/Amiri-Regular.ttf"})
+	path, _ := filepath.join({filepath.dir(#location().file_path), "../../examples/assets/fonts/Amiri-Regular.ttf"})
 	defer delete(path)
 	tracking: mem.Tracking_Allocator
 	mem.tracking_allocator_init(&tracking, context.allocator)

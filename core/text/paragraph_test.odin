@@ -10,8 +10,8 @@ import "core:fmt"
 @(test)
 paragraph_resize_pipeline :: proc(t: ^testing.T) {
 	root := filepath.dir(#location().file_path)
-	latin_path, _ := filepath.join({root, "../../examples/app5/assets/NotoSansDisplay-VariableFont.ttf"})
-	arabic_path, _ := filepath.join({root, "../../examples/app6/assets/Amiri-Regular.ttf"})
+	latin_path, _ := filepath.join({root, "../../examples/assets/fonts/NotoSansDisplay-VariableFont.ttf"})
+	arabic_path, _ := filepath.join({root, "../../examples/assets/fonts/Amiri-Regular.ttf"})
 	defer delete(latin_path)
 	defer delete(arabic_path)
 	tracking: mem.Tracking_Allocator

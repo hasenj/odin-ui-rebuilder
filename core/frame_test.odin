@@ -172,7 +172,7 @@ empty_rect_text :: proc(t: ^testing.T) {
 empty_rect_text_scene :: proc() {
 	font, loaded := find_font("test-body")
 	if !loaded {
-		path, _ := filepath.join({filepath.dir(#location().file_path), "../examples/app5/assets/NotoSansDisplay-VariableFont.ttf"})
+		path, _ := filepath.join({filepath.dir(#location().file_path), "../examples/assets/fonts/NotoSansDisplay-VariableFont.ttf"})
 		defer delete(path)
 		err: Text_Error
 		font, err = load_font(path, name = "test-body")

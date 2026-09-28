@@ -18,8 +18,8 @@ fit_wrap_pipeline :: proc(t: ^testing.T) {
 	store: Store
 	Case :: struct {path, value, first, second: string, weight: f32}
 	cases := []Case{
-		{"../../examples/app5/assets/NotoSansDisplay-VariableFont.ttf", "Save all changes", "Save all", "changes", 600},
-		{"../../examples/app6/assets/Amiri-Regular.ttf", "السَّلَامُ عَلَيْكُمْ", "السَّلَامُ", "عَلَيْكُمْ", 0},
+		{"../../examples/assets/fonts/NotoSansDisplay-VariableFont.ttf", "Save all changes", "Save all", "changes", 600},
+		{"../../examples/assets/fonts/Amiri-Regular.ttf", "السَّلَامُ عَلَيْكُمْ", "السَّلَامُ", "عَلَيْكُمْ", 0},
 	}
 	surfaces: [dynamic]primitives.Surface
 	for item in cases {
