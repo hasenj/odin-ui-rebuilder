@@ -68,11 +68,30 @@ bitmaps. Unchanged layouts then need only cache lookup and surface placement;
 no bidi, shaping, geometry rebuild, or Odin allocation once output capacity is
 warm. Position, color and alignment do not affect the cache key.
 
-Wrapping caches the complete result by physical width (rounded down to 1/64 px).
-On a miss, SheenBidi resolves each paragraph once; candidate lines use those
-levels and HarfBuzz shapes within the selected line boundaries. Exponential
-probing and binary refinement avoid measuring every growing word prefix of a
-wide paragraph. Each line's visual glyph order is stored alongside its width.
+Wrapping uses a second bounded LRU cache for paragraph preparation: up to 256
+paragraphs / 4 MiB, including owned buffers and an allowance for retained native
+bidi state. It is keyed by text, font, physical size, weight, direction and
+language, **without width**. It retains SheenBidi paragraph analysis, script runs,
+HarfBuzz glyphs and cluster boundaries, and exact 26.6 prefix advance sums.
+Oversized paragraphs are prepared in temporary storage rather than retained.
+
+A new width searches those prefix sums for line breaks. Each selected line is
+reordered with SheenBidi's line rules, then assembled from the cached glyph runs;
+RTL glyph clusters and their internal mark order remain intact. HarfBuzz's
+`UNSAFE_TO_BREAK` flag prevents splitting cached shaping at an unsafe boundary.
+Those boundaries, or line-specific direction changes incompatible with the
+cached runs, use exact line reshaping. In the ordinary Latin/Arabic word-wrap
+path, resizing needs no new shaping or paragraph analysis.
+
+The final wrapped output and geometry are still cached by physical width
+(rounded down to 1/64 px). A previously unseen width builds its own line ranges
+and geometry; an unchanged width uses the complete cached result.
+
+Tests compare glyph IDs, source clusters, advances, offsets, line breaks and quad
+positions against the original exact line shaper across widths and bidi cases.
+`./scripts/bench-text-resize.sh` measures preparation plus geometry over 240 new
+widths for the app7 Latin/Arabic paragraphs, after font/atlas warm-up. It reports
+CPU time and the new shaping/paragraph-analysis call counts, excluding GPU waits.
 
 Fitting reuses the desired-size single-line shape and glyph bitmaps across all
 widths, applying a uniform scale to geometry and metrics. It does not create a

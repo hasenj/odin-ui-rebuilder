@@ -29,6 +29,8 @@ Store :: struct {
 	pages: [dynamic]Page,
 	upload: [dynamic]u8,
 	runs: Run_Cache,
+	paragraphs: Paragraph_Cache,
+	wrap_reshapes: u64,
 	shape_calls, shape_cache_hits: u64,
 	geometry_builds: u64,
 	quad_scratch: [dynamic]Glyph_Quad,
@@ -40,7 +42,6 @@ Store :: struct {
 	wrap_infos: [dynamic]native.HB_Glyph_Info,
 	wrap_positions: [dynamic]native.HB_Glyph_Position,
 	wrap_lines: [dynamic]Layout_Line,
-	wrap_words: [dynamic]Word_Bounds,
 }
 
 @(private)
@@ -135,6 +136,7 @@ find :: proc(store: ^Store, name: string) -> (Font, bool) {
 // All fonts, glyph caches, atlas pages, and native objects belong to the window.
 destroy :: proc(store: ^Store, renderer: platform.Renderer) {
 	destroy_run_cache(&store.runs)
+	destroy_paragraph_cache(&store.paragraphs)
 	for &font in store.fonts {
 		native.hb_font_destroy(font.hb)
 		if font.axes != nil {
@@ -160,7 +162,6 @@ destroy :: proc(store: ^Store, renderer: platform.Renderer) {
 	delete(store.wrap_infos)
 	delete(store.wrap_positions)
 	delete(store.wrap_lines)
-	delete(store.wrap_words)
 	if store.script_locator != nil { native.SBScriptLocatorRelease(store.script_locator) }
 	if store.buffer != nil { native.hb_buffer_destroy(store.buffer) }
 	if store.library != nil { native.FT_Done_FreeType(store.library) }
@@ -219,7 +220,7 @@ shape :: proc(store: ^Store, handle: Font, value: string, pixel_size, weight: f3
 	metrics := Metrics{height = f32(m.height) / 64, ascent = f32(m.ascender) / 64, descent = -f32(m.descender) / 64}
 	run := Shape{font = font, metrics = metrics, pixel_size = px, weight = w, line_height = metrics.height}
 	if wrapped {
-		if err := shape_wrapped(store, &run, value, f32(width) / 64, direction, language); err != .None { return {}, err }
+		if err := shape_wrapped(store, &run, value, f32(width) / 64, direction, language, handle); err != .None { return {}, err }
 	} else {
 		if err := shape_line(store, font, value, direction, language); err != .None { return {}, err }
 		run.infos, run.positions = store.info_scratch[:], store.position_scratch[:]

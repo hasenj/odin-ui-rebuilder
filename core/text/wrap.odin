@@ -1,7 +1,5 @@
 package text
 
-import "native"
-
 // Glyph range plus source byte range. Each line is already in visual order.
 @(private)
 Layout_Line :: struct {start, end, byte_start, byte_end: int, width: f32}
@@ -14,7 +12,7 @@ Word_Bounds :: struct {start, end: int}
 // NBSP, combining sequences, ligatures, and joining sequences are never split.
 // This is deliberately not a full Unicode line-breaking/hyphenation engine.
 @(private)
-shape_wrapped :: proc(store: ^Store, run: ^Shape, value: string, width: f32, direction: Direction, language: string) -> Error {
+shape_wrapped :: proc(store: ^Store, run: ^Shape, value: string, width: f32, direction: Direction, language: string, handle: Font) -> Error {
 	clear(&store.wrap_infos)
 	clear(&store.wrap_positions)
 	clear(&store.wrap_lines)
@@ -29,7 +27,15 @@ shape_wrapped :: proc(store: ^Store, run: ^Shape, value: string, width: f32, dir
 				break
 			}
 		}
-		if err := wrap_paragraph(store, run.font, value[start:end], start, width, direction, language); err != .None { return err }
+		if start == end {
+			append(&store.wrap_lines, Layout_Line{start = len(store.wrap_infos), end = len(store.wrap_infos), byte_start = start, byte_end = end})
+		} else {
+			key := Run_Key{font = handle, pixel_size = run.pixel_size, weight = run.weight, value = value[start:end], direction = direction, language = language}
+			entry, err := get_paragraph(store, run.font, key)
+			if err != .None { return err }
+			defer { if entry == &store.paragraphs.scratch { delete_paragraph(entry) } }
+			if e := wrap_prepared(store, run.font, entry, start, width); e != .None { return e }
+		}
 		if next > len(value) { break }
 		start = next
 	}
@@ -40,65 +46,26 @@ shape_wrapped :: proc(store: ^Store, run: ^Shape, value: string, width: f32, dir
 }
 
 @(private)
-wrap_paragraph :: proc(store: ^Store, font: ^Font_Record, value: string, byte_offset: int, width: f32, direction: Direction, language: string) -> Error {
-	if len(value) == 0 {
-		append(&store.wrap_lines, Layout_Line{start = len(store.wrap_infos), end = len(store.wrap_infos), byte_start = byte_offset, byte_end = byte_offset})
-		return .None
-	}
-	store.bidi_calls += 1
-	sequence := native.SB_Sequence{encoding = 0, buffer = raw_data(value), length = uintptr(len(value))}
-	algorithm := native.SBAlgorithmCreate(&sequence)
-	if algorithm == nil { return .Shaping_Failed }
-	defer native.SBAlgorithmRelease(algorithm)
-	base: u8 = 0xfe
-	switch direction {
-	case .Auto:
-	case .LTR: base = 0
-	case .RTL: base = 1
-	}
-	paragraph := native.SBAlgorithmCreateParagraph(algorithm, 0, sequence.length, base)
-	if paragraph == nil { return .Shaping_Failed }
-	defer native.SBParagraphRelease(paragraph)
-	if native.SBParagraphGetLength(paragraph) != sequence.length { return .Unsupported_Text }
-	if err := load_scripts(store, &sequence); err != .None { return err }
-	// U+2028 forces a line break without changing paragraph bidi context.
-	segment_start := 0
-	for {
-		segment_end, next := len(value), len(value) + 1
-		for ch, i in value[segment_start:] {
-			if ch == '\u2028' {
-				segment_end, next = segment_start + i, segment_start + i + 3
-				break
-			}
+wrap_prepared :: proc(store: ^Store, font: ^Font_Record, entry: ^Paragraph_Entry, byte_offset: int, width: f32) -> Error {
+	for hard in entry.hard_lines {
+		if hard.first_word == hard.last_word {
+			append(&store.wrap_lines, Layout_Line{start = len(store.wrap_infos), end = len(store.wrap_infos), byte_start = byte_offset + hard.start, byte_end = byte_offset + hard.end})
 		}
-		start, end := segment_start, segment_end
-		for start < end && value[start] == ' ' { start += 1 }
-		for end > start && value[end - 1] == ' ' { end -= 1 }
-		if start == end {
-			append(&store.wrap_lines, Layout_Line{start = len(store.wrap_infos), end = len(store.wrap_infos), byte_start = byte_offset + start, byte_end = byte_offset + end})
-		}
-		clear(&store.wrap_words)
-		for at := start; at < end; {
-			word_start := at
-			for at < end && value[at] != ' ' { at += 1 }
-			append(&store.wrap_words, Word_Bounds{word_start, at})
-			for at < end && value[at] == ' ' { at += 1 }
-		}
-		words := store.wrap_words[:]
+		words := entry.words[hard.first_word:hard.last_word]
 		for word_index := 0; word_index < len(words); {
-			start = words[word_index].start
+			start := words[word_index].start
 			best_index := word_index
-			// Exponential probing avoids shaping every growing word prefix of a
-			// wide paragraph. Refine the first oversized probe with binary search.
+			// Fit from constant-time prefix widths. Refine the first oversized
+			// exponential probe with binary search; unsafe boundaries use shaping.
 			probe, step := word_index, 1
 			for {
-				advance, err := measure_bidi_line(store, font, value, paragraph, start, words[probe].end, language)
+				advance, err := paragraph_line_width(store, font, entry, start, words[probe].end)
 				if err != .None { return err }
 				if advance > width {
 					low, high := best_index + 1, probe
 					for low < high {
 						mid := low + (high - low) / 2
-						w, e := measure_bidi_line(store, font, value, paragraph, start, words[mid].end, language)
+						w, e := paragraph_line_width(store, font, entry, start, words[mid].end)
 						if e != .None { return e }
 						if w <= width { best_index, low = mid, mid + 1 } else { high = mid }
 					}
@@ -110,9 +77,11 @@ wrap_paragraph :: proc(store: ^Store, font: ^Font_Record, value: string, byte_of
 				step *= 2
 			}
 			best := words[best_index].end
-			// Shape exactly the selected line, retaining paragraph levels but no
-			// shaping context across its edges. Never reuse a mid-word glyph cut.
-			if err := shape_bidi_line(store, font, value, paragraph, start, best, language); err != .None { return err }
+			// Reorder cached runs per line, preserving glyph order inside clusters.
+			// HarfBuzz-unsafe boundaries retain the exact shaping fallback.
+			if !reuse_paragraph_line(store, entry, start, best) {
+				if err := reshape_paragraph_line(store, font, entry, start, best); err != .None { return err }
+			}
 			advance, err := scratch_advance(store)
 			if err != .None { return err }
 			first := len(store.wrap_infos)
@@ -122,8 +91,6 @@ wrap_paragraph :: proc(store: ^Store, font: ^Font_Record, value: string, byte_of
 			append(&store.wrap_lines, Layout_Line{first, len(store.wrap_infos), byte_offset + start, byte_offset + best, advance})
 			word_index = best_index + 1
 		}
-		if next > len(value) { break }
-		segment_start = next
 	}
 	return .None
 }
@@ -136,10 +103,4 @@ scratch_advance :: proc(store: ^Store) -> (f32, Error) {
 		width += f32(store.position_scratch[i].x_advance) / 64
 	}
 	return width, .None
-}
-
-@(private)
-measure_bidi_line :: proc(store: ^Store, font: ^Font_Record, value: string, paragraph: native.SB_Paragraph, start, end: int, language: string) -> (f32, Error) {
-	if err := shape_bidi_line(store, font, value, paragraph, start, end, language); err != .None { return 0, err }
-	return scratch_advance(store)
 }
