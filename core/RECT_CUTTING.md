@@ -51,6 +51,27 @@ the same edge position. Empty surfaces do not render; `text()` also suppresses
 glyph emission when either current dimension is zero. This is not clipping:
 text in a nonempty rect can still extend beyond its bounds.
 
+## Hover
+
+`hovered()` tests the current remaining rect against the frame's pointer position.
+Call it before padding/cutting to match a button's painted background:
+
+```odin
+color := ui.hsl(220, 25, 20)
+if ui.hovered() { color = ui.hsl(220, 55, 45) }
+ui.paint(color = color, corners = 12)
+ui.pad(8)
+```
+
+`hovered(rect)` tests an explicit snapshot; `hovered(current_bounds())` uses the
+whole scope even after padding or child cuts. Empty rects and pointers outside
+the window content never hover. Top/left edges are included; bottom/right are
+excluded so adjacent areas do not both match their shared edge.
+
+This is a geometry query, without identity or retained state. Rounded paint
+corners and overlapping surfaces do not affect it; overlapping rects can both
+report hover. `examples/app8` demonstrates three sidebar buttons changing color.
+
 ## Painting
 
 `paint(color = ..., img = ..., corners = ...)` immediately appends a `Surface`

@@ -47,6 +47,60 @@ rect_frame_pipeline :: proc(t: ^testing.T) {
 	exhausted_rects(t)
 	deep_rect_scopes(t)
 	empty_rect_text(t)
+	hover_rects(t)
+}
+
+// Frame input -> nested/padded rect queries -> paint, including shared edges,
+// pointer leave and resized/exhausted cuts. No identities or prior-frame state.
+@(private)
+hover_rects :: proc(t: ^testing.T) {
+	state := Frame_State{update = hover_scene}
+	defer destroy_frame_state(&state)
+	Case :: struct {pointer, viewport: [2]f32, inside: bool, hits: [6]bool}
+	cases := [?]Case{
+		{{5, 10}, {100, 100}, true, {true, false, true, false, false, false}},
+		{{10, 0}, {100, 100}, true, {true, true, true, false, false, false}},
+		{{29, 20}, {100, 100}, true, {false, false, false, true, false, false}},
+		{{30, 20}, {100, 100}, true, {false, false, false, false, true, false}},
+		{{100, 30}, {100, 100}, true, {}},
+		{{30, 100}, {100, 100}, true, {}},
+		{{-1, 10}, {100, 100}, true, {}},
+		{{15, 10}, {100, 100}, false, {}},
+		{{15, 10}, {20, 15}, true, {true, true, true, false, false, false}},
+		{{0, 0}, {}, true, {}},
+	}
+	for item in cases {
+		state.frame.input = {mouse_position = item.pointer, mouse_inside = item.inside}
+		surfaces := build_frame(nil, 0, item.viewport, &state)
+		testing.expect_value(t, len(surfaces), len(item.hits))
+		for surface, i in surfaces {
+			testing.expect_value(t, surface.background.r == 1, item.hits[i])
+		}
+	}
+}
+
+@(private)
+hover_scene :: proc() {
+	open_rect(.Top, 20)
+	{
+		paint_hover(hovered())
+		pad4(0, 0, 0, 10)
+		paint_hover(hovered())
+		paint_hover(hovered(current_bounds()))
+	}
+	close_rect()
+	open_rect(.Left, 30)
+	paint_hover(hovered())
+	close_rect()
+	paint_hover(hovered())
+	open_rect(.Top, 0)
+	paint_hover(hovered())
+	close_rect()
+}
+
+@(private)
+paint_hover :: proc(hit: bool) {
+	paint(color = {1 if hit else 0, 0, 0, 1})
 }
 
 @(private)
