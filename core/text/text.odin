@@ -1,4 +1,4 @@
-// Single-line bidi/script shaping and cached grayscale glyphs. Geometry uses physical
+// Bidi/script shaping, word wrapping, and cached grayscale glyphs. Geometry uses physical
 // pixels internally; the UI wrapper converts to/from logical window points.
 package text
 
@@ -16,7 +16,7 @@ Font :: distinct u32
 Error :: enum {
 	None, Font_Load_Failed, Invalid_Font, Name_Exists, Invalid_Size,
 	Invalid_Weight, Unsupported_Weight, Unsupported_Text, Missing_Glyph,
-	Shaping_Failed, Rasterization_Failed, Atlas_Full, Upload_Failed,
+	Shaping_Failed, Rasterization_Failed, Atlas_Full, Upload_Failed, Invalid_Width, Invalid_Scale,
 }
 Metrics :: struct {width, height, ascent, descent: f32}
 Direction :: enum u8 {Auto, LTR, RTL}
@@ -37,6 +37,10 @@ Store :: struct {
 	info_scratch: [dynamic]native.HB_Glyph_Info,
 	position_scratch: [dynamic]native.HB_Glyph_Position,
 	bidi_calls: u64,
+	wrap_infos: [dynamic]native.HB_Glyph_Info,
+	wrap_positions: [dynamic]native.HB_Glyph_Position,
+	wrap_lines: [dynamic]Layout_Line,
+	wrap_words: [dynamic]Word_Bounds,
 }
 
 @(private)
@@ -153,6 +157,10 @@ destroy :: proc(store: ^Store, renderer: platform.Renderer) {
 	delete(store.script_runs)
 	delete(store.info_scratch)
 	delete(store.position_scratch)
+	delete(store.wrap_infos)
+	delete(store.wrap_positions)
+	delete(store.wrap_lines)
+	delete(store.wrap_words)
 	if store.script_locator != nil { native.SBScriptLocatorRelease(store.script_locator) }
 	if store.buffer != nil { native.hb_buffer_destroy(store.buffer) }
 	if store.library != nil { native.FT_Done_FreeType(store.library) }
@@ -167,13 +175,15 @@ Shape :: struct {
 	metrics: Metrics,
 	pixel_size: i32,
 	weight: c.long,
+	lines: []Layout_Line, // Nil for the original single-line path.
+	line_height: f32,
 	cache_index: int, // Borrowed run-cache slot; zero for an uncached oversized run.
 }
 
 // Returned glyph slices are borrowed until the next shape call. Cache hits
 // avoid HarfBuzz and leave the current native font size/weight untouched.
 @(private)
-shape :: proc(store: ^Store, handle: Font, value: string, pixel_size, weight: f32, direction: Direction = .Auto, language: string = "") -> (Shape, Error) {
+shape :: proc(store: ^Store, handle: Font, value: string, pixel_size, weight: f32, direction: Direction = .Auto, language: string = "", wrap_width: f32 = -1) -> (Shape, Error) {
 	if handle == 0 || int(handle) > len(store.fonts) { return {}, .Invalid_Font }
 	if !(pixel_size > 0 && pixel_size <= 2048) { return {}, .Invalid_Size }
 	if !(weight >= 0 && weight <= 32767) { return {}, .Invalid_Weight }
@@ -188,27 +198,36 @@ shape :: proc(store: ^Store, handle: Font, value: string, pixel_size, weight: f3
 	} else if weight != 0 {
 		return {}, .Unsupported_Weight
 	}
-	key := Run_Key{font = handle, pixel_size = px, weight = w, value = value, direction = direction, language = language}
+	wrapped := wrap_width >= 0
+	width: i32
+	if wrapped {
+		if !(f64(wrap_width) * 64 <= f64(max(i32))) { return {}, .Invalid_Width }
+		width = i32(math.floor(wrap_width * 64))
+	}
+	key := Run_Key{wrapped = wrapped, width = width, font = handle, pixel_size = px, weight = w, value = value, direction = direction, language = language}
 	if cached, ok := lookup_run(&store.runs, key, font); ok {
 		store.shape_cache_hits += 1
 		return cached, .None
 	}
 	if !utf8.valid_string(value) { return {}, .Unsupported_Text }
 	for ch in value {
+		if wrapped && (ch == '\n' || ch == '\r' || ch == '\u2028' || ch == '\u2029' || ch == '\u0085') { continue }
 		if ch == '\n' || ch == '\r' || ch == '\t' || ch == '\u2028' || ch == '\u2029' || ch == '\u0085' || ch == '\v' || ch == '\f' || (ch >= '\u001c' && ch <= '\u001e') { return {}, .Unsupported_Text }
 	}
 	if err := configure_font(font, px, w); err != .None { return {}, err }
-	if err := shape_line(store, font, value, direction, language); err != .None { return {}, err }
-	infos := store.info_scratch[:]
-	positions := store.position_scratch[:]
-	advance: f32
-	for info, i in infos {
-		if info.codepoint == 0 { return {}, .Missing_Glyph }
-		advance += f32(positions[i].x_advance) / 64
-	}
 	m := font.face.size.metrics
-	metrics := Metrics{width = advance, height = f32(m.height) / 64, ascent = f32(m.ascender) / 64, descent = -f32(m.descender) / 64}
-	run := Shape{font = font, infos = infos, positions = positions, metrics = metrics, pixel_size = px, weight = w}
+	metrics := Metrics{height = f32(m.height) / 64, ascent = f32(m.ascender) / 64, descent = -f32(m.descender) / 64}
+	run := Shape{font = font, metrics = metrics, pixel_size = px, weight = w, line_height = metrics.height}
+	if wrapped {
+		if err := shape_wrapped(store, &run, value, f32(width) / 64, direction, language); err != .None { return {}, err }
+	} else {
+		if err := shape_line(store, font, value, direction, language); err != .None { return {}, err }
+		run.infos, run.positions = store.info_scratch[:], store.position_scratch[:]
+		for info, i in run.infos {
+			if info.codepoint == 0 { return {}, .Missing_Glyph }
+			run.metrics.width += f32(run.positions[i].x_advance) / 64
+		}
+	}
 	return store_run(&store.runs, key, run), .None
 }
 
@@ -225,6 +244,11 @@ draw :: proc(store: ^Store, renderer: platform.Renderer, font: Font, value: stri
 	if !(scale > 0 && scale <= 16) { return {}, .Invalid_Size }
 	run, err := shape(store, font, value, size * scale, weight, direction, language)
 	if err != .None { return {}, err }
+	return draw_shape(store, renderer, run, position, color, surfaces, scale)
+}
+
+@(private)
+draw_shape :: proc(store: ^Store, renderer: platform.Renderer, run: Shape, position: [2]f32, color: primitives.Color, surfaces: ^[dynamic]primitives.Surface, scale: f32, width: f32 = 0, align: Align = .Start) -> (Metrics, Error) {
 	quads, prepare_error := prepare_quads(store, run)
 	if prepare_error != .None { return {}, prepare_error }
 	start := len(surfaces^)
@@ -233,6 +257,8 @@ draw :: proc(store: ^Store, renderer: platform.Renderer, font: Font, value: stri
 	succeeded := false
 	defer { if !succeeded { resize(surfaces, start) } }
 	resize(surfaces, start + len(quads))
+	origin := position
+	aligned_line := -1
 	for quad, i in quads {
 		page := &store.pages[quad.page]
 		if page.image == (primitives.Image{}) {
@@ -241,7 +267,12 @@ draw :: proc(store: ^Store, renderer: platform.Renderer, font: Font, value: stri
 			page.image = image
 			page.dirty = false
 		}
-		surfaces^[start + i] = place_quad(quad, page.image, position, color, scale)
+		if align != .Start && aligned_line != quad.line {
+			line_width := run.metrics.width if len(run.lines) == 0 else run.lines[quad.line].width
+			origin.x = position.x + alignment_offset(align, width - line_width / scale)
+			aligned_line = quad.line
+		}
+		surfaces^[start + i] = place_quad(quad, page.image, origin, color, scale)
 	}
 	succeeded = true
 	return logical_metrics(run.metrics, scale), .None

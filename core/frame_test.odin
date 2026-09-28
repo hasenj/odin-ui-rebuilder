@@ -184,6 +184,12 @@ empty_rect_text_scene :: proc() {
 		expected, _ := measure_text("invisible", font)
 		actual, err := text("invisible", font)
 		assert(err == .None && actual == expected)
+		wrapped, wrap_error := layout_text("invisible wrapped text", "test-body", max_width = 50)
+		assert(wrap_error == .None && wrapped.line_count > 1)
+		assert(draw_text_layout(wrapped, align = .End) == .None)
+		fitted, fit_error := layout_text_fit("invisible", font, max_width = expected.width * 0.75)
+		assert(fit_error == .None && fitted.size < 16 && !fitted.overflow)
+		assert(draw_text_layout(fitted, align = .Center, valign = .Center) == .None)
 	}
 	close_rect()
 	open_rect(.Top, current_rect().size.y)

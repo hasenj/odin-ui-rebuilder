@@ -10,6 +10,7 @@ Glyph_Quad :: struct {
 	position, size: [2]f32,
 	uv: [4]f32,
 	page: int,
+	line: int,
 }
 
 // Lazy: measure() never rasterizes. Borrowed output lasts until the next shape
@@ -23,7 +24,12 @@ prepare_quads :: proc(store: ^Store, run: Shape) -> ([]Glyph_Quad, Error) {
 	store.geometry_builds += 1
 	clear(&store.quad_scratch)
 	pen: [2]f32
+	line: int
 	for info, i in run.infos {
+		if len(run.lines) > 0 {
+			for line < len(run.lines) - 1 && i >= run.lines[line].end { line += 1 }
+			if i == run.lines[line].start { pen = {0, f32(line) * run.line_height} }
+		}
 		glyph, err := cache_glyph(store, run.font, info.codepoint, run.pixel_size, run.weight)
 		if err != .None { return nil, err }
 		p := run.positions[i]
@@ -31,7 +37,7 @@ prepare_quads :: proc(store: ^Store, run: Shape) -> ([]Glyph_Quad, Error) {
 			offset := [2]f32{f32(p.x_offset) / 64, -f32(p.y_offset) / 64}
 			append(&store.quad_scratch, Glyph_Quad{
 				position = pen + offset + glyph.bearing + [2]f32{0, run.metrics.ascent},
-				size = {f32(glyph.size.x), f32(glyph.size.y)}, page = glyph.page,
+				size = {f32(glyph.size.x), f32(glyph.size.y)}, page = glyph.page, line = line,
 				uv = {f32(glyph.position.x) / ATLAS_SIZE, f32(glyph.position.y) / ATLAS_SIZE,
 					f32(glyph.position.x + glyph.size.x) / ATLAS_SIZE, f32(glyph.position.y + glyph.size.y) / ATLAS_SIZE},
 			})
