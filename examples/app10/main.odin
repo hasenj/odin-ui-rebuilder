@@ -11,6 +11,8 @@ list_offset: [2]f32
 list_id: ui.Identity
 button_ids: [12]ui.Identity
 modal_ids: [2]ui.Identity
+opener_id, pressed_button: ui.Identity
+previous_buttons, pressed, released: ui.Mouse_Buttons
 ink :: ui.Color{0.92, 0.95, 1, 1}
 muted :: ui.Color{0.58, 0.66, 0.78, 1}
 
@@ -19,18 +21,37 @@ main :: proc() {
 		capture_mode = true
 		frames := [?]ui.Capture_Frame{
 			{path = "bin/app10-initial.png", size = {1000, 760}, scale = 2},
-			{size = {1000, 760}, scale = 2, time = 0.01, input = {keys_pressed = {.Tab}}},
-			{path = "bin/app10-focus.png", size = {1000, 760}, scale = 2, time = 0.02},
+			{size = {1000, 760}, scale = 2, time = 0.01, input = {mouse_inside = true, mouse_position = {80, 190}, mouse_buttons = {.Left}}},
+			{path = "bin/app10-focus.png", size = {1000, 760}, scale = 2, time = 0.02, input = {mouse_inside = true, mouse_position = {80, 190}}},
 			{size = {1000, 760}, scale = 2, time = 0.03, input = {mouse_inside = true, mouse_position = {80, 240}, scroll_delta = {0, 180}}},
 			{path = "bin/app10-scrolled.png", size = {1000, 760}, scale = 2, time = 0.04, input = {mouse_inside = true, mouse_position = {80, 240}}},
 			// A new focus target outside the viewport is revealed automatically.
 			{path = "bin/app10-reveal.png", size = {1000, 760}, scale = 2, time = 0.05, input = {keys_pressed = {.Tab}}},
-			{size = {1000, 760}, scale = 2, time = 1},
+			// Pressing the opener, then releasing outside, must not activate it.
+			{size = {1000, 760}, scale = 2, time = 0.06, input = {mouse_inside = true, mouse_position = {890, 40}, mouse_buttons = {.Left}}},
+			{size = {1000, 760}, scale = 2, time = 0.07, input = {mouse_inside = true, mouse_position = {750, 110}}},
+			// An ordinary click opens the modal on release, not while held.
+			{size = {1000, 760}, scale = 2, time = 1, input = {mouse_inside = true, mouse_position = {890, 40}, mouse_buttons = {.Left}}},
+			{size = {1000, 760}, scale = 2, time = 1.001, input = {mouse_inside = true, mouse_position = {890, 40}, mouse_buttons = {.Left}}},
+			{size = {1000, 760}, scale = 2, time = 1.005, input = {mouse_inside = true, mouse_position = {890, 40}}},
 			{path = "bin/app10-modal.png", size = {1000, 760}, scale = 2, time = 1.01},
 			{path = "bin/app10-modal-tab.png", size = {1000, 760}, scale = 2, time = 1.02, input = {keys_pressed = {.Tab}}},
-			{size = {1000, 760}, scale = 2, time = 2},
+			// The overlay blocks clicks and scrolling from reaching the list.
+			{size = {1000, 760}, scale = 2, time = 1.03, input = {mouse_inside = true, mouse_position = {80, 200}, mouse_buttons = {.Left}, scroll_delta = {0, 90}}},
+			{size = {1000, 760}, scale = 2, time = 1.04},
+			{size = {1000, 760}, scale = 2, time = 2, input = {mouse_inside = true, mouse_position = {590, 420}, mouse_buttons = {.Left}}},
+			{size = {1000, 760}, scale = 2, time = 2.005, input = {mouse_inside = true, mouse_position = {590, 420}}},
+			{size = {1000, 760}, scale = 2, time = 2.006},
 			{path = "bin/app10-restored.png", size = {1000, 760}, scale = 2, time = 2.01},
-			{path = "bin/app10-small.png", size = {760, 480}, scale = 1, time = 2.02},
+			// Reopen and close with Continue too.
+			{size = {1000, 760}, scale = 2, time = 2.1, input = {mouse_inside = true, mouse_position = {890, 40}, mouse_buttons = {.Left}}},
+			{size = {1000, 760}, scale = 2, time = 2.11, input = {mouse_inside = true, mouse_position = {890, 40}}},
+			{size = {1000, 760}, scale = 2, time = 2.12},
+			{size = {1000, 760}, scale = 2, time = 2.13, input = {mouse_inside = true, mouse_position = {400, 420}, mouse_buttons = {.Left}}},
+			{size = {1000, 760}, scale = 2, time = 2.14, input = {mouse_inside = true, mouse_position = {400, 420}}},
+			{size = {1000, 760}, scale = 2, time = 2.15},
+			{size = {1000, 760}, scale = 2, time = 2.16},
+			{path = "bin/app10-small.png", size = {760, 480}, scale = 1, time = 2.2},
 		}
 		result := ui.capture_frames(update, frames[:])
 		if result.error != .None { fmt.eprintln(result); os.exit(1) }
@@ -47,11 +68,18 @@ update :: proc() {
 		assert(err == .None)
 	}
 	frame := ui.current_frame()
-	if capture_mode { show_modal = frame.time >= 1 && frame.time < 2 }
+	pressed = frame.input.mouse_pressed | (frame.input.mouse_buttons & ~previous_buttons)
+	released = frame.input.mouse_released | (previous_buttons & ~frame.input.mouse_buttons)
+	previous_buttons = frame.input.mouse_buttons
 	ui.paint(color = {0.04, 0.055, 0.085, 1})
 	ui.open_rect(.Top, 82)
 	ui.paint(color = {0.075, 0.10, 0.15, 1})
 	ui.pad2(20, 28)
+	ui.open_rect(.Right, 160, key = 400)
+	opener_id = ui.current_identity()
+	ui.focusable()
+	if button("Open modal") { show_modal = true }
+	ui.close_rect()
 	label("UI foundations", 30, ink, 650)
 	ui.close_rect()
 	ui.open_rect(.Bottom, 42)
@@ -119,17 +147,28 @@ update :: proc() {
 	ui.close_clip()
 	ui.close_rect()
 	if show_modal { modal() }
+	if .Left in released { pressed_button = {} }
 	if capture_mode { verify_scenario() }
 }
 
-button :: proc(title: string) {
+// Sample-local activation state: press inside, then release inside. Hover uses
+// resolved layer-aware hits, so an overlay cannot activate a covered button.
+button :: proc(title: string) -> bool {
+	id := ui.current_identity()
+	hovered := ui.hovered()
+	if hovered && .Left in pressed { pressed_button = id }
+	activated := hovered && pressed_button == id && .Left in released
 	color := ui.Color{0.13, 0.18, 0.26, 1}
-	if ui.hovered() { color = {0.17, 0.34, 0.54, 1} }
+	if hovered { color = {0.17, 0.34, 0.54, 1} }
+	if hovered && pressed_button == id && .Left in ui.current_frame().input.mouse_buttons {
+		color = {0.10, 0.24, 0.40, 1}
+	}
 	ui.paint(color = {0.98, 0.70, 0.28, 1} if ui.focused() else color, corners = 10)
 	ui.pad(3)
 	ui.paint(color = color, corners = 8)
 	ui.pad2(10, 14)
 	label(title, 19, ink, 550)
+	return activated
 }
 
 modal :: proc() {
@@ -145,13 +184,13 @@ modal :: proc() {
 	label("A focus fence", 27, ink, 650)
 	ui.close_rect()
 	ui.open_rect(.Top, 42)
-	label("Tab stays here. Closing restores focus.", 17, muted)
+	label("Click either button to close and restore focus.", 17, muted)
 	ui.close_rect()
 	for i in 0..<2 {
 		ui.open_rect(.Left, 190, key = i)
 		modal_ids[i] = ui.current_identity()
 		ui.focusable()
-		button("Continue" if i == 0 else "Cancel")
+		if button("Continue" if i == 0 else "Cancel") { show_modal = false }
 		ui.close_rect()
 	}
 	ui.close_rect()
@@ -169,7 +208,12 @@ verify_scenario :: proc() {
 	if time == 0.02 { assert(ui.direct_focus() == button_ids[0]) }
 	if time == 0.04 { assert(list_offset.y == 180) }
 	if time == 0.05 { assert(ui.direct_focus() == button_ids[1] && list_offset.y == 64) }
+	if time == 0.07 || time == 1 || time == 1.001 { assert(!show_modal) }
+	if time == 1.005 { assert(show_modal) }
 	if time == 1.01 { assert(ui.direct_focus() == modal_ids[0]) }
 	if time == 1.02 { assert(ui.direct_focus() == modal_ids[1]) }
-	if time == 2.01 { assert(ui.direct_focus() == button_ids[1]) }
+	if time == 1.04 { assert(show_modal && list_offset.y == 64 && ui.direct_focus() == modal_ids[0]) }
+	if time == 2.005 || time == 2.14 { assert(!show_modal) }
+	if time == 2.01 || time == 2.16 { assert(ui.direct_focus() == opener_id && !show_modal) }
+	if time == 2.12 { assert(show_modal && ui.direct_focus() == modal_ids[0]) }
 }

@@ -158,10 +158,15 @@ integration remain deferred, as does on-demand frame scheduling.
 ```
 
 This runs assertions and produces `bin/app10-*.png` for ordinary focus, scrolling,
-focus reveal, a modal, Tab inside the modal, focus restoration, and resizing.
-Running app10 without the flag opens the sample window. Its pointer hover/click
-focus and wheel/trackpad scrolling work with native input. Tab uses the scripted
-capture sequence until native keyboard input is wired up.
+focus reveal, opening a modal by clicking, Tab inside the modal, closing with
+either button, focus restoration, and resizing. It also checks cancelled clicks
+and the modal's pointer/scroll barrier.
+Running app10 without the flag opens the sample window. Click **Open modal** in
+the header, then **Continue** or **Cancel** to close it. Focus returns to the
+opener. The sample activates buttons on release inside after a press inside;
+dragging off before release cancels activation. Pointer hover/click focus and
+wheel/trackpad scrolling work with native input. Tab uses the scripted capture
+sequence until native keyboard input is wired up.
 
 `./scripts/check.sh` tests the core and real Metal renderer, builds all examples
 with speed optimizations, then runs the capture scenarios on macOS. Core tests
