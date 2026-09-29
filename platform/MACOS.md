@@ -35,8 +35,9 @@ region. `ui.hovered()` continues to test rect geometry. Background dragging is a
 window-wide native behavior, not an application input-routing implementation.
 
 Linux keeps its existing decorated/opaque defaults, but supports explicit
-`transparent = true`. `decorated = false` still asserts on Linux.
-App9 enables transparency on both platforms; Linux decorations are compositor-managed.
+`transparent = true`. `decorated = false` requests client-side decorations on
+Linux, subject to compositor policy. App9 requests transparency and no system
+decorations on both platforms.
 
 ## Example and checks
 

@@ -7,7 +7,7 @@ font: ui.Font
 
 main :: proc() {
 	ui.open_window("Odin UI Rebuilder — Transparent window", 780, 510, update,
-		frame_timing = .Summary, decorated = ODIN_OS != .Darwin, transparent = true)
+		frame_timing = .Summary, decorated = false, transparent = true)
 }
 
 update :: proc() {

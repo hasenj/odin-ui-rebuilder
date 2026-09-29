@@ -73,9 +73,19 @@ change the input region: the full window rectangle still receives pointer input.
 
 Run `./scripts/build.sh app9` and `./bin/app9` for a demo with unpainted gaps,
 rounded panels, translucent paint, and a moving circle. Use compositor shortcuts
-to move or close the window. Decorations remain compositor-managed: the backend
-requests server decorations when supported, and `decorated = false` remains
-unsupported on Linux.
+to move or close the window. App9 also passes `decorated = false`.
+
+`decorated = true` (the default) requests server-side decorations through
+`xdg-decoration` when supported. `decorated = false` requests client-side mode;
+the library draws no title bar or frame of its own. Without the extension, the
+library likewise draws no decorations. Decoration and transparency preferences
+are independent.
+
+The [xdg-decoration protocol](https://gitlab.freedesktop.org/wayland/wayland-protocols/-/blob/main/unstable/xdg-decoration/xdg-decoration-unstable-v1.xml)
+allows the compositor to override the requested mode. There is no portable
+guarantee that a normal Wayland window can suppress compositor borders or focus
+indicators. For example, Hyprland 0.56.1 responds with server-side mode even to
+client-side requests. Transparency does not override that policy.
 
 ## Verification
 

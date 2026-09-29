@@ -11,7 +11,7 @@ Frame_Timing :: platform.Frame_Timing
 // GPU execution is not measured separately; submit can include hidden driver stalls.
 // macOS: unpainted content is transparent by default. decorated=false removes
 // the title bar/buttons. Linux supports transparent=true but defaults to opaque;
-// decorations remain compositor-managed and require decorated=true.
+// decorated=false requests client-side decorations, subject to compositor policy.
 open_window :: proc(title: string, width: int = 800, height: int = 600, update: Update = nil, frame_timing: Frame_Timing = .Disabled, decorated: bool = true, transparent: bool = ODIN_OS == .Darwin) {
 	assert(width > 0 && height > 0, "Window dimensions must be positive")
 	state := Frame_State{update = update}

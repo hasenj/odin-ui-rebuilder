@@ -30,7 +30,6 @@ Wayland_Window :: struct {
 
 @(private)
 open_window_impl :: proc(title: string, width, height: int, frame: Frame_Proc, user_data: rawptr, frame_timing: Frame_Timing, input_state: ^input.State, decorated, transparent: bool) {
-	assert(decorated, "Custom window decorations are currently supported only on macOS")
 	wayland_init_protocols()
 	window := Wayland_Window{
 		odin_context = context, width = i32(width), height = i32(height),
@@ -60,7 +59,9 @@ open_window_impl :: proc(title: string, width, height: int, frame: Frame_Proc, u
 	if window.decoration_manager != nil {
 		window.decoration = wl_construct(window.decoration_manager, 1, &zxdg_toplevel_decoration_v1_interface, []WL_Argument{{o = nil}, {o = window.toplevel}})
 		wl_listen(window.decoration, &decoration_listener, &window)
-		wl_request(window.decoration, 1, []WL_Argument{{u = 2}}) // Server-side decorations.
+		// xdg-decoration modes: client-side = 1, server-side = 2.
+		// This is a preference; the compositor may enforce its own decoration mode.
+		wl_request(window.decoration, 1, []WL_Argument{{u = 2 if decorated else 1}})
 	}
 	// xdg-shell requires an initial empty commit and configure acknowledgement
 	// before attaching the first rendered buffer.
