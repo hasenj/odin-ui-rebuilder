@@ -23,6 +23,7 @@ Metal_Renderer :: struct {
 	frame:         Frame_Proc,
 	user_data:     rawptr,
 	input_state:   ^input.State,
+	pending_scroll: [2]f32,
 	start:         time.Tick,
 	odin_context:  runtime.Context,
 	profiler:      Frame_Profiler,

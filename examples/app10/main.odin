@@ -57,7 +57,7 @@ update :: proc() {
 	ui.open_rect(.Bottom, 42)
 	ui.paint(color = {0.075, 0.10, 0.15, 1})
 	ui.pad2(10, 28)
-	label("Synthetic wheel + Tab in capture mode / Mouse hover and focus in the window", 14, muted)
+	label("Wheel / trackpad to scroll · Click to focus · Synthetic Tab in capture mode", 14, muted)
 	ui.close_rect()
 	ui.pad(24)
 	ui.open_rect(.Left, min(380, ui.current_rect().size.x * 0.44))

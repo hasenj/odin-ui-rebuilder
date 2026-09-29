@@ -77,6 +77,7 @@ registry_remove :: proc "c" (data, _: rawptr, name: u32) {
 		w.seat = nil
 		w.pointer_focused = false
 		w.input = {}
+		w.scroll_group = {}
 	}
 	for output, i in w.outputs {
 		if output.name == name {
@@ -147,6 +148,7 @@ seat_capabilities :: proc "c" (data, seat: rawptr, capabilities: u32) {
 		w.pointer = nil
 		w.pointer_focused = false
 		w.input = {}
+		w.scroll_group = {}
 	}
 }
 
@@ -173,6 +175,8 @@ pointer_leave :: proc "c" (data, _: rawptr, _: u32, _: rawptr) {
 	w.pointer_focused = false
 	w.input.mouse_inside = false
 	w.input.mouse_buttons = {}
+	w.input.scroll_delta = {}
+	w.scroll_group = {}
 }
 
 @(private)
@@ -204,13 +208,29 @@ pointer_button :: proc "c" (data, _: rawptr, _: u32, _: u32, button, state: u32)
 }
 
 @(private)
-pointer_axis :: proc "c" (_: rawptr, _: rawptr, _: u32, _: u32, _: i32) {}
+pointer_axis :: proc "c" (data, _: rawptr, _: u32, axis: u32, value: i32) {
+	w := cast(^Wayland_Window)data
+	if !w.pointer_focused {
+		return
+	}
+	// wl_pointer axis values already use surface-local logical coordinates,
+	// with positive values moving towards the right/bottom.
+	switch axis {
+	case 0: w.scroll_group.y += f32(value) / 256
+	case 1: w.scroll_group.x += f32(value) / 256
+	}
+}
 @(private)
-pointer_frame :: proc "c" (_: rawptr, _: rawptr) {}
+pointer_frame :: proc "c" (data, _: rawptr) {
+	w := cast(^Wayland_Window)data
+	w.input.scroll_delta += w.scroll_group
+	w.scroll_group = {}
+}
 @(private)
 pointer_axis_source :: proc "c" (_: rawptr, _: rawptr, _: u32) {}
 @(private)
 pointer_axis_stop :: proc "c" (_: rawptr, _: rawptr, _: u32, _: u32) {}
+// Discrete steps describe the same movement as axis; do not count it twice.
 @(private)
 pointer_axis_discrete :: proc "c" (_: rawptr, _: rawptr, _: u32, _: i32) {}
 

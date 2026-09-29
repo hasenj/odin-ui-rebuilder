@@ -2,7 +2,35 @@ package platform
 
 import "base:intrinsics"
 import ns "core:sys/darwin/Foundation"
+import mtk "vendor:darwin/MetalKit"
 import "../core/input"
+
+@(private)
+metal_view_scroll_wheel :: proc "c" (self: ns.id, _: ns.SEL, event: ^ns.Event) {
+	delegate := intrinsics.objc_send(ns.id, cast(^mtk.View)self, "delegate")
+	if delegate == nil {
+		return
+	}
+	renderer := (cast(^^Metal_Renderer)ns.object_getIndexedIvars(delegate))^
+	context = renderer.odin_context
+	// AppKit has already applied the user's natural-scroll preference. Precise
+	// deltas are logical points, independent of the drawable's Retina scale.
+	// Traditional wheels report lines; use 40 points per line for this host.
+	unit: f32 = 1 if event->hasPreciseScrollingDeltas() else 40
+	renderer.pending_scroll -= [2]f32{f32(event->scrollingDeltaX()), f32(event->scrollingDeltaY())} * unit
+}
+
+@(private)
+sample_frame_input :: proc(renderer: ^Metal_Renderer) {
+	// Drain before calling app code: events delivered during rendering belong
+	// to the next update. Held pointer state is sampled separately.
+	delta := renderer.pending_scroll
+	renderer.pending_scroll = {}
+	sample_input(renderer.view, renderer.input_state)
+	if renderer.input_state != nil {
+		renderer.input_state.scroll_delta = delta
+	}
+}
 
 @(private)
 sample_input :: proc(view: ^ns.View, state: ^input.State) {

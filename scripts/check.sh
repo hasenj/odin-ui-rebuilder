@@ -17,4 +17,5 @@ done
 
 if [ "$(uname -s)" = Darwin ]; then
     ./bin/app10 --capture
+    ./scripts/check-macos-input.sh
 fi

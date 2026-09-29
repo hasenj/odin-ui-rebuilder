@@ -21,6 +21,7 @@ Wayland_Window :: struct {
 	renderer: GL_Renderer,
 	outputs: [dynamic]Wayland_Output,
 	input: input.State,
+	scroll_group: [2]f32,
 	width, height, pending_width, pending_height, scale: i32,
 	pointer_serial: u32,
 	seat_name: u32,
@@ -132,8 +133,9 @@ wayland_frame :: proc(window: ^Wayland_Window, frame: Frame_Proc, user_data: raw
 	defer free_all(context.temp_allocator)
 	position := window.input.mouse_position
 	window.input.mouse_inside = window.pointer_focused && position.x >= 0 && position.y >= 0 && position.x < f32(window.width) && position.y < f32(window.height)
+	snapshot := take_wayland_input(window)
 	if input_state != nil {
-		input_state^ = window.input
+		input_state^ = snapshot
 	}
 	window.frame_ready = false
 	window.frame_callback = wl_construct(window.surface, 3, &wl_callback_interface, []WL_Argument{{o = nil}})
@@ -149,6 +151,13 @@ wayland_frame :: proc(window: ^Wayland_Window, frame: Frame_Proc, user_data: raw
 		update_ms = time.duration_milliseconds(time.tick_since(update_start))
 	}
 	render(Renderer(&window.renderer), surfaces, size, &render_time if profiling else nil)
+}
+
+@(private)
+take_wayland_input :: proc(window: ^Wayland_Window) -> input.State {
+	result := window.input
+	window.input.scroll_delta = {}
+	return result
 }
 
 @(private)

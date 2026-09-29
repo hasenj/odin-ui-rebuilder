@@ -7,6 +7,13 @@ compiled from vendored C source by the build helper.
 Core continues to import the general `platform` package. Odin selects `_linux`
 and `_darwin` files for the target OS.
 
+Wheel/trackpad input uses wl_pointer v5 axis/frame groups. Axis values are
+surface-local logical points, positive towards the content bottom/right; they
+are not multiplied by output scale. Discrete wheel notifications describe the
+same movement and are not counted again. Completed groups accumulate until the
+next update's `input.scroll_delta` snapshot, then reset. Pointer leave or device
+loss clears pending movement. App10 demonstrates scrollable content.
+
 ## Build and run in Omarchy
 
 Use a recent Odin compiler with `core:image` PNG/JPEG support and `vendor:egl`.

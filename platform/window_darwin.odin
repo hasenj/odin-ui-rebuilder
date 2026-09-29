@@ -118,7 +118,7 @@ draw_frame :: proc "c" (self: ns.id, _: ns.SEL, view: ^mtk.View) {
 	defer free_all(context.temp_allocator)
 	bounds := view->bounds()
 	size := [2]f32{f32(bounds.size.width), f32(bounds.size.height)}
-	sample_input(view, renderer.input_state)
+	sample_frame_input(renderer)
 	if profiling {
 		update_start = time.tick_now()
 	}

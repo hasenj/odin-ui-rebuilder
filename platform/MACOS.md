@@ -41,6 +41,14 @@ decorations on both platforms.
 
 ## Example and checks
 
+Wheel and trackpad scrolling are delivered through the Metal view's
+`scrollWheel:` responder. Precise deltas, including system momentum events,
+remain in logical points; coarse deltas use 40 points per line. AppKit applies
+the user's natural-scroll preference. Both axes accumulate between frames and
+are supplied once in `input.scroll_delta`; idle frames receive zero.
+App10 demonstrates native scrolling. `./scripts/check-macos-input.sh` verifies
+real NSEvents and their subsequent frame snapshots on the AppKit main thread.
+
 Run `./scripts/build.sh app9` and `./bin/app9` from the repository root. The
 example leaves its root, gaps and padding unpainted, draws an opaque rounded
 header and a translucent blue panel, and moves an orange circle across empty

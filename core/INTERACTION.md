@@ -1,9 +1,9 @@
 # Clipping, scrolling, layers, hover and focus
 
 These are UI building blocks, driven by the frame's input snapshot. No widget
-callbacks or input consumption are required. The native backends still populate
-only the existing pointer position/held buttons: wheel and keyboard fields can
-currently be supplied by capture or another synthetic host.
+callbacks or input consumption are required. Both native backends populate
+pointer position, held buttons, and wheel/trackpad movement. Keyboard fields
+can currently be supplied by capture or another synthetic host.
 
 ## Clipping and translated geometry
 
@@ -109,7 +109,11 @@ Invisible/occluded regions cannot receive wheel movement. Programmatic
 
 A newly focused child is revealed by scrolling its ancestors, inner to outer.
 Manual scrolling can hide an unchanged focus owner without snapping back. There
-is no overscroll, inertia, native wheel normalization, or built-in scrollbar yet.
+is no overscroll, framework-generated inertia, or built-in scrollbar yet. Native
+trackpad momentum arrives as ordinary scroll deltas. macOS precise deltas stay
+in logical points; coarse wheel steps use 40 points per line. Wayland axis values
+already use logical surface coordinates. Both hosts accumulate movement between
+frames and reset their pending delta after supplying each input snapshot.
 
 ## Focus and synthetic keyboard data
 
@@ -143,7 +147,7 @@ a full-window rect on its layer as a hit barrier (see app10).
 `mouse_released` and `scroll_delta` are data supplied by a host. Transition sets
 and scroll deltas must be cleared/replaced every update. The builder never
 consumes them. The initial `Key` enum contains navigation/editing keys; text and
-IME need their own contract later. Native keyboard, wheel, focus-loss and IME
+IME need their own contract later. Native keyboard, focus-loss and IME
 integration remain deferred, as does on-demand frame scheduling.
 
 ## Evidence and example
@@ -156,8 +160,8 @@ integration remain deferred, as does on-demand frame scheduling.
 This runs assertions and produces `bin/app10-*.png` for ordinary focus, scrolling,
 focus reveal, a modal, Tab inside the modal, focus restoration, and resizing.
 Running app10 without the flag opens the sample window. Its pointer hover/click
-focus works with current native input; wheel and Tab use the scripted capture
-sequence until native input is wired up.
+focus and wheel/trackpad scrolling work with native input. Tab uses the scripted
+capture sequence until native keyboard input is wired up.
 
 `./scripts/check.sh` tests the core and real Metal renderer, builds all examples
 with speed optimizations, then runs the capture scenarios on macOS. Core tests
@@ -166,3 +170,10 @@ layer order, click/Tab focus, fences, cleanup, and allocation-free warmed frames
 Metal readback tests cover rectangular clip edges at 1x and 2x. GLES has the same
 shader/attribute changes and Linux ARM64 compile coverage; actual Wayland/GLES
 execution still needs the Linux host.
+
+`./scripts/check-macos-input.sh` sends real precise and coarse NSEvents to the
+production Metal view and verifies both axes, accumulation, next-frame delivery,
+and reset on idle frames. It runs on the main thread and does not require
+Accessibility permission. The Linux platform tests exercise the wl_pointer v5
+axis/frame callbacks, avoid counting discrete steps twice, and check reset on
+pointer leave.

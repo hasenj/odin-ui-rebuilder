@@ -26,7 +26,8 @@ State :: struct {
 	// This is down-state, not a one-frame click or release event.
 	mouse_buttons: Mouse_Buttons,
 	// Per-update wheel/trackpad delta in logical points. Positive moves the
-	// viewport towards the content bottom/right. Native backends do not fill it yet.
+	// viewport towards the content bottom/right. Native hosts accumulate events
+	// between frames, then clear their pending delta after supplying the snapshot.
 	scroll_delta: [2]f32,
 	// Transition sets are supplied per update; they are not retained/consumed.
 	// These fields are currently for synthetic hosts; native keyboard wiring is pending.

@@ -39,6 +39,7 @@ allocate_metal_view :: proc() -> ^mtk.View {
 		assert(cls != nil)
 		assert(ns.class_addMethod(cls, intrinsics.objc_find_selector("isOpaque"), auto_cast metal_view_is_opaque, "B@:"))
 		assert(ns.class_addMethod(cls, intrinsics.objc_find_selector("mouseDownCanMoveWindow"), auto_cast native_yes, "B@:"))
+		assert(ns.class_addMethod(cls, intrinsics.objc_find_selector("scrollWheel:"), auto_cast metal_view_scroll_wheel, "v@:@"))
 		ns.objc_registerClassPair(cls)
 	}
 	return intrinsics.objc_send(^mtk.View, cast(^ns.Object)cls, "alloc")
