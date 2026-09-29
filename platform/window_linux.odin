@@ -29,7 +29,8 @@ Wayland_Window :: struct {
 }
 
 @(private)
-open_window_impl :: proc(title: string, width, height: int, frame: Frame_Proc, user_data: rawptr, frame_timing: Frame_Timing, input_state: ^input.State) {
+open_window_impl :: proc(title: string, width, height: int, frame: Frame_Proc, user_data: rawptr, frame_timing: Frame_Timing, input_state: ^input.State, decorated, transparent: bool) {
+	assert(decorated && !transparent, "Custom window decorations/transparency are currently supported only on macOS")
 	wayland_init_protocols()
 	window := Wayland_Window{
 		odin_context = context, width = i32(width), height = i32(height),

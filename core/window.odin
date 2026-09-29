@@ -9,9 +9,11 @@ Frame_Timing :: platform.Frame_Timing
 // Width and height specify the content size in logical screen points.
 // Frame timing reports callback wall time, update, submit and measured waits.
 // GPU execution is not measured separately; submit can include hidden driver stalls.
-open_window :: proc(title: string, width: int = 800, height: int = 600, update: Update = nil, frame_timing: Frame_Timing = .Disabled) {
+// macOS: unpainted content is transparent by default. decorated=false removes
+// the title bar/buttons. Linux currently supports only decorated, opaque windows.
+open_window :: proc(title: string, width: int = 800, height: int = 600, update: Update = nil, frame_timing: Frame_Timing = .Disabled, decorated: bool = true, transparent: bool = ODIN_OS == .Darwin) {
 	assert(width > 0 && height > 0, "Window dimensions must be positive")
 	state := Frame_State{update = update}
 	defer destroy_frame_state(&state)
-	platform.open_window(title, width, height, build_frame, &state, frame_timing, &state.frame.input)
+	platform.open_window(title, width, height, build_frame, &state, frame_timing, &state.frame.input, decorated, transparent)
 }

@@ -10,7 +10,7 @@ import "../core/input"
 
 // Odin selects this implementation by the _darwin file suffix.
 @(private)
-open_window_impl :: proc(title: string, width, height: int, frame: Frame_Proc, user_data: rawptr, frame_timing: Frame_Timing, input_state: ^input.State) {
+open_window_impl :: proc(title: string, width, height: int, frame: Frame_Proc, user_data: rawptr, frame_timing: Frame_Timing, input_state: ^input.State, decorated, transparent: bool) {
 	app: ^ns.Application
 	renderer := Metal_Renderer{frame = frame, user_data = user_data, odin_context = context}
 	renderer.profiler.mode = frame_timing
@@ -36,19 +36,15 @@ open_window_impl :: proc(title: string, width, height: int, frame: Frame_Proc, u
 		)
 		assert(delegate != nil, "Could not create the macOS application delegate")
 		app->setDelegate(delegate)
+		install_application_menu(app)
 
-		window := ns.Window.alloc()->initWithContentRect(
-			{size = {width = ns.Float(width), height = ns.Float(height)}},
-			{.Titled, .Closable, .Miniaturizable, .Resizable},
-			.Buffered,
-			false,
-		)
+		window := create_macos_window(width, height, decorated, transparent)
 		assert(window != nil, "Could not create the macOS window")
 		metal_init(&renderer)
-		renderer.view = mtk.View.alloc()->initWithFrame(window->contentView()->bounds(), renderer.device)
+		renderer.view = allocate_metal_view()->initWithFrame(window->contentView()->bounds(), renderer.device)
 		assert(renderer.view != nil, "Could not create the Metal view")
 		renderer.view->setColorPixelFormat(.BGRA8Unorm)
-		renderer.view->setClearColor({0.035, 0.045, 0.065, 1})
+		configure_metal_transparency(renderer.view, transparent)
 		renderer.view->setPreferredFramesPerSecond(60)
 		renderer.view->setEnableSetNeedsDisplay(false)
 		renderer.view->setPaused(false)

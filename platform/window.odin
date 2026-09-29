@@ -12,6 +12,8 @@ Frame_Proc :: #type proc(renderer: Renderer, elapsed: f64, size: [2]f32, user_da
 // Closing the window exits the process.
 // If supplied, input_state must live for the window's lifetime. The platform
 // overwrites it on the main thread before each frame callback.
-open_window :: proc(title: string, width, height: int, frame: Frame_Proc = nil, user_data: rawptr = nil, frame_timing: Frame_Timing = .Disabled, input_state: ^input.State = nil) {
-	open_window_impl(title, width, height, frame, user_data, frame_timing, input_state)
+// macOS supports independent decoration/transparency options. Transparency
+// defaults on there; Linux keeps its existing decorated, opaque behavior.
+open_window :: proc(title: string, width, height: int, frame: Frame_Proc = nil, user_data: rawptr = nil, frame_timing: Frame_Timing = .Disabled, input_state: ^input.State = nil, decorated: bool = true, transparent: bool = ODIN_OS == .Darwin) {
+	open_window_impl(title, width, height, frame, user_data, frame_timing, input_state, decorated, transparent)
 }
