@@ -16,7 +16,7 @@ Use the September 2026 Odin nightly or newer. Install shared native dependencies
 brew install freetype harfbuzz pkgconf
 
 # Omarchy / Arch Linux (in addition to the Wayland/Mesa dependencies)
-sudo pacman -S --needed freetype2 harfbuzz pkgconf
+sudo pacman -S --needed freetype2 harfbuzz
 ```
 
 From the repository root:
@@ -27,9 +27,11 @@ From the repository root:
 ./scripts/check.sh
 ```
 
-The build helper passes pkg-config's library search paths to Odin, including
-Homebrew's non-default locations. The Odin bindings link system FreeType and
-HarfBuzz directly. These shared libraries must also be installed on the machine
+The build helper passes pkg-config's library search paths to Odin when available,
+including Homebrew's non-default locations. On Linux, pkg-config is optional when
+the libraries are in the default linker paths; install `pkgconf` if using custom
+locations and configure `PKG_CONFIG_PATH` accordingly. The Odin bindings link
+system FreeType and HarfBuzz directly. These shared libraries must also be installed on the machine
 running the binary. SheenBidi 3.0.0 is vendored under `third_party/SheenBidi`
 and compiled/linked statically by the helper, using `cc` and `ar` (macOS Command
 Line Tools or Linux base-devel). No separate SheenBidi installation is needed.

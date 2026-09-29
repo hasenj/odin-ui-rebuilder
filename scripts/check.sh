@@ -3,8 +3,7 @@
 set -eu
 cd "$(dirname "$0")/.."
 mkdir -p bin
-text_deps=$(./scripts/build-text-deps.sh)
-link_paths="-L$text_deps $(pkg-config --libs-only-L harfbuzz freetype2)"
+. ./scripts/text-link-paths.sh
 for package in core core/text core/images platform; do
     output=$(basename "$package")
     odin test "$package" "-out:bin/$output-tests" -o:speed -vet -strict-style \

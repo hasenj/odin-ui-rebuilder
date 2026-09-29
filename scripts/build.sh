@@ -5,6 +5,6 @@ cd "$(dirname "$0")/.."
 app=${1:-app9}
 case "$app" in app[0-9]) ;; *) echo "Usage: $0 [app0..app9]" >&2; exit 1 ;; esac
 mkdir -p bin
-text_deps=$(./scripts/build-text-deps.sh)
+. ./scripts/text-link-paths.sh
 odin build "examples/$app" "-out:bin/$app" -o:speed -vet -strict-style \
-    "-extra-linker-flags:-L$text_deps $(pkg-config --libs-only-L harfbuzz freetype2)"
+    "-extra-linker-flags:$link_paths"

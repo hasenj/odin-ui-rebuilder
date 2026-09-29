@@ -14,7 +14,7 @@ Development cross-checks used `dev-2026-09-nightly`. Run the following from the
 repository root inside the VM:
 
 ```sh
-sudo pacman -S --needed base-devel wayland libglvnd mesa freetype2 harfbuzz pkgconf
+sudo pacman -S --needed base-devel wayland libglvnd mesa freetype2 harfbuzz
 ./scripts/build.sh app3
 ./bin/app3
 ```
@@ -23,6 +23,18 @@ sudo pacman -S --needed base-devel wayland libglvnd mesa freetype2 harfbuzz pkgc
 `libglvnd` supplies [libEGL](https://archlinux.org/packages/extra/x86_64/libglvnd/files/),
 and [Mesa](https://archlinux.org/packages/extra/x86_64/mesa/) supplies OpenGL drivers.
 Wayland client 1.20+ is required for `wl_proxy_marshal_array_flags`.
+
+SheenBidi 3.0.0 is already included in `third_party/SheenBidi`, with its license.
+The build scripts use `cc` and `ar` to create
+`bin/text-deps/Linux-<architecture>/libsheenbidi.a` and link it statically.
+Nothing is downloaded or installed system-wide for SheenBidi. Use
+`./scripts/build-text-deps.sh` to build just that dependency. Direct `odin build`
+commands need the archive directory passed with `-extra-linker-flags:-L<directory>`;
+`./scripts/build.sh` handles this automatically.
+
+`pkg-config` (Arch package `pkgconf`) is optional on Linux with libraries in the
+default linker paths. If available, the scripts use it to locate HarfBuzz and
+FreeType, including custom installations configured through `PKG_CONFIG_PATH`.
 
 Run the application from a terminal in the graphical Wayland session, as your
 normal user. `WAYLAND_DISPLAY` and `XDG_RUNTIME_DIR` must refer to that session;
