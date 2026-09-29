@@ -1,7 +1,7 @@
 #include <metal_stdlib>
 using namespace metal;
 
-// Matches GPU_Surface in render_darwin.odin (64-byte stride).
+// Matches GPU_Surface in render_darwin.odin (80-byte stride).
 struct Surface {
     float2 position;
     float2 size;
@@ -9,6 +9,7 @@ struct Surface {
     float radius;
     float padding[3];
     float4 uv;
+    float4 clip;
 };
 
 struct Vertex_Out {
@@ -18,6 +19,8 @@ struct Vertex_Out {
     float4 color [[flat]];
     float radius [[flat]];
     float4 uv [[flat]];
+    float4 clip [[flat]];
+    float2 point;
 };
 
 vertex Vertex_Out surface_vertex(
@@ -39,11 +42,14 @@ vertex Vertex_Out surface_vertex(
     out.color = r.color;
     out.radius = r.radius;
     out.uv = r.uv;
+    out.clip = r.clip;
+    out.point = point;
     return out;
 }
 
 fragment float4 surface_fragment(Vertex_Out in [[stage_in]], texture2d<float> image [[texture(0)]])
 {
+    if (any(in.point < in.clip.xy) || any(in.point >= in.clip.zw)) discard_fragment();
     float2 half_size = in.size * 0.5;
     float2 q = abs(in.local - half_size) - (half_size - in.radius);
     float distance = length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - in.radius;

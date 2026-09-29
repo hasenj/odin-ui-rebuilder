@@ -14,6 +14,7 @@ hovered_rect :: proc(rect: Rect) -> bool {
 	frame := current_frame()
 	if !frame.input.mouse_inside || rect.size.x <= 0 || rect.size.y <= 0 { return false }
 	p := frame.input.mouse_position
+	if !point_in_clip(p, current_clip()) { return false }
 	// Include top/left, exclude bottom/right so adjacent rects share no hit edge.
 	return p.x >= rect.position.x && p.y >= rect.position.y &&
 		p.x < rect.position.x + rect.size.x && p.y < rect.position.y + rect.size.y

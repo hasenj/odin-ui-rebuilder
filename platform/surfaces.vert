@@ -6,8 +6,11 @@ layout(location = 1) in vec2 rect_size;
 layout(location = 2) in vec4 rect_color;
 layout(location = 3) in float rect_radius;
 layout(location = 4) in vec4 rect_uv;
+layout(location = 5) in vec4 rect_clip;
 uniform vec2 viewport;
 out vec2 local;
+out vec2 window_point;
+flat out vec4 clip;
 flat out vec2 size;
 flat out vec4 color;
 flat out float radius;
@@ -18,6 +21,8 @@ void main() {
     vec2 point = rect_position + local;
     gl_Position = vec4(point.x / viewport.x * 2.0 - 1.0,
                        1.0 - point.y / viewport.y * 2.0, 0.0, 1.0);
+    window_point = point;
+    clip = rect_clip;
     size = rect_size;
     color = rect_color;
     radius = rect_radius;

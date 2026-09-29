@@ -40,9 +40,10 @@ GPU_Surface :: struct {
 	radius:   f32,
 	_padding: [3]f32,
 	uv: [4]f32,
+	clip: [4]f32,
 }
 
-#assert(size_of(GPU_Surface) == 64)
+#assert(size_of(GPU_Surface) == 80)
 #assert(offset_of(GPU_Surface, color) == 16)
 #assert(offset_of(GPU_Surface, radius) == 32)
 
@@ -170,7 +171,7 @@ encode_surfaces :: proc(renderer: ^Metal_Renderer, encoder: ^mtl.RenderCommandEn
 
 	// setVertexBytes copies each batch into Metal-owned storage, so the CPU can
 	// reuse this memory immediately without racing an in-flight GPU frame.
-	// 48 * 64 bytes stays below Metal's 4 KiB inline-data limit.
+	// 48 * 80 bytes stays below Metal's 4 KiB inline-data limit.
 	batch: [48]GPU_Surface
 	count := 0
 	batch_texture: ^mtl.Texture
@@ -201,6 +202,7 @@ encode_surfaces :: proc(renderer: ^Metal_Renderer, encoder: ^mtl.RenderCommandEn
 			color = surface.background,
 			radius = clamp(surface.corner_radius, 0, min(surface.size.x, surface.size.y) * 0.5),
 			uv = surface.image_region if surface.image_region != ([4]f32{}) else [4]f32{0, 0, 1, 1},
+			clip = {surface.clip.min.x, surface.clip.min.y, surface.clip.max.x, surface.clip.max.y} if surface.clip.enabled else [4]f32{-max(f32), -max(f32), max(f32), max(f32)},
 		}
 		for &component in batch[count].color {
 			component = clamp(component, 0, 1)

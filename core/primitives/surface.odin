@@ -4,6 +4,9 @@ package primitives
 // Straight (not premultiplied) RGBA components in the range 0..1.
 Color :: [4]f32
 
+// Window-relative, half-open rectangle. An enabled empty clip draws nothing.
+Clip :: struct {enabled: bool, min, max: [2]f32}
+
 // Coordinates are logical points, with the origin at the top left and Y down.
 // Surfaces draw in slice order, with later surfaces on top.
 Surface :: struct {
@@ -16,4 +19,5 @@ Surface :: struct {
 	image:         Image,
 	// Normalized UV min/max; zero means the entire image.
 	image_region:  [4]f32,
+	clip: Clip,
 }

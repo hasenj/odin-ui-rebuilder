@@ -37,6 +37,8 @@ Frame_State :: struct {
 	rects: [dynamic]Rect_Context,
 	text: fonts.Store,
 	identities: Identity_Store,
+	clips: [dynamic]Clip_Scope,
+	surface_cursor: int,
 }
 
 @(private)
@@ -46,6 +48,7 @@ active_state: ^Frame_State
 destroy_frame_state :: proc(state: ^Frame_State) {
 	delete(state.frame.surfaces)
 	delete(state.rects)
+	delete(state.clips)
 	destroy_identities(&state.identities)
 	// The platform has already released its renderer and all GPU images.
 	fonts.destroy(&state.text, nil)
@@ -62,6 +65,8 @@ build_frame :: proc(renderer: platform.Renderer, elapsed: f64, size: [2]f32, use
 	state.frame.renderer = renderer
 	state.frame.scale = platform.pixel_scale(renderer)
 	clear(&state.frame.surfaces)
+	state.surface_cursor = 0
+	clear(&state.clips)
 	assert(valid_length(size.x) && valid_length(size.y), "Invalid viewport size")
 	clear(&state.rects)
 	identity_begin_frame(&state.identities)
@@ -71,6 +76,8 @@ build_frame :: proc(renderer: platform.Renderer, elapsed: f64, size: [2]f32, use
 		state.update()
 	}
 	assert(len(state.rects) == 1, "Unclosed rects at end of update")
+	assert(len(state.clips) == 0, "Unclosed clips at end of update")
+	flush_surface_state()
 	identity_end_frame(&state.identities)
 	assert(fonts.flush(&state.text, renderer) == .None, "Could not upload text atlas")
 	return state.frame.surfaces[:]

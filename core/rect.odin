@@ -61,6 +61,36 @@ close_rect :: proc() {
 	pop(&active_state.rects)
 }
 
+// Enter an already resolved window-relative rect without consuming its parent.
+// Useful for overlays and translated content. Close with close_rect().
+open_rect_at :: proc{open_rect_at_implicit, open_rect_at_keyed}
+
+@(private)
+open_rect_at_implicit :: proc(rect: Rect, loc := #caller_location) {
+	open_rect_at_key(rect, Identity_Key{location = loc})
+}
+
+@(private)
+open_rect_at_keyed :: proc(rect: Rect, key: $T) where intrinsics.type_is_integer(T) {
+	open_rect_at_key(rect, integer_identity_key(key))
+}
+
+@(private)
+open_rect_at_key :: proc(rect: Rect, key: Identity_Key) {
+	assert(valid_length(rect.size.x) && valid_length(rect.size.y), "Invalid rect extent")
+	assert(abs(rect.position.x) <= max(f32) && abs(rect.position.y) <= max(f32), "Invalid rect position")
+	append(&active_state.rects, Rect_Context{bounds = rect, remaining = rect})
+	identity_enter(key, .Rect)
+}
+
+// Translate the current remaining rect for this child scope only. Geometry stays
+// in window coordinates; existing clips stay fixed. Close with close_rect().
+open_offset :: proc(offset: [2]f32, loc := #caller_location) {
+	rect := current_rect()
+	rect.position += offset
+	open_rect_at(rect, loc = loc)
+}
+
 pad :: proc(all: f32) {
 	pad4(all, all, all, all)
 }

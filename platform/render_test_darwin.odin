@@ -37,6 +37,20 @@ metal_surface_rendering :: proc(t: ^testing.T) {
 	coverage := pixels[12 * 128 + 12][3]
 	testing.expect(t, coverage > 0 && coverage < 255, "Rounded edges must have partial pixel coverage")
 
+	// Hard rectangular clips use logical coordinates, independently of rounded
+	// geometry. An enabled empty clip must not become an unbounded clip.
+	clipped := [?]primitives.Surface{
+		{size = {100, 90}, background = {1, 0, 0, 1}, clip = {true, {10, 20}, {30, 40}}},
+		{size = {100, 90}, background = {0, 1, 0, 1}, clip = {true, {50, 50}, {50, 60}}},
+	}
+	test_render(t, &renderer, texture, clipped[:], {128, 96}, raw_data(pixels[:]))
+	expect_pixel(t, pixels[20 * 128 + 10], {0, 0, 255, 255})
+	expect_pixel(t, pixels[39 * 128 + 29], {0, 0, 255, 255})
+	expect_pixel(t, pixels[19 * 128 + 10], {})
+	expect_pixel(t, pixels[20 * 128 + 30], {})
+	expect_pixel(t, pixels[40 * 128 + 29], {})
+	expect_pixel(t, pixels[50 * 128 + 50], {})
+
 	// The same render target must not retain anything from the previous list.
 	test_render(t, &renderer, texture, nil, {128, 96}, raw_data(pixels[:]))
 	for pixel in pixels {
