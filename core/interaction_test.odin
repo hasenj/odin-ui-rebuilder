@@ -199,3 +199,51 @@ scroll_focus_scene :: proc() {
 	}
 	close_scroll()
 }
+
+@(private)
+nested_focus_pipeline :: proc(t: ^testing.T) {
+	state := Frame_State{update = nested_focus_scene}
+	defer destroy_frame_state(&state)
+	nested_fence_depth = 0
+	build_frame(nil, 0, {100, 100}, &state)
+	state.frame.input.keys_pressed = {.Tab}
+	build_frame(nil, 1, {100, 100}, &state)
+	testing.expect_value(t, state.interaction.focused, nested_focus_ids[0])
+	state.frame.input = {}
+	nested_fence_depth = 1
+	build_frame(nil, 2, {100, 100}, &state)
+	testing.expect_value(t, state.interaction.focused, nested_focus_ids[1])
+	nested_fence_depth = 2
+	build_frame(nil, 3, {100, 100}, &state)
+	testing.expect_value(t, state.interaction.focused, nested_focus_ids[2])
+	nested_fence_depth = 1
+	build_frame(nil, 4, {100, 100}, &state)
+	testing.expect_value(t, state.interaction.focused, nested_focus_ids[1])
+	nested_fence_depth = 2
+	build_frame(nil, 5, {100, 100}, &state)
+	nested_fence_depth = 0 // Close both fences in one frame.
+	build_frame(nil, 6, {100, 100}, &state)
+	testing.expect_value(t, state.interaction.focused, nested_focus_ids[0])
+	testing.expect_value(t, len(state.interaction.fences), 0)
+}
+
+@(private) nested_fence_depth: int
+@(private) nested_focus_ids: [3]Identity
+@(private)
+nested_focus_scene :: proc() {
+	open_rect_at(Rect{size = {100, 100}}, key = 0)
+	focusable()
+	nested_focus_ids[0] = current_identity()
+	close_rect()
+	for depth in 0..<nested_fence_depth {
+		open_layer(i32(depth + 1))
+		open_rect_at(Rect{size = {100, 100}}, key = depth + 1)
+		focus_fence()
+		focusable()
+		nested_focus_ids[depth + 1] = current_identity()
+	}
+	for _ in 0..<nested_fence_depth {
+		close_rect()
+		close_layer()
+	}
+}

@@ -16,7 +16,7 @@ From the repository root:
 ```
 
 The script builds an optimized `bin/capture`. The runner supports app4 through
-app9, importing their existing update procedures. Arguments after the output
+app10, importing their existing update procedures. Arguments after the output
 path are optional width, height, scale, and time; supply both mouse coordinates
 to simulate a pointer inside the window. Default dimensions match each example,
 scale is 2, and time is 0. Relative paths are resolved from the repo root when
@@ -24,8 +24,8 @@ using the script. Output directories must already exist. Existing output files
 are overwritten. Failures print the error and exit nonzero.
 
 Each invocation starts a new process, so the example's globals and font/image
-handles start fresh. A single-frame hover capture shows the initial hovered
-color; use a sequence to inspect a transition.
+handles start fresh. Identity-based hover uses prior geometry, so a first-frame
+capture has no resolved hover. Use a sequence with a warm-up update to inspect hover transitions.
 
 ## Drive a sequence
 

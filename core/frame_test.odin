@@ -54,6 +54,7 @@ rect_frame_pipeline :: proc(t: ^testing.T) {
 	scroll_pipeline(t)
 	focus_pipeline(t)
 	scroll_focus_pipeline(t)
+	nested_focus_pipeline(t)
 	when ODIN_OS == .Darwin { capture_pipeline(t) }
 }
 
