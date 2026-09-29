@@ -28,6 +28,7 @@ Metal_Renderer :: struct {
 	profiler:      Frame_Profiler,
 	drawing:       bool,
 	resize_pending: bool,
+	capture_scale: f32, // Used only when there is no native view.
 }
 
 // Explicit padding keeps the array stride identical to the Metal struct.
@@ -223,7 +224,8 @@ encode_surfaces :: proc(renderer: ^Metal_Renderer, encoder: ^mtl.RenderCommandEn
 pixel_scale_impl :: proc(handle: Renderer) -> f32 {
 	view := (cast(^Metal_Renderer)handle).view
 	if view == nil {
-		return 1
+		scale := (cast(^Metal_Renderer)handle).capture_scale
+		return scale if scale > 0 else 1
 	}
 	window := intrinsics.objc_send(^ns.Window, view, "window")
 	return f32(window->backingScaleFactor()) if window != nil else 1
