@@ -14,6 +14,7 @@ GL_Renderer :: struct {
 	pixel_size: [2]i32,
 	max_texture_size: i32,
 	logical_scale: f32,
+	transparent: bool,
 	images: [dynamic]Image_Slot,
 	free_image: u32,
 }
@@ -108,16 +109,26 @@ gl_destroy :: proc(renderer: ^GL_Renderer) {
 @(private)
 render_impl :: proc(handle: Renderer, surfaces: []primitives.Surface, size: [2]f32, timing: ^Render_Timing) {
 	renderer := cast(^GL_Renderer)handle
-	gl.Viewport(0, 0, renderer.pixel_size.x, renderer.pixel_size.y)
-	gl.ClearColor(0.035, 0.045, 0.065, 1)
-	gl.Clear(gl.COLOR_BUFFER_BIT)
-	encode_surfaces(renderer, surfaces, size)
+	gl_render_frame(renderer, surfaces, size)
 	// EGL combines presentation work and pacing in one call; account for its
 	// entire duration as waits rather than pretending to isolate sleep time.
 	wait_start := render_wait_begin(timing)
 	swapped := bool(egl.SwapBuffers(renderer.display, renderer.surface))
 	render_wait_end(timing, wait_start)
 	linux_require(swapped, "EGL buffer swap failed")
+}
+
+// Shared by window rendering and pixel readback tests, including the clear.
+@(private)
+gl_render_frame :: proc(renderer: ^GL_Renderer, surfaces: []primitives.Surface, size: [2]f32) {
+	gl.Viewport(0, 0, renderer.pixel_size.x, renderer.pixel_size.y)
+	if renderer.transparent {
+		gl.ClearColor(0, 0, 0, 0)
+	} else {
+		gl.ClearColor(0.035, 0.045, 0.065, 1)
+	}
+	gl.Clear(gl.COLOR_BUFFER_BIT)
+	encode_surfaces(renderer, surfaces, size)
 }
 
 @(private)

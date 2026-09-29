@@ -58,6 +58,25 @@ OpenGL 3.3 core context with `EGL_BAD_MATCH`. The renderer uses GLES 3.0 for
 instancing, vertex arrays, and its shaders. Odin's `vendor:OpenGL` supplies the
 shared function bindings; loading those bindings does not select desktop GL.
 
+## Transparent windows
+
+Pass `transparent = true` to `ui.open_window` to show the desktop or windows
+behind unpainted areas. Linux defaults to `false`, preserving the opaque dark
+background. Alpha-1 paint stays opaque; translucent paint and rounded edges
+blend with the content behind the window. This is alpha compositing, not blur.
+
+The EGL config includes an alpha channel, and each transparent frame clears to
+zero RGBA before drawing with premultiplied source-over blending. The Wayland
+surface retains its default empty opaque region so the compositor honors alpha.
+Clearing every frame removes old shapes without trails. Transparency does not
+change the input region: the full window rectangle still receives pointer input.
+
+Run `./scripts/build.sh app9` and `./bin/app9` for a demo with unpainted gaps,
+rounded panels, translucent paint, and a moving circle. Use compositor shortcuts
+to move or close the window. Decorations remain compositor-managed: the backend
+requests server decorations when supported, and `decorated = false` remains
+unsupported on Linux.
+
 ## Verification
 
 ```sh
@@ -69,7 +88,8 @@ pixel-readback tests, and optimized
 builds of all examples. The rendering tests use Mesa's surfaceless EGL platform
 and do not require a visible window. They cover rounded corners, alpha blending,
 image orientation, tint, draw order, batching, Retina-style scaling, slot reuse,
-stale handles, and exhausted generations. If needed, run the script with
+stale handles, exhausted generations, and the production transparent/opaque
+frame clear paths. If needed, run the script with
 `LIBGL_ALWAYS_SOFTWARE=1` to exercise Mesa's software driver.
 
 To exercise the same EGL driver as the window (rather than the surfaceless

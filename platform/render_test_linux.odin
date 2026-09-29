@@ -14,7 +14,7 @@ import "../core/images"
 gl_surface_rendering :: proc(t: ^testing.T) {
 	egl_state := test_egl_context()
 	defer destroy_test_egl_context(egl_state)
-	renderer: GL_Renderer
+	renderer := GL_Renderer{transparent = true}
 	gl_init(&renderer)
 	defer gl_destroy(&renderer)
 	texture := test_texture( 128, 96)
@@ -46,6 +46,15 @@ gl_surface_rendering :: proc(t: ^testing.T) {
 			break
 		}
 	}
+
+	// Opaque windows keep the old dark background and composite alpha over it.
+	renderer.transparent = false
+	test_render(t, &renderer, texture, scene[:], {128, 96}, raw_data(pixels[:]))
+	expect_pixel(t, pixels[9 * 128 + 9], {17, 11, 9, 255})
+	expect_pixel(t, pixels[30 * 128 + 56], {136, 6, 4, 255})
+	test_render(t, &renderer, texture, nil, {128, 96}, raw_data(pixels[:]))
+	expect_pixel(t, pixels[20 * 128 + 28], {17, 11, 9, 255})
+	renderer.transparent = true
 
 	// More than two inline batches, including a skipped degenerate surface.
 	batch_scene: [131]primitives.Surface
@@ -237,10 +246,8 @@ destroy_test_texture :: proc(target: Test_Texture) {
 @(private)
 test_render :: proc(t: ^testing.T, renderer: ^GL_Renderer, target: Test_Texture, surfaces: []primitives.Surface, size: [2]f32, pixels: rawptr) {
 	gl.BindFramebuffer(gl.FRAMEBUFFER, target.framebuffer)
-	gl.Viewport(0, 0, target.width, target.height)
-	gl.ClearColor(0, 0, 0, 0)
-	gl.Clear(gl.COLOR_BUFFER_BIT)
-	encode_surfaces(renderer, surfaces, size)
+	renderer.pixel_size = {target.width, target.height}
+	gl_render_frame(renderer, surfaces, size)
 	gl.ReadPixels(0, 0, target.width, target.height, gl.RGBA, gl.UNSIGNED_BYTE, pixels)
 	testing.expect_value(t, gl.GetError(), u32(gl.NO_ERROR))
 	// ReadPixels returns bottom-to-top rows; expectations use the UI's top-left origin.

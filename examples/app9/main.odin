@@ -7,7 +7,7 @@ font: ui.Font
 
 main :: proc() {
 	ui.open_window("Odin UI Rebuilder — Transparent window", 780, 510, update,
-		frame_timing = .Summary, decorated = ODIN_OS != .Darwin)
+		frame_timing = .Summary, decorated = ODIN_OS != .Darwin, transparent = true)
 }
 
 update :: proc() {
@@ -34,7 +34,7 @@ update :: proc() {
 		when ODIN_OS == .Darwin {
 			line("Drag a painted area to move  /  Command-Q to quit", 14)
 		} else {
-			line("Window transparency demo requires macOS", 14)
+			line("Use your window manager shortcuts to move / close", 14)
 		}
 	}
 	ui.close_rect()

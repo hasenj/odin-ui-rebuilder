@@ -34,9 +34,9 @@ Visual transparency does not define framework hit testing or a custom OS input
 region. `ui.hovered()` continues to test rect geometry. Background dragging is a
 window-wide native behavior, not an application input-routing implementation.
 
-Linux keeps its existing decorated/opaque defaults. Explicitly requesting these
-new modes there currently asserts instead of silently ignoring the options.
-App9 uses the macOS modes on macOS and a conventional window on Linux.
+Linux keeps its existing decorated/opaque defaults, but supports explicit
+`transparent = true`. `decorated = false` still asserts on Linux.
+App9 enables transparency on both platforms; Linux decorations are compositor-managed.
 
 ## Example and checks
 

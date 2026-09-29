@@ -30,12 +30,13 @@ Wayland_Window :: struct {
 
 @(private)
 open_window_impl :: proc(title: string, width, height: int, frame: Frame_Proc, user_data: rawptr, frame_timing: Frame_Timing, input_state: ^input.State, decorated, transparent: bool) {
-	assert(decorated && !transparent, "Custom window decorations/transparency are currently supported only on macOS")
+	assert(decorated, "Custom window decorations are currently supported only on macOS")
 	wayland_init_protocols()
 	window := Wayland_Window{
 		odin_context = context, width = i32(width), height = i32(height),
 		scale = 1, running = true, frame_ready = true,
 		outputs = make([dynamic]Wayland_Output),
+		renderer = GL_Renderer{transparent = transparent},
 	}
 	window.display = wl_display_connect(nil)
 	linux_require(window.display != nil, "Could not connect to Wayland. Run inside a Wayland desktop session (check WAYLAND_DISPLAY and XDG_RUNTIME_DIR).")
@@ -47,6 +48,7 @@ open_window_impl :: proc(title: string, width, height: int, frame: Frame_Proc, u
 	linux_require(wl_display_roundtrip(window.display) >= 0, "Wayland initial state roundtrip failed")
 	window.surface = wl_construct(window.compositor, 0, &wl_surface_interface, []WL_Argument{{o = nil}}, wl_proxy_get_version(window.compositor))
 	wl_listen(window.surface, &surface_listener, &window)
+	// Keep the default empty opaque region: the compositor must honor buffer alpha.
 	window.shell_surface = wl_construct(window.shell, 2, &xdg_surface_interface, []WL_Argument{{o = nil}, {o = window.surface}})
 	wl_listen(window.shell_surface, &shell_surface_listener, &window)
 	window.toplevel = wl_construct(window.shell_surface, 1, &xdg_toplevel_interface, []WL_Argument{{o = nil}})
