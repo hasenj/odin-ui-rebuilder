@@ -49,6 +49,13 @@ are supplied once in `input.scroll_delta`; idle frames receive zero.
 App10 demonstrates native scrolling. `./scripts/check-macos-input.sh` verifies
 real NSEvents and their subsequent frame snapshots on the AppKit main thread.
 
+The Metal view is the window's first responder and captures navigation keys,
+key releases, modifier changes and native repeats as input data. Tab/Shift-Tab
+therefore use core's existing focus traversal and modal fence. Press-time
+modifiers survive a quick release before the next frame. Losing key-window
+status clears held keys and pending presses while retaining logical UI focus.
+Text entry and IME remain deferred. Command-Q still uses the application menu.
+
 Run `./scripts/build.sh app9` and `./bin/app9` from the repository root. The
 example leaves its root, gaps and padding unpainted, draws an opaque rounded
 header and a translucent blue panel, and moves an orange circle across empty

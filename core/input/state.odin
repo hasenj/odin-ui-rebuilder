@@ -30,8 +30,14 @@ State :: struct {
 	// between frames, then clear their pending delta after supplying the snapshot.
 	scroll_delta: [2]f32,
 	// Transition sets are supplied per update; they are not retained/consumed.
-	// These fields are currently for synthetic hosts; native keyboard wiring is pending.
+	// Native hosts fill keyboard transitions; mouse transitions may also be
+	// supplied by a synthetic host (native held-button changes imply clicks).
 	mouse_pressed, mouse_released: Mouse_Buttons,
 	keys_down, keys_pressed, keys_released: Keys,
 	modifiers: Modifiers,
+	// Native transitions remember modifiers at press time, even if Shift is
+	// released before the next frame. Synthetic hosts may leave this false
+	// and use modifiers for all presses, as before.
+	has_key_press_modifiers: bool,
+	key_press_modifiers: [Key]Modifiers,
 }

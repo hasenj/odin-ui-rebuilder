@@ -5,7 +5,7 @@ import "core:fmt"
 import "core:strings"
 import "core:time"
 import egl "vendor:egl"
-import "../core/input"
+import inputs "../core/input"
 import "../core/primitives"
 
 @(private)
@@ -15,13 +15,20 @@ Wayland_Output :: struct {proxy: rawptr, name: u32, scale: i32, entered: bool}
 Wayland_Window :: struct {
 	odin_context: runtime.Context,
 	display, registry, compositor, shell, surface, shell_surface, toplevel: rawptr,
-	seat, pointer, shm, decoration_manager, decoration: rawptr,
+	seat, pointer, keyboard_proxy, shm, decoration_manager, decoration: rawptr,
 	cursor_surface, cursor_theme, frame_callback, native_window: rawptr,
 	egl_context: egl.Context,
 	renderer: GL_Renderer,
 	outputs: [dynamic]Wayland_Output,
-	input: input.State,
+	input: inputs.State,
 	scroll_group: [2]f32,
+	keyboard: Keyboard_Input,
+	xkb_context, xkb_keymap, xkb_state: rawptr,
+	held_keys: map[u32]inputs.Key,
+	keyboard_focused, repeat_active: bool,
+	repeat_code: u32,
+	repeat_rate, repeat_delay: i32,
+	repeat_at: time.Tick,
 	width, height, pending_width, pending_height, scale: i32,
 	pointer_serial: u32,
 	seat_name: u32,
@@ -30,7 +37,7 @@ Wayland_Window :: struct {
 }
 
 @(private)
-open_window_impl :: proc(title: string, width, height: int, frame: Frame_Proc, user_data: rawptr, frame_timing: Frame_Timing, input_state: ^input.State, decorated, transparent: bool) {
+open_window_impl :: proc(title: string, width, height: int, frame: Frame_Proc, user_data: rawptr, frame_timing: Frame_Timing, input_state: ^inputs.State, decorated, transparent: bool) {
 	wayland_init_protocols()
 	window := Wayland_Window{
 		odin_context = context, width = i32(width), height = i32(height),
@@ -116,7 +123,7 @@ open_window_impl :: proc(title: string, width, height: int, frame: Frame_Proc, u
 }
 
 @(private)
-wayland_frame :: proc(window: ^Wayland_Window, frame: Frame_Proc, user_data: rawptr, input_state: ^input.State, start: time.Tick, profiler: ^Frame_Profiler) {
+wayland_frame :: proc(window: ^Wayland_Window, frame: Frame_Proc, user_data: rawptr, input_state: ^inputs.State, start: time.Tick, profiler: ^Frame_Profiler) {
 	profiling := profiler.mode != .Disabled
 	frame_start, update_start: time.Tick
 	update_ms: f64
@@ -154,7 +161,9 @@ wayland_frame :: proc(window: ^Wayland_Window, frame: Frame_Proc, user_data: raw
 }
 
 @(private)
-take_wayland_input :: proc(window: ^Wayland_Window) -> input.State {
+take_wayland_input :: proc(window: ^Wayland_Window) -> inputs.State {
+	wayland_repeat(window)
+	sample_keyboard(&window.keyboard, &window.input)
 	result := window.input
 	window.input.scroll_delta = {}
 	return result
@@ -162,6 +171,7 @@ take_wayland_input :: proc(window: ^Wayland_Window) -> input.State {
 
 @(private)
 wayland_destroy :: proc(window: ^Wayland_Window) {
+	destroy_wayland_keyboard(window)
 	if window.renderer.program != 0 {
 		gl_destroy(&window.renderer)
 	}
@@ -186,6 +196,7 @@ wayland_destroy :: proc(window: ^Wayland_Window) {
 	}
 	wl_release(window.cursor_surface, 0)
 	wl_release(window.pointer, 1)
+	wl_release(window.keyboard_proxy, 0)
 	wl_release(window.decoration, 0)
 	wl_release(window.toplevel, 0)
 	wl_release(window.shell_surface, 0)

@@ -2,6 +2,8 @@
 package platform
 
 import "core:testing"
+import "core:time"
+import "../core/input"
 
 // Exercise the negotiated wl_pointer v5 callback pipeline without a compositor.
 @(test)
@@ -23,4 +25,38 @@ wayland_wheel_snapshots :: proc(t: ^testing.T) {
 	pointer_axis(&w, nil, 0, 0, 256)
 	pointer_frame(&w, nil)
 	testing.expect(t, take_wayland_input(&w).scroll_delta == [2]f32{}, "Pointer leave must clear and reject pending scroll")
+}
+
+// Real XKB symbols/modifier indices through the production keyboard callbacks.
+@(test)
+wayland_keyboard_snapshots :: proc(t: ^testing.T) {
+	w := Wayland_Window{odin_context = context}
+	w.xkb_context = xkb_context_new(0)
+	assert(w.xkb_context != nil)
+	w.xkb_keymap = xkb_keymap_new_from_names(w.xkb_context, nil, 0)
+	assert(w.xkb_keymap != nil)
+	w.xkb_state = xkb_state_new(w.xkb_keymap)
+	assert(w.xkb_state != nil)
+	defer destroy_wayland_keyboard(&w)
+	keyboard_enter(&w, nil, 0, nil, nil)
+	shift := xkb_keymap_mod_get_index(w.xkb_keymap, "Shift")
+	assert(shift < 32)
+	keyboard_modifiers(&w, nil, 0, u32(1) << shift, 0, 0, 0)
+	keyboard_key(&w, nil, 0, 0, 15, 1)
+	keyboard_key(&w, nil, 0, 0, 15, 0)
+	keyboard_modifiers(&w, nil, 0, 0, 0, 0, 0)
+	snapshot := take_wayland_input(&w)
+	testing.expect(t, snapshot.keys_pressed == input.Keys{.Tab} && snapshot.keys_released == input.Keys{.Tab})
+	testing.expect(t, snapshot.keys_down == input.Keys{} && snapshot.modifiers == input.Modifiers{})
+	testing.expect(t, snapshot.has_key_press_modifiers && snapshot.key_press_modifiers[.Tab] == input.Modifiers{.Shift})
+	testing.expect(t, take_wayland_input(&w).keys_pressed == input.Keys{})
+	keyboard_repeat_info(&w, nil, 20, 500)
+	keyboard_key(&w, nil, 0, 0, 15, 1)
+	_ = take_wayland_input(&w)
+	w.repeat_at = time.tick_add(time.tick_now(), -time.Millisecond)
+	testing.expect(t, take_wayland_input(&w).keys_pressed == input.Keys{.Tab})
+	keyboard_leave(&w, nil, 0, nil)
+	snapshot = take_wayland_input(&w)
+	testing.expect(t, snapshot.keys_down == input.Keys{} && snapshot.keys_pressed == input.Keys{} && snapshot.keys_released == input.Keys{.Tab})
+	testing.expect(t, !w.repeat_active)
 }

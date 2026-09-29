@@ -30,6 +30,78 @@ sample_frame_input :: proc(renderer: ^Metal_Renderer) {
 	if renderer.input_state != nil {
 		renderer.input_state.scroll_delta = delta
 	}
+	sample_keyboard(&renderer.keyboard, renderer.input_state)
+}
+
+@(private)
+metal_view_renderer :: proc "contextless" (self: ns.id) -> ^Metal_Renderer {
+	delegate := intrinsics.objc_send(ns.id, cast(^mtk.View)self, "delegate")
+	return (cast(^^Metal_Renderer)ns.object_getIndexedIvars(delegate))^ if delegate != nil else nil
+}
+
+@(private)
+macos_modifiers :: proc(flags: ns.EventModifierFlags) -> input.Modifiers {
+	result: input.Modifiers
+	if .Shift in flags { result += {.Shift} }
+	if .Control in flags { result += {.Control} }
+	if .Option in flags { result += {.Alt} }
+	if .Command in flags { result += {.Super} }
+	return result
+}
+
+@(private)
+macos_key :: proc(code: u16) -> (key: input.Key, ok: bool) {
+	switch code {
+	case 48: return .Tab, true
+	case 36, 76: return .Enter, true
+	case 49: return .Space, true
+	case 53: return .Escape, true
+	case 123: return .Left, true
+	case 124: return .Right, true
+	case 126: return .Up, true
+	case 125: return .Down, true
+	case 115: return .Home, true
+	case 119: return .End, true
+	case 51: return .Backspace, true
+	case 117: return .Delete, true
+	}
+	return {}, false
+}
+
+@(private)
+metal_view_key_down :: proc "c" (self: ns.id, _: ns.SEL, event: ^ns.Event) {
+	renderer := metal_view_renderer(self)
+	if renderer == nil { return }
+	context = renderer.odin_context
+	renderer.keyboard.modifiers = macos_modifiers(event->modifierFlags())
+	if key, ok := macos_key(event->keyCode()); ok {
+		// Repeated native keyDown events also produce one-frame presses.
+		keyboard_press(&renderer.keyboard, key)
+	}
+}
+
+@(private)
+metal_view_key_up :: proc "c" (self: ns.id, _: ns.SEL, event: ^ns.Event) {
+	renderer := metal_view_renderer(self)
+	if renderer == nil { return }
+	context = renderer.odin_context
+	renderer.keyboard.modifiers = macos_modifiers(event->modifierFlags())
+	if key, ok := macos_key(event->keyCode()); ok { keyboard_release(&renderer.keyboard, key) }
+}
+
+@(private)
+metal_view_flags_changed :: proc "c" (self: ns.id, _: ns.SEL, event: ^ns.Event) {
+	renderer := metal_view_renderer(self)
+	if renderer == nil { return }
+	context = renderer.odin_context
+	renderer.keyboard.modifiers = macos_modifiers(event->modifierFlags())
+}
+
+@(private)
+window_resigned_key :: proc "c" (self: ns.id, _: ns.SEL, _: ns.id) {
+	renderer := (cast(^^Metal_Renderer)ns.object_getIndexedIvars(self))^
+	context = renderer.odin_context
+	keyboard_clear(&renderer.keyboard)
 }
 
 @(private)

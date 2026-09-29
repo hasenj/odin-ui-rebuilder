@@ -52,6 +52,7 @@ open_window_impl :: proc(title: string, width, height: int, frame: Frame_Proc, u
 		intrinsics.objc_send(nil, renderer.view, "setAutoResizeDrawable:", ns.BOOL(true))
 		window->setContentView(renderer.view)
 		install_view_delegate(&renderer)
+		assert(bool(intrinsics.objc_send(ns.BOOL, window, "makeFirstResponder:", renderer.view)))
 		renderer.start = time.tick_now()
 		// NSWindow releases itself on close by default.
 		native_title := ns.String.alloc()->initWithOdinString(title)
@@ -80,12 +81,15 @@ install_view_delegate :: proc(renderer: ^Metal_Renderer) {
 	draw_added := ns.class_addMethod(cls, intrinsics.objc_find_selector("drawInMTKView:"), auto_cast draw_frame, "v@:@")
 	resize_added := ns.class_addMethod(cls, intrinsics.objc_find_selector("mtkView:drawableSizeWillChange:"), auto_cast drawable_size_changed, "v@:@{CGSize=dd}")
 	assert(draw_added && resize_added, "Could not register Metal view callbacks")
+	assert(ns.class_addMethod(cls, intrinsics.objc_find_selector("windowDidResignKey:"), auto_cast window_resigned_key, "v@:@"))
 	ns.objc_registerClassPair(cls)
 	delegate := ns.class_createInstance(cls, size_of(^Metal_Renderer))
 	assert(delegate != nil, "Could not create the Metal view delegate")
 	(cast(^^Metal_Renderer)ns.object_getIndexedIvars(delegate))^ = renderer
 	// MTKView's delegate is weak. This allocation lives until the app exits.
 	intrinsics.objc_send(nil, renderer.view, "setDelegate:", delegate)
+	window := intrinsics.objc_send(^ns.Window, renderer.view, "window")
+	window->setDelegate(cast(^ns.WindowDelegate)delegate)
 }
 
 @(private)

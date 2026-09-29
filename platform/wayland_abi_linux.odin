@@ -31,7 +31,7 @@ foreign wayland_client {
 	wl_proxy_add_listener :: proc(proxy, listener, data: rawptr) -> i32 ---
 	wl_proxy_marshal_array_flags :: proc(proxy: rawptr, opcode: u32, iface: ^WL_Interface, version, flags: u32, args: [^]WL_Argument) -> rawptr ---
 	wl_registry_interface, wl_compositor_interface, wl_surface_interface: WL_Interface
-	wl_callback_interface, wl_seat_interface, wl_pointer_interface: WL_Interface
+	wl_callback_interface, wl_seat_interface, wl_pointer_interface, wl_keyboard_interface: WL_Interface
 	wl_output_interface, wl_shm_interface: WL_Interface
 }
 foreign wayland_egl {

@@ -14,6 +14,13 @@ same movement and are not counted again. Completed groups accumulate until the
 next update's `input.scroll_delta` snapshot, then reset. Pointer leave or device
 loss clears pending movement. App10 demonstrates scrollable content.
 
+wl_keyboard v5 supplies navigation keys and modifiers. The system
+`libxkbcommon` decodes the compositor's keymap, including Shift-Tab and configured
+modifier indices; no fixed Shift bit or US-layout assumption is used. Key
+transitions preserve press-time modifiers and reset each update. Keyboard leave
+or device loss clears held keys and cancels pending presses/repeat. Repeat uses
+the compositor's rate/delay. Text input and IME are not implemented yet.
+
 ## Build and run in Omarchy
 
 Use a recent Odin compiler with `core:image` PNG/JPEG support and `vendor:egl`.
@@ -21,7 +28,7 @@ Development cross-checks used `dev-2026-09-nightly`. Run the following from the
 repository root inside the VM:
 
 ```sh
-sudo pacman -S --needed base-devel wayland libglvnd mesa freetype2 harfbuzz
+sudo pacman -S --needed base-devel wayland libglvnd mesa libxkbcommon freetype2 harfbuzz
 ./scripts/build.sh app3
 ./bin/app3
 ```
@@ -135,7 +142,7 @@ The profiler's submission time includes EGL swap waits; it does not measure GPU 
 ## Current boundaries
 
 There is one window and one pointer seat. Integer output scaling is supported;
-fractional scaling is left to the compositor. There is no keyboard, scroll,
+fractional scaling is left to the compositor. There is no text/IME input,
 touch, or client-drawn title bar yet. Server decorations are requested when
 `xdg-decoration` is available; otherwise the compositor's window-management
 shortcuts can move, resize, and close the window.

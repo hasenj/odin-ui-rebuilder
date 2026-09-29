@@ -2,8 +2,8 @@
 
 These are UI building blocks, driven by the frame's input snapshot. No widget
 callbacks or input consumption are required. Both native backends populate
-pointer position, held buttons, and wheel/trackpad movement. Keyboard fields
-can currently be supplied by capture or another synthetic host.
+pointer position, held buttons, wheel/trackpad movement, navigation-key
+transitions and modifiers. Capture or another host can supply the same data.
 
 ## Clipping and translated geometry
 
@@ -115,7 +115,7 @@ in logical points; coarse wheel steps use 40 points per line. Wayland axis value
 already use logical surface coordinates. Both hosts accumulate movement between
 frames and reset their pending delta after supplying each input snapshot.
 
-## Focus and synthetic keyboard data
+## Focus and keyboard data
 
 Call `focusable()` on a rect to participate in click/Tab focus. Passing false
 keeps it drawable/hoverable but excludes it from focus traversal. `focused()`
@@ -147,8 +147,21 @@ a full-window rect on its layer as a hit barrier (see app10).
 `mouse_released` and `scroll_delta` are data supplied by a host. Transition sets
 and scroll deltas must be cleared/replaced every update. The builder never
 consumes them. The initial `Key` enum contains navigation/editing keys; text and
-IME need their own contract later. Native keyboard, focus-loss and IME
-integration remain deferred, as does on-demand frame scheduling.
+IME need their own contract later. Native keyboard input covers the current
+navigation/editing `Key` enum, including Tab, Enter, Space and Escape. Window
+deactivation (macOS) or keyboard leave/device loss (Wayland) clears held keys,
+cancels pending presses and stops repeat. Logical UI focus is remembered.
+Text/IME input and on-demand frame scheduling remain deferred.
+
+Native hosts set `has_key_press_modifiers` and populate
+`key_press_modifiers[key]` with modifiers at the last press of that key in the
+snapshot. Current held modifiers remain in `modifiers`. This lets a quick
+Shift-Tab go backward even if Shift was released before the frame. Synthetic
+hosts may leave the flag false; focus traversal then uses `modifiers` as before.
+Repeated key-downs produce per-frame presses; transition sets coalesce multiple
+presses of the same key between updates into one. macOS uses native key repeat;
+Wayland uses the compositor's repeat rate/delay, without replaying missed repeats
+after a stall. Key repeat does not arise merely from `keys_down` being set.
 
 ## Evidence and example
 
@@ -165,8 +178,8 @@ Running app10 without the flag opens the sample window. Click **Open modal** in
 the header, then **Continue** or **Cancel** to close it. Focus returns to the
 opener. The sample activates buttons on release inside after a press inside;
 dragging off before release cancels activation. Pointer hover/click focus and
-wheel/trackpad scrolling work with native input. Tab uses the scripted capture
-sequence until native keyboard input is wired up.
+wheel/trackpad scrolling work with native input. Tab and Shift-Tab cycle focus,
+wrap inside the modal, and reveal focused items in the scroll region.
 
 `./scripts/check.sh` tests the core and real Metal renderer, builds all examples
 with speed optimizations, then runs the capture scenarios on macOS. Core tests
@@ -178,7 +191,9 @@ execution still needs the Linux host.
 
 `./scripts/check-macos-input.sh` sends real precise and coarse NSEvents to the
 production Metal view and verifies both axes, accumulation, next-frame delivery,
-and reset on idle frames. It runs on the main thread and does not require
-Accessibility permission. The Linux platform tests exercise the wl_pointer v5
-axis/frame callbacks, avoid counting discrete steps twice, and check reset on
-pointer leave.
+and reset on idle frames. It also sends native key events through NSWindow to
+verify Tab/repeat, quick Shift-Tab, disabled entries, modified-Tab exclusion,
+modal wrapping/restoration and reset when the window loses key status. It runs
+on the main thread and does not require Accessibility permission. Linux platform
+tests exercise pointer axis/frame delivery and real XKB symbols/modifiers through
+keyboard callbacks, including quick Shift-Tab, repeat and keyboard-leave reset.

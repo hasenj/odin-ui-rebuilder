@@ -24,6 +24,7 @@ Metal_Renderer :: struct {
 	user_data:     rawptr,
 	input_state:   ^input.State,
 	pending_scroll: [2]f32,
+	keyboard: Keyboard_Input,
 	start:         time.Tick,
 	odin_context:  runtime.Context,
 	profiler:      Frame_Profiler,

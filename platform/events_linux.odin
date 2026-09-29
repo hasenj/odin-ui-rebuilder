@@ -72,8 +72,11 @@ registry_remove :: proc "c" (data, _: rawptr, name: u32) {
 	context = w.odin_context
 	if name == w.seat_name && w.seat != nil {
 		wl_release(w.pointer, 1)
+		wl_release(w.keyboard_proxy, 0)
 		wl_release(w.seat, 3)
 		w.pointer = nil
+		w.keyboard_proxy = nil
+		clear_wayland_keyboard(w)
 		w.seat = nil
 		w.pointer_focused = false
 		w.input = {}
@@ -140,6 +143,14 @@ frame_done :: proc "c" (data, callback: rawptr, _: u32) {
 seat_capabilities :: proc "c" (data, seat: rawptr, capabilities: u32) {
 	w := cast(^Wayland_Window)data
 	context = w.odin_context
+	if capabilities & 2 != 0 && w.keyboard_proxy == nil {
+		w.keyboard_proxy = wl_construct(seat, 1, &wl_keyboard_interface, []WL_Argument{{o = nil}}, 5)
+		wl_listen(w.keyboard_proxy, &keyboard_listener, w)
+	} else if capabilities & 2 == 0 && w.keyboard_proxy != nil {
+		wl_release(w.keyboard_proxy, 0)
+		w.keyboard_proxy = nil
+		clear_wayland_keyboard(w)
+	}
 	if capabilities & 1 != 0 && w.pointer == nil {
 		w.pointer = wl_construct(seat, 0, &wl_pointer_interface, []WL_Argument{{o = nil}}, 5)
 		wl_listen(w.pointer, &pointer_listener, w)
