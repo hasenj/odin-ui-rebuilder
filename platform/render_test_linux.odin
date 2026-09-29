@@ -88,6 +88,12 @@ gl_surface_rendering :: proc(t: ^testing.T) {
 	test_render(t, &renderer, retina, scene[:], {128, 96}, raw_data(retina_pixels))
 	expect_pixel(t, retina_pixels[40 * 256 + 56], {0, 0, 255, 255})
 	expect_pixel(t, retina_pixels[18 * 256 + 18], {})
+	test_render(t, &renderer, retina, clipped[:], {128, 96}, raw_data(retina_pixels))
+	expect_pixel(t, retina_pixels[40 * 256 + 20], {0, 0, 255, 255})
+	expect_pixel(t, retina_pixels[79 * 256 + 59], {0, 0, 255, 255})
+	expect_pixel(t, retina_pixels[40 * 256 + 19], {})
+	expect_pixel(t, retina_pixels[40 * 256 + 60], {})
+
 
 	// Decode a known PNG and exercise upload, sampling, mixed draw order, tint,
 	// clipping, handle reuse, and destruction through the actual GPU pipeline.

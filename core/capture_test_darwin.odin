@@ -99,7 +99,7 @@ capture_test_scene :: proc() {
 	open_rect(.Top, 50)
 	{
 		open_rect(.Left, 50)
-		amount := animate_f32(1 if hovered() else 0, half_life = 0.1)
+		amount := animate_f32(1 if hovered(current_rect()) else 0, half_life = 0.1)
 		paint(color = {1 - amount, 0, amount, 0.5}, corners = 12)
 		close_rect()
 		pad4(0, 0, 0, 20)

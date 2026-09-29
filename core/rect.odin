@@ -7,7 +7,7 @@ Rect :: struct {position, size: [2]f32}
 Direction :: enum u8 {Top, Right, Bottom, Left}
 
 @(private)
-Rect_Context :: struct {bounds, remaining: Rect}
+Rect_Context :: struct {bounds, remaining: Rect, hit_index: int, scroll_clip_depth: int}
 
 // Returns a value snapshot, safe to keep while opening or closing other rects.
 current_rect :: proc() -> Rect {
@@ -49,8 +49,8 @@ open_rect_with_key :: proc(direction: Direction, size: f32, key: Identity_Key) {
 		cut.position[axis] += parent.remaining.size[axis]
 	}
 	// Appending can relocate the stack; do not use parent after this point.
-	append(&active_state.rects, Rect_Context{bounds = cut, remaining = cut})
-	identity_enter(key, .Rect)
+	id := identity_enter(key, .Rect)
+	append(&active_state.rects, Rect_Context{bounds = cut, remaining = cut, hit_index = register_hit(id, cut)})
 }
 
 // Return to the already-reduced parent. Child padding/cuts cannot affect it.
@@ -79,8 +79,8 @@ open_rect_at_keyed :: proc(rect: Rect, key: $T) where intrinsics.type_is_integer
 open_rect_at_key :: proc(rect: Rect, key: Identity_Key) {
 	assert(valid_length(rect.size.x) && valid_length(rect.size.y), "Invalid rect extent")
 	assert(abs(rect.position.x) <= max(f32) && abs(rect.position.y) <= max(f32), "Invalid rect position")
-	append(&active_state.rects, Rect_Context{bounds = rect, remaining = rect})
-	identity_enter(key, .Rect)
+	id := identity_enter(key, .Rect)
+	append(&active_state.rects, Rect_Context{bounds = rect, remaining = rect, hit_index = register_hit(id, rect)})
 }
 
 // Translate the current remaining rect for this child scope only. Geometry stays

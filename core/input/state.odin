@@ -8,6 +8,11 @@ Mouse_Button :: enum u8 {
 
 Mouse_Buttons :: bit_set[Mouse_Button; u8]
 
+Key :: enum u8 {Tab, Enter, Space, Escape, Left, Right, Up, Down, Home, End, Backspace, Delete}
+Keys :: bit_set[Key; u64]
+Modifier :: enum u8 {Shift, Control, Alt, Super}
+Modifiers :: bit_set[Modifier; u8]
+
 State :: struct {
 	// Logical points relative to the content area's top left, with Y down.
 	// May continue outside during a drag. Wayland retains the last known
@@ -20,4 +25,12 @@ State :: struct {
 	// the set on pointer leave or loss of the pointer device.
 	// This is down-state, not a one-frame click or release event.
 	mouse_buttons: Mouse_Buttons,
+	// Per-update wheel/trackpad delta in logical points. Positive moves the
+	// viewport towards the content bottom/right. Native backends do not fill it yet.
+	scroll_delta: [2]f32,
+	// Transition sets are supplied per update; they are not retained/consumed.
+	// These fields are currently for synthetic hosts; native keyboard wiring is pending.
+	mouse_pressed, mouse_released: Mouse_Buttons,
+	keys_down, keys_pressed, keys_released: Keys,
+	modifiers: Modifiers,
 }

@@ -76,7 +76,8 @@ layout_text_fit :: proc(value: string, font: Font_Ref, max_width: f32, size: f32
 	return fonts.fit(&active_state.text, resolve_font(font), value, size, frame.scale, weight, max_width, min_scale, direction, language, max_height, wrap_at_min)
 }
 
-// Paint a measured layout into the current rect without consuming it or clipping.
+// Paint a measured layout without consuming space. Active renderer clips apply;
+// the current rect itself does not implicitly clip the layout.
 // For a button, use align = .Center, valign = .Center. Reuse with other positions
 // and colors freely; widths/heights describe line boxes rather than ink bounds.
 draw_text_layout :: proc(layout: Text_Layout, color: Color = {1, 1, 1, 1}, align: Text_Align = .Start, valign: Text_Align = .Start) -> Text_Error {

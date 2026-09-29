@@ -58,6 +58,9 @@ flush_surface_state :: proc() {
 			}
 		}
 	}
+	if len(state.frame.surfaces) > state.surface_cursor {
+		append(&state.surface_runs, Surface_Run{state.surface_cursor, len(state.frame.surfaces), current_layer()})
+	}
 	state.surface_cursor = len(state.frame.surfaces)
 }
 
