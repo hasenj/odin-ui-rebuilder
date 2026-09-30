@@ -3,7 +3,7 @@
 set -eu
 cd "$(dirname "$0")/.."
 app=${1:-app10}
-case "$app" in app[0-9]|app10) ;; *) echo "Usage: $0 [app0..app10]" >&2; exit 1 ;; esac
+case "$app" in app[0-9]|app10|app11) ;; *) echo "Usage: $0 [app0..app11]" >&2; exit 1 ;; esac
 mkdir -p bin
 . ./scripts/text-link-paths.sh
 odin build "examples/$app" "-out:bin/$app" -o:speed -vet -strict-style \

@@ -14,9 +14,10 @@ same movement and are not counted again. Completed groups accumulate until the
 next update's `input.scroll_delta` snapshot, then reset. Pointer leave or device
 loss clears pending movement. App10 demonstrates scrollable content.
 
-wl_keyboard v5 supplies navigation keys and modifiers. The system
-`libxkbcommon` decodes the compositor's keymap, including Shift-Tab and configured
-modifier indices; no fixed Shift bit or US-layout assumption is used. Key
+wl_keyboard v5 supplies physical keys and modifiers. Evdev codes map to keys
+named by US keyboard position, independent of layout, Shift and Num Lock. The
+system `libxkbcommon` decodes the compositor's keymap for modifier indices,
+lock indicators and repeat policy; modifier bit positions are not hard-coded. Key
 transitions preserve press-time modifiers and reset each update. Keyboard leave
 or device loss clears held keys and cancels pending presses/repeat. Repeat uses
 the compositor's rate/delay. Text input and IME are not implemented yet.

@@ -27,7 +27,7 @@ wayland_wheel_snapshots :: proc(t: ^testing.T) {
 	testing.expect(t, take_wayland_input(&w).scroll_delta == [2]f32{}, "Pointer leave must clear and reject pending scroll")
 }
 
-// Real XKB symbols/modifier indices through the production keyboard callbacks.
+// Real XKB modifiers and physical evdev keys through production callbacks.
 @(test)
 wayland_keyboard_snapshots :: proc(t: ^testing.T) {
 	w := Wayland_Window{odin_context = context}
@@ -59,4 +59,18 @@ wayland_keyboard_snapshots :: proc(t: ^testing.T) {
 	snapshot = take_wayland_input(&w)
 	testing.expect(t, snapshot.keys_down == input.Keys{} && snapshot.keys_pressed == input.Keys{} && snapshot.keys_released == input.Keys{.Tab})
 	testing.expect(t, !w.repeat_active)
+	keyboard_enter(&w, nil, 0, nil, nil)
+	keyboard_modifiers(&w, nil, 0, u32(1) << shift, 0, 0, 0)
+	for code in ([?]u32{30, 2, 79, 183, 113}) { keyboard_key(&w, nil, 0, 0, code, 1) }
+	snapshot = take_wayland_input(&w)
+	expected := input.Keys{.A, .Digit1, .Keypad1, .F13, .Mute}
+	testing.expect(t, snapshot.keys_down == expected && snapshot.keys_pressed == expected)
+	testing.expect(t, snapshot.key_press_modifiers[.Digit1] == input.Modifiers{.Shift})
+	// Num Lock must not change keypad identity or which held key gets released.
+	num := xkb_keymap_mod_get_index(w.xkb_keymap, "Mod2")
+	assert(num < 32)
+	keyboard_modifiers(&w, nil, 0, 0, 0, u32(1) << num, 0)
+	for code in ([?]u32{30, 2, 79, 183, 113}) { keyboard_key(&w, nil, 0, 0, code, 0) }
+	snapshot = take_wayland_input(&w)
+	testing.expect(t, snapshot.keys_down == input.Keys{} && snapshot.keys_released == expected)
 }

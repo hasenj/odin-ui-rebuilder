@@ -82,6 +82,7 @@ install_view_delegate :: proc(renderer: ^Metal_Renderer) {
 	resize_added := ns.class_addMethod(cls, intrinsics.objc_find_selector("mtkView:drawableSizeWillChange:"), auto_cast drawable_size_changed, "v@:@{CGSize=dd}")
 	assert(draw_added && resize_added, "Could not register Metal view callbacks")
 	assert(ns.class_addMethod(cls, intrinsics.objc_find_selector("windowDidResignKey:"), auto_cast window_resigned_key, "v@:@"))
+	assert(ns.class_addMethod(cls, intrinsics.objc_find_selector("windowDidBecomeKey:"), auto_cast window_became_key, "v@:@"))
 	ns.objc_registerClassPair(cls)
 	delegate := ns.class_createInstance(cls, size_of(^Metal_Renderer))
 	assert(delegate != nil, "Could not create the Metal view delegate")

@@ -14,6 +14,8 @@ Key :: input.Key
 Keys :: input.Keys
 Modifier :: input.Modifier
 Modifiers :: input.Modifiers
+Lock :: input.Lock
+Locks :: input.Locks
 
 // The framework clears surfaces before each update, retaining its capacity.
 // Append low-level primitives here; do not clear/reorder/overwrite during update

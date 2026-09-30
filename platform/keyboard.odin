@@ -6,6 +6,7 @@ import "../core/input"
 Keyboard_Input :: struct {
 	down, pressed, released: input.Keys,
 	modifiers: input.Modifiers,
+	locks: input.Locks,
 	press_modifiers: [input.Key]input.Modifiers,
 }
 
@@ -35,6 +36,7 @@ sample_keyboard :: proc(keyboard: ^Keyboard_Input, state: ^input.State) {
 		state.keys_pressed = keyboard.pressed
 		state.keys_released = keyboard.released
 		state.modifiers = keyboard.modifiers
+		state.locks = keyboard.locks
 		state.has_key_press_modifiers = true
 		state.key_press_modifiers = keyboard.press_modifiers
 	}

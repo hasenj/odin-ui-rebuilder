@@ -2,7 +2,7 @@
 
 These are UI building blocks, driven by the frame's input snapshot. No widget
 callbacks or input consumption are required. Both native backends populate
-pointer position, held buttons, wheel/trackpad movement, navigation-key
+pointer position, held buttons, wheel/trackpad movement, physical-key
 transitions and modifiers. Capture or another host can supply the same data.
 
 ## Clipping and translated geometry
@@ -146,10 +146,26 @@ a full-window rect on its layer as a hit barrier (see app10).
 `keys_down`, `keys_pressed`, `keys_released`, `modifiers`, `mouse_pressed`,
 `mouse_released` and `scroll_delta` are data supplied by a host. Transition sets
 and scroll deltas must be cleared/replaced every update. The builder never
-consumes them. The initial `Key` enum contains navigation/editing keys; text and
-IME need their own contract later. Native keyboard input covers the current
-navigation/editing `Key` enum, including Tab, Enter, Space and Escape. Window
-deactivation (macOS) or keyboard leave/device loss (Wayland) clears held keys,
+consumes them. `Key` names physical keyboard positions using US legends:
+letters, top-row digits, punctuation, navigation, F1–F24, keypad keys, modifier
+sides, lock keys, and selected international/system keys. `Keys` uses a 128-bit
+set, so existing `.A in input.keys_down` / `keys_pressed` / `keys_released`
+checks need no lookup or allocation. Shift+A is `.A` plus Shift; a changed
+keyboard layout does not rename the position. This intentionally replaces the
+earlier Wayland keysym mapping with physical evdev codes. XKB still supplies
+configured modifiers, lock state and repeat policy.
+
+Top-row `.Digit1` and `.Keypad1` are independent, as are `.Enter` and
+`.KeypadEnter`; Num Lock does not change keypad identity. Modifier sides are
+keys (`.LeftShift`, `.RightShift`, etc.), while `modifiers` holds the aggregate
+Shift/Control/Alt/Super flags. `locks` holds Caps/Num/Scroll toggle state separately
+from key-down state. On macOS, Caps Lock changes produce a press/release tap
+because AppKit does not provide a reliable physical Caps Lock key-up sequence.
+Not every named key exists or is delivered on every OS: macOS's normal keycode
+path covers F1–F20, and OS-reserved shortcuts/media keys may be intercepted.
+Character translation, dead keys, text entry and IME remain separate future work.
+
+Window deactivation (macOS) or keyboard leave/device loss (Wayland) clears held keys,
 cancels pending presses and stops repeat. Logical UI focus is remembered.
 Text/IME input and on-demand frame scheduling remain deferred.
 
@@ -162,6 +178,11 @@ Repeated key-downs produce per-frame presses; transition sets coalesce multiple
 presses of the same key between updates into one. macOS uses native key repeat;
 Wayland uses the compositor's repeat rate/delay, without replaying missed repeats
 after a stall. Key repeat does not arise merely from `keys_down` being set.
+
+App11 is a keyboard inspector: it shows currently held keys, remembers the last
+press/release sets, flashes their tiles, and displays aggregate modifiers and
+locks. Run `./scripts/build.sh app11` and `./bin/app11`. Its `--capture` option
+saves deterministic held/released examples to `bin/app11-*.png`.
 
 ## Evidence and example
 
@@ -193,7 +214,10 @@ execution still needs the Linux host.
 production Metal view and verifies both axes, accumulation, next-frame delivery,
 and reset on idle frames. It also sends native key events through NSWindow to
 verify Tab/repeat, quick Shift-Tab, disabled entries, modified-Tab exclusion,
-modal wrapping/restoration and reset when the window loses key status. It runs
-on the main thread and does not require Accessibility permission. Linux platform
-tests exercise pointer axis/frame delivery and real XKB symbols/modifiers through
-keyboard callbacks, including quick Shift-Tab, repeat and keyboard-leave reset.
+modal wrapping/restoration and reset when the window loses key status. Extended
+key checks cover simultaneous holds, physical identity independent of event
+characters, keypad distinction, both Shift keys, lock toggles and bits above 64.
+The main-thread test explicitly drives draws so it finishes even when display
+refresh callbacks stop; it does not require Accessibility permission. Linux
+tests exercise pointer delivery, physical evdev keys and real XKB modifiers,
+including quick Shift-Tab, repeat, keypad identity across Num Lock and leave reset.
