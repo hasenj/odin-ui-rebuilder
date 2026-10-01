@@ -37,6 +37,18 @@ and compiled/linked statically by the helper, using `cc` and `ar` (macOS Command
 Line Tools or Linux base-devel). No separate SheenBidi installation is needed.
 The archive is cached under `bin/text-deps/<OS>-<architecture>` and rebuilt when
 its source changes. `CC` and `AR` can select the host compiler/archive tool.
+The Odin binding references that archive directly, relative to its package.
+On Linux with shared dependencies in standard locations, you can also use:
+
+```sh
+./scripts/build-text-deps.sh # Once per host, and after vendored sources change.
+odin run ./examples/app10 -out:bin/app10
+```
+
+Plain Odin commands do not compile the C dependency automatically. A missing
+archive reports the setup command. On macOS, continue using the build helper to
+locate Homebrew's FreeType/HarfBuzz libraries.
+
 Build Linux executables inside the VM; this helper does not set up a cross sysroot.
 The app5/app6 fonts are read from files, so run them from the repository root.
 Existing examples remain available as app0 through app5.

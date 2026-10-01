@@ -43,9 +43,11 @@ SheenBidi 3.0.0 is already included in `third_party/SheenBidi`, with its license
 The build scripts use `cc` and `ar` to create
 `bin/text-deps/Linux-<architecture>/libsheenbidi.a` and link it statically.
 Nothing is downloaded or installed system-wide for SheenBidi. Use
-`./scripts/build-text-deps.sh` to build just that dependency. Direct `odin build`
-commands need the archive directory passed with `-extra-linker-flags:-L<directory>`;
-`./scripts/build.sh` handles this automatically.
+`./scripts/build-text-deps.sh` to build just that dependency. The Odin binding
+references the archive directly, so after this one-time build, plain commands
+such as `odin run ./examples/app10 -out:bin/app10` work without extra linker flags.
+Run the dependency script again after vendored sources change; `./scripts/build.sh`
+does this automatically.
 
 `pkg-config` (Arch package `pkgconf`) is optional on Linux with libraries in the
 default linker paths. If available, the scripts use it to locate HarfBuzz and

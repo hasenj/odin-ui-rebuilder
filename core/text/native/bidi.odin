@@ -1,7 +1,19 @@
 // SheenBidi 3.0.0 C ABI. Build the vendored source with scripts/build-text-deps.sh.
 package native
 
-foreign import sheenbidi "system:sheenbidi"
+// Match build-text-deps.sh's uname-based directories. Paths are relative to
+// this package, so callers do not need a linker search path or a particular cwd.
+@(private)
+SHEENBIDI_OS :: "Darwin" when ODIN_OS == .Darwin else "Linux" when ODIN_OS == .Linux else #panic("Unsupported SheenBidi target OS")
+@(private)
+SHEENBIDI_ARCH :: "x86_64" when ODIN_ARCH == .amd64 else ("arm64" when ODIN_OS == .Darwin else "aarch64") when ODIN_ARCH == .arm64 else #panic("Unsupported SheenBidi target architecture")
+@(private)
+SHEENBIDI_LIBRARY :: "../../../bin/text-deps/" + SHEENBIDI_OS + "-" + SHEENBIDI_ARCH + "/libsheenbidi.a"
+
+when !#exists(SHEENBIDI_LIBRARY) {
+	#panic("Missing repo-local SheenBidi archive. Run ./scripts/build-text-deps.sh from the repository root on the target host, then retry.")
+}
+foreign import sheenbidi {SHEENBIDI_LIBRARY}
 
 SB_Algorithm :: distinct rawptr
 SB_Paragraph :: distinct rawptr
