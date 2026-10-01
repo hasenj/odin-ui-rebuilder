@@ -6,7 +6,7 @@ import mtk "vendor:darwin/MetalKit"
 
 @(private)
 create_macos_window :: proc(width, height: int, decorated, transparent: bool) -> ^ns.Window {
-	cls := intrinsics.objc_find_class("OdinUIRebuilderWindow")
+	cls := ns.objc_lookUpClass("OdinUIRebuilderWindow")
 	if cls == nil {
 		cls = ns.objc_allocateClassPair(intrinsics.objc_find_class("NSWindow"), "OdinUIRebuilderWindow", 0)
 		assert(cls != nil)
@@ -33,7 +33,7 @@ create_macos_window :: proc(width, height: int, decorated, transparent: bool) ->
 
 @(private)
 allocate_metal_view :: proc() -> ^mtk.View {
-	cls := intrinsics.objc_find_class("OdinUIRebuilderMetalView")
+	cls := ns.objc_lookUpClass("OdinUIRebuilderMetalView")
 	if cls == nil {
 		cls = ns.objc_allocateClassPair(intrinsics.objc_find_class("MTKView"), "OdinUIRebuilderMetalView", 0)
 		assert(cls != nil)

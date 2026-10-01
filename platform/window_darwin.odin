@@ -3,91 +3,163 @@ package platform
 import ns "core:sys/darwin/Foundation"
 import mtk "vendor:darwin/MetalKit"
 import "base:intrinsics"
+import "base:runtime"
 import "core:time"
-import "core:fmt"
 import "../core/primitives"
-import "../core/input"
 
-// Odin selects this implementation by the _darwin file suffix.
 @(private)
-open_window_impl :: proc(title: string, width, height: int, frame: Frame_Proc, user_data: rawptr, frame_timing: Frame_Timing, input_state: ^input.State, decorated, transparent: bool) {
-	app: ^ns.Application
-	renderer := Metal_Renderer{frame = frame, user_data = user_data, odin_context = context}
-	renderer.profiler.mode = frame_timing
-	renderer.input_state = input_state
-	{
-		// Drain startup temporaries before entering AppKit's event loop, which
-		// manages its own autorelease pools while processing events.
-		ns.scoped_autoreleasepool()
+mac_app: ^ns.Application
+@(private)
+mac_delegate: ns.id
+@(private)
+mac_context: runtime.Context
 
-		app = ns.Application.sharedApplication()
-		assert(app != nil, "Could not create the macOS application")
-		activated := app->setActivationPolicy(.Regular)
-		assert(activated, "Could not activate the macOS application")
-
-		// NSApplication does not retain its delegate. Keep this allocation alive
-		// for the lifetime of the application.
-		delegate := ns.application_delegate_register_and_alloc(
-			{
-				applicationShouldTerminateAfterLastWindowClosed = terminate_after_last_window_closed,
-			},
-			"OdinUIRebuilderApplicationDelegate",
-			context,
-		)
-		assert(delegate != nil, "Could not create the macOS application delegate")
-		app->setDelegate(delegate)
-		install_application_menu(app)
-
-		window := create_macos_window(width, height, decorated, transparent)
-		assert(window != nil, "Could not create the macOS window")
-		metal_init(&renderer)
-		renderer.view = allocate_metal_view()->initWithFrame(window->contentView()->bounds(), renderer.device)
-		assert(renderer.view != nil, "Could not create the Metal view")
-		renderer.view->setColorPixelFormat(.BGRA8Unorm)
-		configure_metal_transparency(renderer.view, transparent)
-		renderer.view->setPreferredFramesPerSecond(60)
-		renderer.view->setEnableSetNeedsDisplay(false)
-		renderer.view->setPaused(false)
-		// The bundled Odin binding has the wrong capitalization for this selector.
-		intrinsics.objc_send(nil, renderer.view, "setAutoResizeDrawable:", ns.BOOL(true))
-		window->setContentView(renderer.view)
-		install_view_delegate(&renderer)
-		assert(bool(intrinsics.objc_send(ns.BOOL, window, "makeFirstResponder:", renderer.view)))
-		renderer.start = time.tick_now()
-		// NSWindow releases itself on close by default.
-		native_title := ns.String.alloc()->initWithOdinString(title)
-		defer native_title->release()
-		window->setTitle(native_title)
-		window->center()
-		window->makeKeyAndOrderFront(nil)
-		app->activateIgnoringOtherApps(true)
+@(private)
+application_init_impl :: proc() {
+	ns.scoped_autoreleasepool()
+	mac_context = context
+	mac_app = ns.Application.sharedApplication()
+	assert(mac_app != nil)
+	if intrinsics.objc_send(ns.Integer, mac_app, "activationPolicy") != 0 {
+		assert(mac_app->setActivationPolicy(.Regular))
 	}
-
-	if frame_timing != .Disabled {
-		fmt.println("[frame timing] Wall-clock durations; submit excludes waits (drawable acquisition and scheduling/presentation calls, including API overhead). GPU execution is not measured separately. Logging is excluded; interval measures callback spacing.")
+	cls := ns.objc_lookUpClass("OdinUIRebuilderApplicationDelegate")
+	if cls == nil {
+		cls = ns.objc_allocateClassPair(intrinsics.objc_find_class("NSObject"), "OdinUIRebuilderApplicationDelegate", 0)
+		assert(ns.class_addMethod(cls, intrinsics.objc_find_selector("tick:"), auto_cast application_tick, "v@:@"))
+		assert(ns.class_addMethod(cls, intrinsics.objc_find_selector("applicationShouldTerminate:"), auto_cast application_quit, "Q@:@"))
+		ns.objc_registerClassPair(cls)
 	}
-	app->run()
+	mac_delegate = ns.class_createInstance(cls, 0)
+	mac_app->setDelegate(cast(^ns.ApplicationDelegate)mac_delegate)
+	install_application_menu(mac_app)
 }
 
 @(private)
-terminate_after_last_window_closed :: proc(_: ^ns.Application) -> ns.BOOL {
-	return true
+application_shutdown_impl :: proc() {
+	mac_app->setDelegate(nil)
+	(cast(^ns.Object)mac_delegate)->release()
+	mac_delegate = nil
+}
+
+@(private)
+application_quit :: proc "c" (_: ns.id, _: ns.SEL, _: ns.id) -> ns.UInteger {
+	context = mac_context
+	for window in windows { if window != nil { window.closing = true } }
+	return 0 // NSTerminateCancel: our loop returns after orderly destruction.
+}
+
+@(private)
+application_tick :: proc "c" (_: ns.id, _: ns.SEL, _: ns.id) {
+	context = mac_context
+	service_windows()
+	if window_count() == 0 && running {
+		mac_app->stop(nil)
+		// Wake AppKit's nextEvent wait so run returns even with no input.
+		event := ns.Event.otherEventWithType(.ApplicationDefined, {}, {}, 0, 0, nil, 0, 0, 0)
+		mac_app->postEvent(event, true)
+	}
+}
+
+@(private)
+application_run_impl :: proc() {
+	ns.scoped_autoreleasepool()
+	timer := ns.Timer.scheduledTimerWithTimeIntervalTargetSelectorUserInfoRepeat(1.0 / 60,
+		mac_delegate, intrinsics.objc_find_selector("tick:"), nil, true)
+	ns.RunLoop.mainRunLoop()->addTimerForMode(timer, ns.RunLoopCommonModes)
+	defer intrinsics.objc_send(nil, timer, "invalidate")
+	mac_app->activateIgnoringOtherApps(true)
+	mac_app->run()
+}
+
+@(private)
+create_window_impl :: proc(record: ^Window_Record) {
+	ns.scoped_autoreleasepool()
+	renderer := new(Metal_Renderer)
+	renderer^ = {frame = record.frame, user_data = record.user_data, odin_context = context,
+		input_state = record.input_state, window_handle = record.handle}
+	renderer.profiler.mode = record.frame_timing
+	renderer.profiler.window = record.handle
+	record.native = renderer
+	window := create_macos_window(record.width, record.height, record.decorated, record.transparent)
+	renderer.window = window
+	intrinsics.objc_send(nil, window, "setReleasedWhenClosed:", ns.BOOL(false))
+	metal_init(renderer)
+	renderer.view = allocate_metal_view()->initWithFrame(window->contentView()->bounds(), renderer.device)
+	assert(renderer.view != nil)
+	renderer.view->setColorPixelFormat(.BGRA8Unorm)
+	configure_metal_transparency(renderer.view, record.transparent)
+	renderer.view->setPreferredFramesPerSecond(60)
+	renderer.view->setEnableSetNeedsDisplay(false)
+	renderer.view->setPaused(false)
+	intrinsics.objc_send(nil, renderer.view, "setAutoResizeDrawable:", ns.BOOL(true))
+	window->setContentView(renderer.view)
+	install_view_delegate(renderer)
+	assert(bool(intrinsics.objc_send(ns.BOOL, window, "makeFirstResponder:", renderer.view)))
+	renderer.start = time.tick_now()
+	native_title := ns.String.alloc()->initWithOdinString(record.title)
+	defer native_title->release()
+	window->setTitle(native_title)
+	window->center()
+	// Cascade initial windows; subsequent resizing/positioning belongs to AppKit.
+	bounds := intrinsics.objc_send(ns.Rect, window, "frame")
+	offset := ns.Float((record.handle.index - 1) * 28)
+	origin := ns.Point{bounds.origin.x + offset, bounds.origin.y + bounds.size.height - offset}
+	intrinsics.objc_send(ns.Point, window, "cascadeTopLeftFromPoint:", origin)
+	window->makeKeyAndOrderFront(nil)
+}
+
+@(private)
+destroy_window_impl :: proc(record: ^Window_Record) {
+	ns.scoped_autoreleasepool()
+	renderer := cast(^Metal_Renderer)record.native
+	renderer.view->setPaused(true)
+	intrinsics.objc_send(nil, renderer.view, "setDelegate:", ns.id(nil))
+	renderer.window->setDelegate(nil)
+	intrinsics.objc_send(nil, renderer.window, "close")
+	renderer.window->release()
+	renderer.view->release()
+	(cast(^ns.Object)renderer.delegate)->release()
+	metal_destroy(renderer)
+	free(renderer)
+	record.native = nil
+}
+
+@(private)
+window_should_close :: proc "c" (self: ns.id, _: ns.SEL, _: ns.id) -> ns.BOOL {
+	renderer := (cast(^^Metal_Renderer)ns.object_getIndexedIvars(self))^
+	context = renderer.odin_context
+	request_close(renderer.window_handle)
+	return false
+}
+
+@(private)
+window_will_close :: proc "c" (self: ns.id, _: ns.SEL, _: ns.id) {
+	renderer := (cast(^^Metal_Renderer)ns.object_getIndexedIvars(self))^
+	context = renderer.odin_context
+	request_close(renderer.window_handle)
 }
 
 @(private)
 install_view_delegate :: proc(renderer: ^Metal_Renderer) {
-	cls := ns.objc_allocateClassPair(intrinsics.objc_find_class("NSObject"), "OdinUIRebuilderMetalDelegate", 0)
-	assert(cls != nil, "Could not register the Metal view delegate")
-	draw_added := ns.class_addMethod(cls, intrinsics.objc_find_selector("drawInMTKView:"), auto_cast draw_frame, "v@:@")
-	resize_added := ns.class_addMethod(cls, intrinsics.objc_find_selector("mtkView:drawableSizeWillChange:"), auto_cast drawable_size_changed, "v@:@{CGSize=dd}")
-	assert(draw_added && resize_added, "Could not register Metal view callbacks")
-	assert(ns.class_addMethod(cls, intrinsics.objc_find_selector("windowDidResignKey:"), auto_cast window_resigned_key, "v@:@"))
-	assert(ns.class_addMethod(cls, intrinsics.objc_find_selector("windowDidBecomeKey:"), auto_cast window_became_key, "v@:@"))
-	ns.objc_registerClassPair(cls)
+	cls := ns.objc_lookUpClass("OdinUIRebuilderMetalDelegate")
+	if cls == nil {
+		cls = ns.objc_allocateClassPair(intrinsics.objc_find_class("NSObject"), "OdinUIRebuilderMetalDelegate", 0)
+		assert(cls != nil, "Could not register the Metal view delegate")
+		draw_added := ns.class_addMethod(cls, intrinsics.objc_find_selector("drawInMTKView:"), auto_cast draw_frame, "v@:@")
+		resize_added := ns.class_addMethod(cls, intrinsics.objc_find_selector("mtkView:drawableSizeWillChange:"), auto_cast drawable_size_changed, "v@:@{CGSize=dd}")
+		assert(draw_added && resize_added, "Could not register Metal view callbacks")
+		assert(ns.class_addMethod(cls, intrinsics.objc_find_selector("windowDidResignKey:"), auto_cast window_resigned_key, "v@:@"))
+		assert(ns.class_addMethod(cls, intrinsics.objc_find_selector("windowDidBecomeKey:"), auto_cast window_became_key, "v@:@"))
+		assert(ns.class_addMethod(cls, intrinsics.objc_find_selector("windowShouldClose:"), auto_cast window_should_close, "B@:@"))
+		assert(ns.class_addMethod(cls, intrinsics.objc_find_selector("windowWillClose:"), auto_cast window_will_close, "v@:@"))
+		ns.objc_registerClassPair(cls)
+	}
 	delegate := ns.class_createInstance(cls, size_of(^Metal_Renderer))
 	assert(delegate != nil, "Could not create the Metal view delegate")
 	(cast(^^Metal_Renderer)ns.object_getIndexedIvars(delegate))^ = renderer
-	// MTKView's delegate is weak. This allocation lives until the app exits.
+	// Both native delegates are weak; renderer owns this allocation.
+	renderer.delegate = delegate
 	intrinsics.objc_send(nil, renderer.view, "setDelegate:", delegate)
 	window := intrinsics.objc_send(^ns.Window, renderer.view, "window")
 	window->setDelegate(cast(^ns.WindowDelegate)delegate)
@@ -99,11 +171,12 @@ draw_frame :: proc "c" (self: ns.id, _: ns.SEL, view: ^mtk.View) {
 	context = renderer.odin_context
 	// Drawable acquisition may deliver a resize notification during this draw.
 	// The current frame handles it; do not recursively invoke the UI update.
-	if renderer.drawing {
+	if renderer.drawing || updating || servicing || !window_alive(renderer.window_handle) {
 		return
 	}
 	renderer.drawing = true
-	defer { renderer.drawing = false }
+	updating = true
+	defer { renderer.drawing = false; updating = false }
 	profiling := renderer.profiler.mode != .Disabled
 	start, update_start: time.Tick
 	update_ms: f64

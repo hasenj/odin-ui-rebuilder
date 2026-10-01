@@ -167,3 +167,15 @@ The rebuilt app3 opened as a native Wayland window and rendered its images.
 
 Multi-output scaling and the full interactive checklist above still require
 manual verification on the relevant hardware.
+
+## Multiple windows
+
+The explicit lifecycle API (`ui.init`, `ui.create_window`, `ui.run`,
+`ui.request_close`, `ui.shutdown`) supports multiple independent native windows.
+A shared poll loop services their Wayland connections; each window owns its EGL
+context, input, font atlas and images. Contexts are made current before rendering
+and destruction. Closing the final window returns from `run`.
+
+Try `./scripts/build.sh app12` and `./bin/app12`. Run
+`./scripts/check-windows.sh` in the Wayland session for lifecycle/state checks.
+See [core/WINDOWS.md](../core/WINDOWS.md) for the API and resource ownership.

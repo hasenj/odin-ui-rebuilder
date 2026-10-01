@@ -274,12 +274,17 @@ sample_input :: proc(view: ^ns.View, state: ^input.State) {
 		y = f32(bounds.size.height) - y
 	}
 	state.mouse_position = {x, y}
-	state.mouse_inside = x >= 0 && y >= 0 && x < f32(bounds.size.width) && y < f32(bounds.size.height)
+	// Bounds alone are insufficient when another native window overlaps ours.
+	front := intrinsics.objc_send(ns.Integer, ns.Window, "windowNumberAtPoint:belowWindowWithWindowNumber:", ns.Event.mouseLocation(), ns.Integer(0))
+	number := intrinsics.objc_send(ns.Integer, window, "windowNumber")
+	state.mouse_inside = front == number && x >= 0 && y >= 0 && x < f32(bounds.size.width) && y < f32(bounds.size.height)
 
 	// NSEvent's mask uses bit 0 for left and bit 1 for right. Map only the
 	// supported buttons and replace the set so releases cannot leave stale flags.
 	buttons := intrinsics.objc_send(ns.UInteger, ns.Event, "pressedMouseButtons")
 	state.mouse_buttons = {}
+	// Keep a drag alive outside the window while it owns native keyboard focus.
+	if !intrinsics.objc_send(ns.BOOL, window, "isKeyWindow") { return }
 	if buttons & 1 != 0 {
 		state.mouse_buttons += {.Left}
 	}

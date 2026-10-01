@@ -21,6 +21,7 @@ Locks :: input.Locks
 // Append low-level primitives here; do not clear/reorder/overwrite during update
 // or retain the slice across updates. The framework applies clips and layers.
 Frame :: struct {
+	window:     Window, // Zero for a headless capture session.
 	time:       f64, // Monotonic seconds since the window opened.
 	size:       [2]f32, // Current content size in logical points.
 	scale:      f32, // Physical pixels per logical point.

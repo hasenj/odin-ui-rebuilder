@@ -78,3 +78,11 @@ edges, premultiplied blending and clearing away previous frame contents.
 Native references: [NSWindow](https://developer.apple.com/documentation/appkit/nswindow),
 [borderless style](https://developer.apple.com/documentation/appkit/nswindow/stylemask-swift.struct/borderless),
 and [MTKView](https://developer.apple.com/documentation/metalkit/mtkview/).
+
+## Multiple windows
+
+`ui.init`, `ui.create_window`, `ui.run`, `ui.request_close` and `ui.shutdown`
+provide explicit window lifetimes within one AppKit event loop. The final close
+returns from `run`; Command-Q requests orderly closure of all windows. The existing
+`ui.open_window` convenience API uses the same lifecycle. See
+[core/WINDOWS.md](../core/WINDOWS.md) for ownership rules and app12.

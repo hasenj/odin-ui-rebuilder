@@ -1,7 +1,7 @@
 package platform
 
 import "base:runtime"
-import "core:fmt"
+import "core:sys/posix"
 import "core:strings"
 import "core:time"
 import egl "vendor:egl"
@@ -13,6 +13,9 @@ Wayland_Output :: struct {proxy: rawptr, name: u32, scale: i32, entered: bool}
 
 @(private)
 Wayland_Window :: struct {
+	record: ^Window_Record,
+	start, previous_frame: time.Tick,
+	profiler: Frame_Profiler,
 	odin_context: runtime.Context,
 	display, registry, compositor, shell, surface, shell_surface, toplevel: rawptr,
 	seat, pointer, keyboard_proxy, shm, decoration_manager, decoration: rawptr,
@@ -37,39 +40,46 @@ Wayland_Window :: struct {
 }
 
 @(private)
-open_window_impl :: proc(title: string, width, height: int, frame: Frame_Proc, user_data: rawptr, frame_timing: Frame_Timing, input_state: ^inputs.State, decorated, transparent: bool) {
-	wayland_init_protocols()
-	window := Wayland_Window{
-		odin_context = context, width = i32(width), height = i32(height),
+application_init_impl :: proc() { wayland_init_protocols() }
+
+@(private)
+application_shutdown_impl :: proc() {}
+
+@(private)
+create_window_impl :: proc(record: ^Window_Record) {
+	window := new(Wayland_Window)
+	window^ = {
+		record = record, odin_context = context, width = i32(record.width), height = i32(record.height),
 		scale = 1, running = true, frame_ready = true,
 		outputs = make([dynamic]Wayland_Output),
-		renderer = GL_Renderer{transparent = transparent},
+		renderer = GL_Renderer{transparent = record.transparent},
+		start = time.tick_now(), profiler = {mode = record.frame_timing, window = record.handle},
 	}
+	record.native = window
 	window.display = wl_display_connect(nil)
 	linux_require(window.display != nil, "Could not connect to Wayland. Run inside a Wayland desktop session (check WAYLAND_DISPLAY and XDG_RUNTIME_DIR).")
-	defer wayland_destroy(&window)
 	window.registry = wl_construct(window.display, 1, &wl_registry_interface, []WL_Argument{{o = nil}})
-	wl_listen(window.registry, &registry_listener, &window)
+	wl_listen(window.registry, &registry_listener, window)
 	linux_require(wl_display_roundtrip(window.display) >= 0, "Wayland registry roundtrip failed")
 	linux_require(window.compositor != nil && window.shell != nil, "Compositor requires wl_compositor v3+ and xdg_wm_base")
 	linux_require(wl_display_roundtrip(window.display) >= 0, "Wayland initial state roundtrip failed")
 	window.surface = wl_construct(window.compositor, 0, &wl_surface_interface, []WL_Argument{{o = nil}}, wl_proxy_get_version(window.compositor))
-	wl_listen(window.surface, &surface_listener, &window)
+	wl_listen(window.surface, &surface_listener, window)
 	// Keep the default empty opaque region: the compositor must honor buffer alpha.
 	window.shell_surface = wl_construct(window.shell, 2, &xdg_surface_interface, []WL_Argument{{o = nil}, {o = window.surface}})
-	wl_listen(window.shell_surface, &shell_surface_listener, &window)
+	wl_listen(window.shell_surface, &shell_surface_listener, window)
 	window.toplevel = wl_construct(window.shell_surface, 1, &xdg_toplevel_interface, []WL_Argument{{o = nil}})
-	wl_listen(window.toplevel, &toplevel_listener, &window)
-	native_title := strings.clone_to_cstring(title)
+	wl_listen(window.toplevel, &toplevel_listener, window)
+	native_title := strings.clone_to_cstring(record.title)
 	defer delete(native_title)
 	wl_request(window.toplevel, 2, []WL_Argument{{s = native_title}})
 	wl_request(window.toplevel, 3, []WL_Argument{{s = "odin-ui-rebuilder"}})
 	if window.decoration_manager != nil {
 		window.decoration = wl_construct(window.decoration_manager, 1, &zxdg_toplevel_decoration_v1_interface, []WL_Argument{{o = nil}, {o = window.toplevel}})
-		wl_listen(window.decoration, &decoration_listener, &window)
+		wl_listen(window.decoration, &decoration_listener, window)
 		// xdg-decoration modes: client-side = 1, server-side = 2.
 		// This is a preference; the compositor may enforce its own decoration mode.
-		wl_request(window.decoration, 1, []WL_Argument{{u = 2 if decorated else 1}})
+		wl_request(window.decoration, 1, []WL_Argument{{u = 2 if record.decorated else 1}})
 	}
 	// xdg-shell requires an initial empty commit and configure acknowledgement
 	// before attaching the first rendered buffer.
@@ -78,6 +88,7 @@ open_window_impl :: proc(title: string, width, height: int, frame: Frame_Proc, u
 		linux_require(wl_display_dispatch(window.display) >= 0, "Wayland initial configure failed")
 	}
 	if !window.running {
+		record.closing = true
 		return
 	}
 	window.native_window = wl_egl_window_create(window.surface, window.width * window.scale, window.height * window.scale)
@@ -91,35 +102,80 @@ open_window_impl :: proc(title: string, width, height: int, frame: Frame_Proc, u
 	linux_require(bool(egl.MakeCurrent(window.renderer.display, window.renderer.surface, window.renderer.surface, window.egl_context)), "Could not make EGL context current")
 	linux_require(bool(egl.SwapInterval(window.renderer.display, 1)), "Could not enable EGL swap pacing")
 	gl_init(&window.renderer)
-	update_window_scale(&window)
-	if frame_timing != .Disabled {
-		fmt.println("[frame timing] Wall-clock durations; submit excludes waits (EGL swap/presentation calls, including API overhead). GPU execution is not measured separately. Logging is excluded; interval measures callback spacing.")
-	}
-	profiler := Frame_Profiler{mode = frame_timing}
-	start := time.tick_now()
-	previous_frame: time.Tick
-	for window.running {
-		if wl_display_dispatch_pending(window.display) < 0 {
-			break
-		}
-		if !window.running {
-			break
-		}
-		if window.frame_ready {
-			// Cap at 60 updates/s; frame callbacks also throttle us to the
-			// compositor and stop rendering while the window is hidden.
-			if previous_frame != (time.Tick{}) {
-				remaining := time.Second / 60 - time.tick_since(previous_frame)
-				if remaining > 0 {
-					time.sleep(remaining)
-				}
+	update_window_scale(window)
+}
+
+// Independent Wayland connections and EGL contexts keep native/input/resource
+// ownership local to each window. One poll loop services all connections;
+// waiting for one occluded window's frame callback never blocks another.
+@(private)
+application_run_impl :: proc() {
+	descriptors := make([dynamic]posix.pollfd)
+	pending := make([dynamic]^Wayland_Window)
+	defer delete(descriptors)
+	defer delete(pending)
+	for window_count() > 0 {
+		service_windows()
+		count := len(windows)
+		for i in 0..<count {
+			record := windows[i]
+			if record == nil || record.closing || record.native == nil { continue }
+			window := cast(^Wayland_Window)record.native
+			if wl_display_dispatch_pending(window.display) < 0 { window.running = false }
+			if !window.running { record.closing = true; continue }
+			if window.frame_ready && (window.previous_frame == (time.Tick{}) || time.tick_since(window.previous_frame) >= time.Second / 60) {
+				linux_require(bool(egl.MakeCurrent(window.renderer.display, window.renderer.surface, window.renderer.surface, window.egl_context)), "Could not switch window EGL context")
+				window.previous_frame = time.tick_now()
+				updating = true
+				wayland_frame(window, record.frame, record.user_data, record.input_state, window.start, &window.profiler)
+				updating = false
 			}
-			previous_frame = time.tick_now()
-			wayland_frame(&window, frame, user_data, input_state, start, &profiler)
-		} else if wl_display_dispatch(window.display) < 0 {
-			break
+		}
+		service_windows()
+		if window_count() == 0 { break }
+		clear(&descriptors)
+		clear(&pending)
+		timeout: i32 = 50
+		for record in windows {
+			if record == nil || record.closing || record.native == nil { continue }
+			window := cast(^Wayland_Window)record.native
+			for wl_display_prepare_read(window.display) != 0 {
+				if wl_display_dispatch_pending(window.display) < 0 { window.running = false; break }
+			}
+			if !window.running { record.closing = true; continue }
+			if window.frame_ready {
+				remaining := max(time.Duration(0), time.Second / 60 - time.tick_since(window.previous_frame))
+				timeout = min(timeout, i32((remaining + time.Millisecond - 1) / time.Millisecond))
+			}
+			events: posix.Poll_Event = {.IN}
+			// A full socket needs POLLOUT before retrying the flush.
+			if wl_display_flush(window.display) < 0 { events += {.OUT} }
+			append(&descriptors, posix.pollfd{fd = posix.FD(wl_display_get_fd(window.display)), events = events})
+			append(&pending, window)
+		}
+		// Wake at the earliest ready window deadline, or on any native input.
+		ready := posix.poll(raw_data(descriptors), posix.nfds_t(len(descriptors)), timeout)
+		for window, i in pending {
+			flags := descriptors[i].revents
+			if ready > 0 && .IN in flags {
+				if wl_display_read_events(window.display) < 0 { window.record.closing = true }
+			} else {
+				wl_display_cancel_read(window.display)
+			}
+			if flags & {.ERR, .HUP, .NVAL} != {} { window.record.closing = true }
 		}
 	}
+}
+
+@(private)
+destroy_window_impl :: proc(record: ^Window_Record) {
+	window := cast(^Wayland_Window)record.native
+	if window.egl_context != nil {
+		linux_require(bool(egl.MakeCurrent(window.renderer.display, window.renderer.surface, window.renderer.surface, window.egl_context)), "Could not switch context for window destruction")
+	}
+	wayland_destroy(window)
+	free(window)
+	record.native = nil
 }
 
 @(private)

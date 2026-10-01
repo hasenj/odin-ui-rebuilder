@@ -20,6 +20,10 @@ foreign import wayland_client "system:wayland-client"
 foreign import wayland_egl "system:wayland-egl"
 foreign import wayland_cursor "system:wayland-cursor"
 foreign wayland_client {
+	wl_display_get_fd :: proc(display: rawptr) -> i32 ---
+	wl_display_prepare_read :: proc(display: rawptr) -> i32 ---
+	wl_display_read_events :: proc(display: rawptr) -> i32 ---
+	wl_display_cancel_read :: proc(display: rawptr) ---
 	wl_display_connect :: proc(name: cstring) -> rawptr ---
 	wl_display_disconnect :: proc(display: rawptr) ---
 	wl_display_roundtrip :: proc(display: rawptr) -> i32 ---

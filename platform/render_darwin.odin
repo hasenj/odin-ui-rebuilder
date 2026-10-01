@@ -13,6 +13,9 @@ import "../core/input"
 
 @(private)
 Metal_Renderer :: struct {
+	window_handle: Window,
+	window: ^ns.Window,
+	delegate: ns.id,
 	device:        ^mtl.Device,
 	queue:         ^mtl.CommandQueue,
 	pipeline:      ^mtl.RenderPipelineState,

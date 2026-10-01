@@ -11,6 +11,7 @@ Frame_Timing :: enum {
 
 @(private)
 Frame_Profiler :: struct {
+	window:           Window,
 	mode:             Frame_Timing,
 	frames:           u64,
 	previous_start:   time.Tick,
@@ -44,8 +45,8 @@ record_frame_timing :: proc(p: ^Frame_Profiler, start: time.Tick, update_ms: f64
 	p.frames += 1
 
 	if p.mode == .Every_Frame {
-		fmt.printf("[frame %d] frame wall %.3f ms | update %.3f ms | submit %.3f ms | waits %.3f ms | interval %.3f ms | surfaces %d\n",
-			p.frames, wall_ms, update_ms, render_time.submit_ms, render_time.waits_ms, interval_ms, surfaces)
+		fmt.printf("[window %d:%d frame %d] frame wall %.3f ms | update %.3f ms | submit %.3f ms | waits %.3f ms | interval %.3f ms | surfaces %d\n",
+			p.window.index, p.window.generation, p.frames, wall_ms, update_ms, render_time.submit_ms, render_time.waits_ms, interval_ms, surfaces)
 		return
 	}
 
@@ -63,8 +64,8 @@ record_frame_timing :: proc(p: ^Frame_Profiler, start: time.Tick, update_ms: f64
 		fps = 1000 * f64(p.interval_count) / p.interval_sum_ms
 	}
 	n := f64(p.count)
-	fmt.printf("[frames %d..%d] frame wall avg/max %.3f/%.3f ms | update avg %.3f ms | submit avg %.3f ms | waits avg %.3f ms | callbacks %.1f/s | surfaces %d\n",
-		p.frames - u64(p.count) + 1, p.frames, p.wall_sum_ms / n, p.wall_max_ms,
+	fmt.printf("[window %d:%d frames %d..%d] frame wall avg/max %.3f/%.3f ms | update avg %.3f ms | submit avg %.3f ms | waits avg %.3f ms | callbacks %.1f/s | surfaces %d\n",
+		p.window.index, p.window.generation, p.frames - u64(p.count) + 1, p.frames, p.wall_sum_ms / n, p.wall_max_ms,
 		p.update_sum_ms / n, p.submit_sum_ms / n, p.waits_sum_ms / n, fps, surfaces)
 	p.report_start = end
 	p.count = 0
