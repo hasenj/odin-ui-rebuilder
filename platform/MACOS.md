@@ -85,8 +85,11 @@ and [MTKView](https://developer.apple.com/documentation/metalkit/mtkview/).
 creates auxiliary NSPanel instances, borderless by default and never automatically
 tabbed. Panels float above the workspace while the application is active and hide
 when another application becomes active. They can become the key window for
-keyboard input while the workspace remains the main window, keeping its active
-title-bar appearance. App activation and key-window changes restore the workspace
+keyboard input while the workspace remains the main window. Main-window status
+does not preserve colored title-bar buttons: they turn gray when the panel
+becomes key. Panels currently take keyboard focus on click; selective focus for
+text fields versus mouse-only controls is future work.
+App activation and key-window changes restore the workspace
 main role when it is visible and not minimized; panels never acquire that role.
 Closing the main window or using Command-Q closes all panels and returns from
 `run`; closing a panel leaves the main window running.

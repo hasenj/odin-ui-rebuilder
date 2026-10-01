@@ -107,7 +107,8 @@ Metal renderer. MetalKit's independent update timers are paused. The application
 timer snapshots/builds all participants and explicitly draws visible output.
 Panels float above the workspace while the app is active and hide when another
 app becomes active. A panel can become the native key window (keyboard input)
-while the workspace retains main-window status and its active title-bar appearance.
+while the workspace retains main-window status. Title-bar buttons reflect key
+status: the workspace buttons turn gray while a panel has keyboard focus.
 Panels never become the main window. Mouse hit
 testing checks the native window under the pointer, so overlapping panels block
 hover beneath them.
