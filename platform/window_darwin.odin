@@ -4,8 +4,6 @@ import ns "core:sys/darwin/Foundation"
 import mtk "vendor:darwin/MetalKit"
 import "base:intrinsics"
 import "base:runtime"
-import "core:time"
-import "../core/primitives"
 
 @(private)
 mac_app: ^ns.Application
@@ -45,14 +43,15 @@ application_shutdown_impl :: proc() {
 @(private)
 application_quit :: proc "c" (_: ns.id, _: ns.SEL, _: ns.id) -> ns.UInteger {
 	context = mac_context
-	for window in windows { if window != nil { window.closing = true } }
+	request_close(main_window)
 	return 0 // NSTerminateCancel: our loop returns after orderly destruction.
 }
 
 @(private)
 application_tick :: proc "c" (_: ns.id, _: ns.SEL, _: ns.id) {
 	context = mac_context
-	service_windows()
+	ns.scoped_autoreleasepool()
+	application_cycle()
 	if window_count() == 0 && running {
 		mac_app->stop(nil)
 		// Wake AppKit's nextEvent wait so run returns even with no input.
@@ -76,12 +75,10 @@ application_run_impl :: proc() {
 create_window_impl :: proc(record: ^Window_Record) {
 	ns.scoped_autoreleasepool()
 	renderer := new(Metal_Renderer)
-	renderer^ = {frame = record.frame, user_data = record.user_data, odin_context = context,
+	renderer^ = {odin_context = context,
 		input_state = record.input_state, window_handle = record.handle}
-	renderer.profiler.mode = record.frame_timing
-	renderer.profiler.window = record.handle
 	record.native = renderer
-	window := create_macos_window(record.width, record.height, record.decorated, record.transparent)
+	window := create_macos_window(record.width, record.height, record.decorated, record.transparent, record.panel)
 	renderer.window = window
 	intrinsics.objc_send(nil, window, "setReleasedWhenClosed:", ns.BOOL(false))
 	metal_init(renderer)
@@ -91,12 +88,11 @@ create_window_impl :: proc(record: ^Window_Record) {
 	configure_metal_transparency(renderer.view, record.transparent)
 	renderer.view->setPreferredFramesPerSecond(60)
 	renderer.view->setEnableSetNeedsDisplay(false)
-	renderer.view->setPaused(false)
+	renderer.view->setPaused(true)
 	intrinsics.objc_send(nil, renderer.view, "setAutoResizeDrawable:", ns.BOOL(true))
 	window->setContentView(renderer.view)
 	install_view_delegate(renderer)
 	assert(bool(intrinsics.objc_send(ns.BOOL, window, "makeFirstResponder:", renderer.view)))
-	renderer.start = time.tick_now()
 	native_title := ns.String.alloc()->initWithOdinString(record.title)
 	defer native_title->release()
 	window->setTitle(native_title)
@@ -165,59 +161,47 @@ install_view_delegate :: proc(renderer: ^Metal_Renderer) {
 	window->setDelegate(cast(^ns.WindowDelegate)delegate)
 }
 
+// MetalKit calls only encode/present already-built output. The application timer
+// owns UI updates, including for minimized/occluded windows with no drawable.
 @(private)
-draw_frame :: proc "c" (self: ns.id, _: ns.SEL, view: ^mtk.View) {
+draw_frame :: proc "c" (self: ns.id, _: ns.SEL, _: ^mtk.View) {
 	renderer := (cast(^^Metal_Renderer)ns.object_getIndexedIvars(self))^
 	context = renderer.odin_context
-	// Drawable acquisition may deliver a resize notification during this draw.
-	// The current frame handles it; do not recursively invoke the UI update.
-	if renderer.drawing || updating || servicing || !window_alive(renderer.window_handle) {
-		return
-	}
+	if !renderer.presenting || renderer.drawing { return }
+	record := window_record(renderer.window_handle)
+	if record == nil { return }
 	renderer.drawing = true
-	updating = true
-	defer { renderer.drawing = false; updating = false }
-	profiling := renderer.profiler.mode != .Disabled
-	start, update_start: time.Tick
-	update_ms: f64
-	render_time: Render_Timing
-	surfaces: []primitives.Surface
-	if profiling {
-		start = time.tick_now()
-	}
-	// This defer runs after the autorelease pool and temporary allocator cleanup.
-	defer {
-		if profiling {
-			record_frame_timing(&renderer.profiler, start, update_ms, render_time, len(surfaces))
-		}
-	}
-	ns.scoped_autoreleasepool()
-	// Temporary app allocations last through submission of this frame only.
-	defer free_all(context.temp_allocator)
-	bounds := view->bounds()
-	size := [2]f32{f32(bounds.size.width), f32(bounds.size.height)}
-	sample_frame_input(renderer)
-	if profiling {
-		update_start = time.tick_now()
-	}
-	if renderer.frame != nil {
-		elapsed := time.duration_seconds(time.tick_since(renderer.start))
-		surfaces = renderer.frame(Renderer(renderer), elapsed, size, renderer.user_data)
-	}
-	if profiling {
-		update_ms = time.duration_milliseconds(time.tick_since(update_start))
-	}
-	render(Renderer(renderer), surfaces, size, &render_time if profiling else nil)
+	defer { renderer.drawing = false }
+	render(Renderer(renderer), record.surfaces, record.size, &record.render_time if record.frame_timing != .Disabled else nil)
 }
 
 @(private)
-drawable_size_changed :: proc "c" (self: ns.id, _: ns.SEL, view: ^mtk.View, _: ns.Size) {
+snapshot_window_impl :: proc(record: ^Window_Record) {
+	renderer := cast(^Metal_Renderer)record.native
+	bounds := renderer.view->bounds()
+	record.size = {f32(bounds.size.width), f32(bounds.size.height)}
+	record.renderer = Renderer(renderer)
+	sample_frame_input(renderer)
+}
+
+@(private)
+prepare_window_impl :: proc(record: ^Window_Record) {}
+
+@(private)
+present_window_impl :: proc(record: ^Window_Record) {
+	renderer := cast(^Metal_Renderer)record.native
+	if !intrinsics.objc_send(ns.BOOL, renderer.window, "isVisible") || intrinsics.objc_send(ns.BOOL, renderer.window, "isMiniaturized") { return }
+	if intrinsics.objc_send(ns.UInteger, renderer.window, "occlusionState") & 2 == 0 { return }
+	renderer.presenting = true
+	defer { renderer.presenting = false }
+	renderer.view->draw()
+}
+
+@(private)
+drawable_size_changed :: proc "c" (self: ns.id, _: ns.SEL, _: ^mtk.View, _: ns.Size) {
 	renderer := (cast(^^Metal_Renderer)ns.object_getIndexedIvars(self))^
 	context = renderer.odin_context
 	renderer.resize_pending = true
-	// Draw inside the resize transaction rather than waiting for the next timer
-	// tick. Layout still uses logical view bounds, not drawable pixel dimensions.
-	if !renderer.drawing {
-		view->draw()
-	}
+	// Resize transactions refresh the entire app, never just this window.
+	application_cycle()
 }

@@ -27,12 +27,13 @@ Frame_Profiler :: struct {
 }
 
 // Frame wall = update + submit + measured waits + setup/cleanup overhead.
-// Called after frame cleanup. Printing and statistics bookkeeping are excluded
+// For application cycles, wall_override sums only this participant's work.
+// Printing and statistics bookkeeping are excluded
 // from frame wall time, but their overhead is reflected in the next callback interval.
 @(private)
-record_frame_timing :: proc(p: ^Frame_Profiler, start: time.Tick, update_ms: f64, render_time: Render_Timing, surfaces: int) {
+record_frame_timing :: proc(p: ^Frame_Profiler, start: time.Tick, update_ms: f64, render_time: Render_Timing, surfaces: int, wall_override: f64 = -1) {
 	end := time.tick_now()
-	wall_ms := time.duration_milliseconds(time.tick_diff(start, end))
+	wall_ms := wall_override if wall_override >= 0 else time.duration_milliseconds(time.tick_diff(start, end))
 	interval_ms: f64
 	if p.frames > 0 {
 		interval_ms = time.duration_milliseconds(time.tick_diff(p.previous_start, start))

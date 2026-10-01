@@ -1,56 +1,91 @@
-# Native windows
+# Main window and panels
 
-Window lifetime is explicit. One application loop drives all windows on the main
-thread; each window has its own update procedure and UI state.
+The main window owns application lifetime. Panels are auxiliary UI: closing a
+panel leaves the application running; closing the main window closes every panel
+and returns from the application loop.
 
 ```odin
 ui.init()
 defer ui.shutdown()
 
-workspace := ui.create_window("Workspace", 960, 640, draw_workspace)
-inspector := ui.create_window("Inspector", 400, 600, draw_inspector)
-ui.run() // Returns when the final window closes.
+main := ui.create_window("Workspace", 960, 640, draw_workspace)
+panel := ui.create_panel("Tools", 400, 300, draw_tools)
+ui.run() // Returns when the main window closes, even if panels remain open.
 ```
 
-`ui.open_window(...)` remains the convenience form for a single window. It now
-returns to the caller after that window closes, with its resources released.
-The decoration, transparency and frame-timing options work with either form.
-Dimensions passed to creation are initial content dimensions in logical points;
-subsequent frames use the actual native window size.
+Create one main window per `init`/`shutdown` session. `ui.open_window(...)` remains
+the convenience form; its builder can call `create_panel` too. Panels default to
+`decorated = false`; opt into decorations when appropriate. On macOS, panels
+never become native tabs. Transparency retains the existing platform defaults
+(on for macOS, off for Linux) and can be selected explicitly.
+
+Dimensions specify initial content size in logical points. OS resizing determines
+later sizes. Panels do not require anchors. Screen placement, minimization and
+restoration APIs are separate future work.
+
+## One application update cycle
+
+A single application timer targets 60 cycles per second. Each cycle:
+
+1. Applies queued lifetime changes and freezes the participating windows.
+2. Snapshots input and dimensions for **all** participants before any UI builder.
+3. Runs the main builder, then panel builders in creation order.
+4. Presents their output where native surfaces are available.
+5. Applies creation/closure requests after the cycle finishes.
+
+Every builder receives the same `current_frame().time`, measured from application
+initialization. Hidden, minimized and occluded participants still build UI. Native
+presentation callbacks never independently run builders. On macOS, live-resize
+notifications can request an additional whole-application cycle; reentrant
+requests during a cycle are ignored because that cycle is already in progress.
+
+Builder order is sequential, not transactional: shared application data changed
+by an earlier builder is visible to later ones. Changes from a panel reach the
+main builder on the next cycle. Input arriving during a cycle also belongs to
+the next snapshot, regardless of which builder is currently executing.
+
+This is still continuous updating, not an on-demand invalidation API. The common
+cycle entry point is the foundation for adding that later.
+
+Frame timing remains per participant. `frame wall` sums that participant's
+snapshot, build and presentation durations, excluding time spent in other
+builders; all participants' callback rates describe application cycles. A hidden
+participant may have update time with no presentation time.
 
 ## Lifetime and handles
 
-`ui.Window` is a generational handle. Its zero value is invalid. Use
-`ui.window_alive(handle)` to check it; pending creations count as alive, and
-requested closes immediately count as no longer alive. Old handles cannot refer
-to replacements, including across application shutdown/reinitialization.
+`ui.Window` and its alias `ui.Panel` are generational handles; zero is invalid.
+`ui.window_alive` / `ui.panel_alive` accept pending creations as alive and report
+false immediately after a close request. Stale handles cannot target replacements,
+including across shutdown/reinitialization.
 
-`ui.request_close(handle)` is idempotent and ignores stale handles. Calling it
-inside an update is safe: that update and its submission finish before resources
-are released. Native close buttons use the same deferred destruction path.
-On macOS, Command-Q closes all windows and returns from `run`, so application
-cleanup still runs.
+`ui.close_panel(handle)` is idempotent and ignores stale or main-window handles.
+`ui.request_close(handle)` also works for either role; closing the main window
+requests application shutdown. Native close buttons follow the same path.
+Command-Q on macOS closes the main window and panels through orderly cleanup.
 
-Creating a window inside an update is also safe. Creation is queued; its first
-update happens after the current callback finishes. No UI updates are nested.
-A newly requested window keeps the loop alive even if the current callback also
-closes the last existing window. Initial windows appear when `run` begins.
-`shutdown` can also discard pending windows without ever creating native ones.
+Requests made inside a builder take effect at the cycle boundary. All participants
+captured at the start still complete that cycle, even if another builder requests
+their closure. A newly created panel first participates in the next cycle.
+Resource destruction happens after presentation, never inside a builder.
 
-All lifecycle APIs are main-thread operations. `init`, `run` and `shutdown`
-must be called outside updates; callbacks may use `create_window`,
-`request_close` and `window_alive`. This is not yet a host-driven event-loop API.
+Main-window closure also cancels pending panels. Once the main window is closing,
+`create_panel` returns zero. Panels cannot replace the main window or keep the
+application alive. `shutdown` can discard pending creations without showing them.
+
+All lifecycle APIs run on the main thread. Call `init`, `run` and `shutdown`
+outside UI updates. Builders may create/close panels or request main-window closure.
 
 ## State and resources
 
-During an update, `ui.current_window()` and `ui.current_frame().window` identify
-the window. The implicit builder context switches to that window for the entire
-callback. Input, rect stacks, identities, animation, focus, scrolling, text caches,
-glyph atlases, images and renderer resources are independent.
+During each builder, `ui.current_window()` / `ui.current_frame().window` identifies
+the current main window or panel. Its implicit UI context owns input, rect stacks,
+identities, animation, focus, scrolling, text caches, glyph atlases and images.
+Shared update scheduling does not merge those stores.
 
-Font, image and identity handles are **window-local**. Do not use them in another
-window, or retain them for a reopened replacement. For fonts, an easy pattern is
-to look up a window-local alias and load it if absent:
+Font, image and identity handles are **local to their window/panel**. Do not share
+them with another participant or a reopened replacement. Font aliases simplify
+loading in whichever context is current:
 
 ```odin
 if _, found := ui.find_font("UI"); !found {
@@ -60,25 +95,26 @@ if _, found := ui.find_font("UI"); !found {
 ui.text("Hello", "UI")
 ```
 
-Application globals remain application globals; opening a window does not clone
-them. Keep application-owned state separately per window when needed. The
-framework's general typed retained-state API is still future work.
-
-Headless capture sessions remain independent and report a zero `current_window`.
-Their resource handles must not be exchanged with native windows either.
+Application globals remain shared application data; creating a panel does not
+clone them. General typed retained component state is still future work.
+Headless captures remain independent sessions with a zero window handle and
+caller-supplied frame times.
 
 ## Backends and checks
 
-macOS uses one NSApplication loop, an NSWindow/MTKView/Metal renderer per window,
-and a lifecycle timer that applies pending requests outside render callbacks.
-Keyboard responders are window-specific. Mouse hit testing checks the native
-window under the pointer, so an overlapping window blocks hover underneath it.
+macOS uses NSWindow for the main window and NSPanel for panels, each with its own
+Metal renderer. MetalKit's independent update timers are paused. The application
+timer snapshots/builds all participants and explicitly draws visible output.
+Panels can receive keyboard focus but do not become the main window. Mouse hit
+testing checks the native window under the pointer, so overlapping panels block
+hover beneath them.
 
-Wayland currently uses a separate connection, EGL context and renderer per
-window. A single poll loop handles all connections and switches EGL contexts
-before rendering or releasing resources. A hidden window waiting for a compositor
-frame callback does not prevent other windows from updating. This deliberately
-keeps resources independent; shared GPU assets/connections can be considered later.
+Wayland uses one poll loop over independent connections/EGL contexts. Application
+update deadlines are independent of compositor frame callbacks. A compositor
+callback permits presentation of a surface; waiting for it never stops UI builds
+in that or another window. Panels use ordinary xdg-toplevel surfaces with framework
+lifetime semantics and a preference for no decorations. The compositor may
+override decoration requests.
 
 ```sh
 ./scripts/build.sh app12
@@ -86,18 +122,16 @@ keeps resources independent; shared GPU assets/connections can be considered lat
 ./scripts/check-windows.sh
 ```
 
-App12 opens a workspace and inspector with independent scrollable lists and focus.
-Each has buttons to open the other window or close itself. Tab traverses buttons;
-Enter activates the focused button. Closing both ends the program. Frame timing
-logs include the window index and generation.
+App12 opens a workspace and borderless inspector panel. The main window opens or
+reopens the panel; the panel can increment shared application data or close itself.
+Closing the main window ends both. Both display the same application update clock.
 
-The native lifecycle check opens two windows, closes and replaces one from update,
-checks state/resource isolation, rejects stale handles, opens a successor while
-closing the last window, and verifies return/cleanup/reinitialization. On macOS it
-also sends a native key event, resizes a window, invokes native close and quit, and
-pumps draws explicitly so the test works without display refresh.
+The native lifecycle check covers synchronized builder counts/timestamps/order,
+state/resource isolation, deferred creation/closure, slot reuse, stale handles,
+main-window shutdown with live/pending panels, and reinitialization. macOS checks
+also verify native key routing, input snapshot boundaries, tabbing/decoration
+policy, hidden-panel updates, resize, close/quit, and extra draw callbacks.
 
-On macOS, `./bin/app12 --capture` saves both sample views to `bin/app12-0.png` and
-`bin/app12-1.png`. These are deterministic render checks; the native executable
-separately checks the lifecycle. Linux runtime checks require a graphical Wayland
-session; cross-compilation alone does not verify compositor behavior.
+On macOS, `./bin/app12 --capture` saves both views to `bin/app12-0.png` and
+`bin/app12-1.png`. Linux runtime checks require a graphical Wayland session;
+cross-compilation alone does not verify compositor behavior.

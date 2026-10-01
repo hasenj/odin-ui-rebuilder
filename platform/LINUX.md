@@ -154,7 +154,8 @@ Wayland does not expose global pointer position. After pointer leave the snapsho
 retains the last known position and clears `mouse_inside` and button flags.
 During a drag, implicit pointer grabs can deliver coordinates outside the window.
 
-Animation uses compositor frame callbacks and is capped at 60 updates per second.
+Animation advances on the shared application timer at a target of 60 updates
+per second. Compositor frame callbacks gate presentation only.
 Image resources use array slots and generations, just like the Metal backend.
 Textures and dimensions are owned by the renderer and released before EGL teardown.
 
@@ -168,14 +169,19 @@ The rebuilt app3 opened as a native Wayland window and rendered its images.
 Multi-output scaling and the full interactive checklist above still require
 manual verification on the relevant hardware.
 
-## Multiple windows
+## Main window and panels
 
-The explicit lifecycle API (`ui.init`, `ui.create_window`, `ui.run`,
-`ui.request_close`, `ui.shutdown`) supports multiple independent native windows.
-A shared poll loop services their Wayland connections; each window owns its EGL
-context, input, font atlas and images. Contexts are made current before rendering
-and destruction. Closing the final window returns from `run`.
+`ui.create_window` creates one main window; `ui.create_panel` creates auxiliary
+panels, defaulting to no decorations (subject to compositor policy). Closing the
+main window closes every panel and ends `run`. Panel closure never keeps or ends
+the application independently.
+
+One application update deadline drives all builders, including surfaces waiting
+for compositor frame callbacks. Input is snapshotted for every participant before
+any builder runs. Compositor callbacks gate only presentation. A shared poll loop
+services independent Wayland connections/EGL contexts; context switches precede
+building, drawing and destruction.
 
 Try `./scripts/build.sh app12` and `./bin/app12`. Run
-`./scripts/check-windows.sh` in the Wayland session for lifecycle/state checks.
-See [core/WINDOWS.md](../core/WINDOWS.md) for the API and resource ownership.
+`./scripts/check-windows.sh` in the Wayland session for lifetime/state checks.
+See [core/WINDOWS.md](../core/WINDOWS.md) for API and resource ownership.

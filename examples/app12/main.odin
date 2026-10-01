@@ -4,6 +4,7 @@ import ui "../../core"
 import "core:fmt"
 import "core:os"
 
+shared_value: int
 windows: [2]ui.Window
 previous: [2]ui.Mouse_Buttons
 pressed_id: [2]ui.Identity
@@ -32,7 +33,7 @@ open :: proc(index: int) {
 	if index == 0 {
 		windows[index] = ui.create_window("Workspace — app12", 660, 700, workspace, frame_timing = .Summary)
 	} else {
-		windows[index] = ui.create_window("Inspector — app12", 540, 580, inspector, frame_timing = .Summary)
+		windows[index] = ui.create_panel("Inspector panel — app12", 540, 580, inspector, frame_timing = .Summary)
 	}
 }
 
@@ -52,24 +53,26 @@ draw :: proc(index: int) {
 	ui.paint(color = {0.04, 0.055, 0.085, 1})
 	ui.pad(24)
 	ui.open_rect(.Top, 46)
-	label("Workspace" if index == 0 else "Inspector", 30, ink)
+	label("Workspace" if index == 0 else "Inspector panel", 30, ink)
 	ui.close_rect()
 	ui.open_rect(.Top, 55)
-	label("Independent focus, scrolling, fonts and hover.", 17, muted)
+	label(fmt.tprintf("Shared update clock: %.2f s", frame.time), 17, muted)
 	ui.close_rect()
 	ui.open_rect(.Bottom, 62)
 	ui.pad4(12, 0, 0, 0)
 	ui.open_rect(.Left, ui.current_rect().size.x * 0.60)
-	if button("Open inspector" if index == 0 else "Open workspace", index, pressed, released, accent) {
-		open(1 - index)
+	if button("Open panel" if index == 0 else "Add to shared value", index, pressed, released, accent) {
+		if index == 0 { open(1) } else { shared_value += 1 }
 	}
 	ui.close_rect()
 	ui.pad4(0, 0, 0, 10)
-	if button("Close this window", index, pressed, released, accent) { ui.request_close(ui.current_window()) }
+	if button("Quit app" if index == 0 else "Close panel", index, pressed, released, accent) {
+		if index == 0 { ui.request_close(ui.current_window()) } else { ui.close_panel(ui.current_window()) }
+	}
 	ui.close_rect()
 	ui.open_rect(.Bottom, 44)
 	ui.pad4(12, 0, 0, 0)
-	label("Wheel to scroll · Tab to move focus", 15, muted)
+	label(fmt.tprintf("Shared value: %d · Wheel / Tab / Enter", shared_value), 15, muted)
 	ui.close_rect()
 	ui.paint(color = {0.075, 0.095, 0.14, 1}, corners = 14)
 	ui.pad(12)

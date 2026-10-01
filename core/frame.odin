@@ -22,7 +22,7 @@ Locks :: input.Locks
 // or retain the slice across updates. The framework applies clips and layers.
 Frame :: struct {
 	window:     Window, // Zero for a headless capture session.
-	time:       f64, // Monotonic seconds since the window opened.
+	time:       f64, // Monotonic application time, shared by every builder in a cycle.
 	size:       [2]f32, // Current content size in logical points.
 	scale:      f32, // Physical pixels per logical point.
 	input:      Input, // Current input snapshot; read this during update.

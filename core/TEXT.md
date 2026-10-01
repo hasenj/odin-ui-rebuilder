@@ -200,8 +200,8 @@ excluding transient upload storage). It currently has no eviction: many unique
 sizes or continuously animated weights can exhaust it and return `Atlas_Full`.
 CPU caches/native font objects are released when their window closes; GPU atlas
 textures are owned and destroyed by that window's platform renderer. Other windows
-retain their independent stores. The application loop returns after the final
-window closes. See [WINDOWS.md](WINDOWS.md) for lifetime and ownership rules.
+retain their independent stores. The application loop returns when the main
+window closes, releasing any remaining panels too. See [WINDOWS.md](WINDOWS.md) for lifetime and ownership rules.
 
 The examples share fonts in `examples/assets/fonts/`, copied from the supplied
 local font collection. Noto Sans Display and Noto Serif Display are variable

@@ -12,84 +12,102 @@ renderers: [4]platform.Renderer
 images: [4]ui.Image
 reopened: bool
 
+cycle_time: f64
+last_order: int
+closing_cycle: bool
+observer_finished, final_panel_ran: bool
+
 main :: proc() {
 	ui.init()
-	cancelled := ui.create_window("Never realized", 100, 100, cancelled_update)
-	ui.request_close(cancelled)
-	assert(!ui.window_alive(cancelled))
 	primary = ui.create_window("Multi-window primary", 360, 260, primary_update)
-	secondary = ui.create_window("Multi-window secondary", 280, 220, secondary_update)
-	assert(primary != secondary && ui.window_alive(primary) && ui.window_alive(secondary))
+	cancelled := ui.create_panel("Never realized", 100, 100, cancelled_update)
+	ui.close_panel(cancelled)
+	secondary = ui.create_panel("Multi-window secondary", 280, 220, secondary_update)
+	survivor = ui.create_panel("Observer panel", 240, 200, observer_update)
 	start_native_checks()
 	ui.run()
 	stop_native_checks()
-	assert(counts[0] >= 3 && counts[1] == 3 && counts[2] == 3 && counts[3] == 2)
-	assert(!ui.window_alive(primary) && !ui.window_alive(secondary) && !ui.window_alive(survivor))
+	assert(counts[0] >= 10 && counts[1] == 3 && counts[2] == 3 && counts[3] == counts[0])
+	assert(observer_finished && !ui.window_alive(survivor) && !ui.window_alive(primary))
 	ui.shutdown()
 
-	// Reinitialization must neither re-register ObjC classes nor revive handles.
 	ui.init()
 	again := ui.create_window("Reinitialized application", 200, 160, final_update)
-	assert(again != primary && again != survivor && !ui.window_alive(stale))
+	ui.create_panel("Quit cleanup panel", 200, 160, final_panel_update)
+	assert(again != primary && !ui.window_alive(stale))
 	ui.request_close(primary)
 	assert(ui.window_alive(again))
 	start_native_checks()
 	ui.run()
 	stop_native_checks()
-	assert(!ui.window_alive(again))
+	assert(final_panel_ran && !ui.window_alive(again))
 	ui.shutdown()
-	fmt.println("Verified independent window state/resources, native resize/input, deferred create/close, stale handles, last-window return and reinitialization")
+	fmt.println("Verified main/panel lifetimes, synchronized cycles/input snapshots, hidden-panel updates, native presentation isolation, resources and stale handles")
 }
 
-cancelled_update :: proc() { panic("A cancelled pending window must not update") }
+cancelled_update :: proc() { panic("A cancelled pending panel must not update") }
 
 primary_update :: proc() {
+	cycle_time = ui.current_frame().time
+	last_order = 0
 	check_state(0)
-	if counts[1] == 3 && !reopened && counts[0] > 3 {
+	if counts[1] == 3 && !reopened {
 		stale = secondary
-		assert(!ui.window_alive(stale))
-		secondary = ui.create_window("Multi-window replacement", 280, 220, replacement_update)
+		secondary = ui.create_panel("Multi-window replacement", 280, 220, replacement_update, decorated = true)
 		assert(secondary != stale)
-		ui.request_close(stale)
-		assert(ui.window_alive(secondary))
+		ui.close_panel(stale)
+		assert(ui.panel_alive(secondary))
 		reopened = true
 	}
-	if counts[2] == 3 && native_checks_complete() {
-		// Close the final existing window while creating its successor from the
-		// same callback. run must keep going until that successor closes too.
-		ui.request_close(primary)
-		survivor = ui.create_window("Last survivor", 200, 160, survivor_update)
-		assert(!ui.window_alive(primary) && ui.window_alive(survivor))
+	if counts[2] == 3 && counts[0] >= 10 && native_checks_complete() {
+		ui.create_panel("Pending shutdown panel", 100, 100, cancelled_update)
+		closing_cycle = true
+		close_main()
+		assert(ui.create_panel("Rejected after main close", 100, 100, cancelled_update) == (ui.Panel{}))
 	}
 }
 
 secondary_update :: proc() {
+	assert(last_order == 0)
+	last_order = 1
 	check_state(1)
-	if counts[1] == 3 { ui.request_close(ui.current_window()) }
+	if counts[1] == 3 { ui.close_panel(ui.current_window()) }
 }
 
 replacement_update :: proc() {
+	// The observer is older even though the replacement reuses a lower slot.
+	assert(last_order == 3)
+	last_order = 2
 	check_state(2)
 	if counts[2] == 3 { close_replacement() }
 }
 
-survivor_update :: proc() {
+observer_update :: proc() {
+	assert(last_order == 0 || last_order == 1)
+	last_order = 3
 	check_state(3)
-	assert(!ui.window_alive(primary) && !ui.window_alive(secondary))
-	if counts[3] == 2 { ui.request_close(ui.current_window()) }
+	assert(counts[3] == counts[0], "A presentation/occlusion event skipped or duplicated a builder")
+	if closing_cycle {
+		assert(!ui.window_alive(primary) && !ui.window_alive(survivor))
+		observer_finished = true // Membership remains fixed through the closing cycle.
+	}
 }
 
 final_update :: proc() {
-	assert(ui.current_window() != primary)
 	_, found := ui.find_font("test-font")
 	assert(!found)
-	ui.paint(color = {0.1, 0.2, 0.3, 1})
 	quit_application()
+}
+
+final_panel_update :: proc() {
+	assert(!ui.panel_alive(ui.current_window()))
+	final_panel_ran = true
 }
 
 check_state :: proc(index: int) {
 	frame := ui.current_frame()
-	assert(ui.window_alive(frame.window))
+	assert(ui.window_alive(frame.window) || closing_cycle)
+	assert(frame.time == cycle_time, "Builders must share the same cycle timestamp")
 	counts[index] += 1
 	if counts[index] > 600 { fmt.eprintln("Window test timed out"); os.exit(1) }
 	if counts[index] == 1 {

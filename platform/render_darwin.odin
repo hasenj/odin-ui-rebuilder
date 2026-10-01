@@ -4,7 +4,6 @@ import "base:runtime"
 import "base:intrinsics"
 import "core:fmt"
 import "core:mem"
-import "core:time"
 import ns "core:sys/darwin/Foundation"
 import mtl "vendor:darwin/Metal"
 import mtk "vendor:darwin/MetalKit"
@@ -23,15 +22,11 @@ Metal_Renderer :: struct {
 	images:        [dynamic]Image_Slot,
 	free_image:    u32,
 	view:          ^mtk.View,
-	frame:         Frame_Proc,
-	user_data:     rawptr,
 	input_state:   ^input.State,
 	pending_scroll: [2]f32,
 	keyboard: Keyboard_Input,
-	start:         time.Tick,
 	odin_context:  runtime.Context,
-	profiler:      Frame_Profiler,
-	drawing:       bool,
+	drawing, presenting: bool,
 	resize_pending: bool,
 	capture_scale: f32, // Used only when there is no native view.
 }

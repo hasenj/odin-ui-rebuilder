@@ -4,9 +4,12 @@ import "../platform"
 
 Frame_Timing :: platform.Frame_Timing
 Window :: platform.Window
+Panel :: platform.Panel
+close_panel :: platform.close_panel
+panel_alive :: platform.window_alive
 
 // Application/window calls run on the main thread. A single event loop drives
-// every window. run returns after the final window closes; shutdown frees all.
+// main and its panels. Closing the main window closes all panels and ends run.
 init :: platform.init
 shutdown :: platform.shutdown
 run :: platform.run
@@ -15,7 +18,7 @@ request_close :: platform.request_close
 
 // Initial dimensions are logical points. OS resizing determines later sizes.
 // Fonts, images, identities, focus and scroll state belong to this window.
-// Create/close requests inside update are applied after the callback completes.
+// Create/close requests inside update are applied after the application cycle.
 create_window :: proc(title: string, width: int = 800, height: int = 600, update: Update = nil, frame_timing: Frame_Timing = .Disabled, decorated: bool = true, transparent: bool = ODIN_OS == .Darwin) -> Window {
 	state := new(Frame_State)
 	state.update = update
@@ -23,6 +26,18 @@ create_window :: proc(title: string, width: int = 800, height: int = 600, update
 		&state.frame.input, decorated, transparent, destroy_window_state)
 	state.frame.window = window
 	return window
+}
+
+// Panels default to borderless and never become native tabs. A closing main
+// window rejects creation (zero handle). Resources remain local to each panel.
+create_panel :: proc(title: string, width: int = 400, height: int = 300, update: Update = nil, frame_timing: Frame_Timing = .Disabled, decorated: bool = false, transparent: bool = ODIN_OS == .Darwin) -> Panel {
+	state := new(Frame_State)
+	state.update = update
+	panel := platform.create_panel(title, width, height, build_frame, state, frame_timing,
+		&state.frame.input, decorated, transparent, destroy_window_state)
+	if panel == (Panel{}) { destroy_window_state(state); return {} }
+	state.frame.window = panel
+	return panel
 }
 
 current_window :: proc() -> Window {

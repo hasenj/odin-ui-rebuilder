@@ -79,10 +79,15 @@ Native references: [NSWindow](https://developer.apple.com/documentation/appkit/n
 [borderless style](https://developer.apple.com/documentation/appkit/nswindow/stylemask-swift.struct/borderless),
 and [MTKView](https://developer.apple.com/documentation/metalkit/mtkview/).
 
-## Multiple windows
+## Main window and panels
 
-`ui.init`, `ui.create_window`, `ui.run`, `ui.request_close` and `ui.shutdown`
-provide explicit window lifetimes within one AppKit event loop. The final close
-returns from `run`; Command-Q requests orderly closure of all windows. The existing
-`ui.open_window` convenience API uses the same lifecycle. See
-[core/WINDOWS.md](../core/WINDOWS.md) for ownership rules and app12.
+`ui.create_window` creates the application's main window. `ui.create_panel`
+creates auxiliary NSPanel instances, borderless by default and never automatically
+tabbed. Panels can receive keyboard focus but do not become the main window.
+Closing the main window or using Command-Q closes all panels and returns from
+`run`; closing a panel leaves the main window running.
+
+One application timer snapshots input and runs every builder, main first. Paused
+MetalKit views only present the resulting output; they do not run independent UI
+updates. Hidden/minimized/occluded participants still build UI. Resize callbacks
+refresh the entire application. See [core/WINDOWS.md](../core/WINDOWS.md) and app12.

@@ -5,14 +5,16 @@ import ns "core:sys/darwin/Foundation"
 import mtk "vendor:darwin/MetalKit"
 
 @(private)
-create_macos_window :: proc(width, height: int, decorated, transparent: bool) -> ^ns.Window {
-	cls := ns.objc_lookUpClass("OdinUIRebuilderWindow")
+create_macos_window :: proc(width, height: int, decorated, transparent: bool, panel: bool = false) -> ^ns.Window {
+	name: cstring = "OdinUIRebuilderPanel" if panel else "OdinUIRebuilderWindow"
+	cls := ns.objc_lookUpClass(name)
 	if cls == nil {
-		cls = ns.objc_allocateClassPair(intrinsics.objc_find_class("NSWindow"), "OdinUIRebuilderWindow", 0)
+		base := intrinsics.objc_find_class("NSPanel") if panel else intrinsics.objc_find_class("NSWindow")
+		cls = ns.objc_allocateClassPair(base, name, 0)
 		assert(cls != nil)
 		// Borderless NSWindows otherwise refuse keyboard/main-window status.
 		assert(ns.class_addMethod(cls, intrinsics.objc_find_selector("canBecomeKeyWindow"), auto_cast native_yes, "B@:"))
-		assert(ns.class_addMethod(cls, intrinsics.objc_find_selector("canBecomeMainWindow"), auto_cast native_yes, "B@:"))
+		assert(ns.class_addMethod(cls, intrinsics.objc_find_selector("canBecomeMainWindow"), auto_cast (native_no if panel else native_yes), "B@:"))
 		ns.objc_registerClassPair(cls)
 	}
 	style := ns.WindowStyleMask{.Closable, .Miniaturizable, .Resizable}
@@ -20,6 +22,7 @@ create_macos_window :: proc(width, height: int, decorated, transparent: bool) ->
 	window := intrinsics.objc_send(^ns.Window, cast(^ns.Object)cls, "alloc")->initWithContentRect(
 		{size = {ns.Float(width), ns.Float(height)}}, style, .Buffered, false)
 	assert(window != nil)
+	if panel { intrinsics.objc_send(nil, window, "setTabbingMode:", ns.Integer(2)) } // Disallowed
 	window->setOpaque(ns.BOOL(!transparent))
 	if transparent {
 		window->setBackgroundColor(ns.Color.colorWithSRGBRed(0, 0, 0, 0))
@@ -91,3 +94,6 @@ install_application_menu :: proc(app: ^ns.Application) {
 	menu->addItem(item)
 	app->setMainMenu(menu)
 }
+
+@(private)
+native_no :: proc "c" (_: ns.id, _: ns.SEL) -> ns.BOOL { return false }
