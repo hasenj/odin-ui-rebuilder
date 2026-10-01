@@ -241,6 +241,7 @@ macos_sync_modifier_keys :: proc(keyboard: ^Keyboard_Input, flags: ns.EventModif
 window_became_key :: proc "c" (self: ns.id, _: ns.SEL, _: ns.id) {
 	renderer := (cast(^^Metal_Renderer)ns.object_getIndexedIvars(self))^
 	context = renderer.odin_context
+	restore_main_window_role()
 	flags := intrinsics.objc_send(ns.EventModifierFlags, ns.Event, "modifierFlags")
 	macos_update_flags(&renderer.keyboard, flags)
 	macos_sync_modifier_keys(&renderer.keyboard, flags, false)

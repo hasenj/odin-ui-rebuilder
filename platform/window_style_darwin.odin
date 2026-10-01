@@ -22,7 +22,14 @@ create_macos_window :: proc(width, height: int, decorated, transparent: bool, pa
 	window := intrinsics.objc_send(^ns.Window, cast(^ns.Object)cls, "alloc")->initWithContentRect(
 		{size = {ns.Float(width), ns.Float(height)}}, style, .Buffered, false)
 	assert(window != nil)
-	if panel { intrinsics.objc_send(nil, window, "setTabbingMode:", ns.Integer(2)) } // Disallowed
+	if panel {
+		intrinsics.objc_send(nil, window, "setTabbingMode:", ns.WindowTabbingMode.Disallowed)
+		intrinsics.objc_send(nil, window, "setFloatingPanel:", ns.BOOL(true))
+		window->setLevel(.Floating)
+		// Tool palettes stay above our workspace, but disappear when another
+		// application becomes active instead of covering its windows.
+		intrinsics.objc_send(nil, window, "setHidesOnDeactivate:", ns.BOOL(true))
+	}
 	window->setOpaque(ns.BOOL(!transparent))
 	if transparent {
 		window->setBackgroundColor(ns.Color.colorWithSRGBRed(0, 0, 0, 0))

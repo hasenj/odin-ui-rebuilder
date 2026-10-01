@@ -1,13 +1,15 @@
 package windows_test
 
 import ui "../../core"
+import "core:fmt"
+import "core:os"
 import "base:intrinsics"
 import "base:runtime"
 import ns "core:sys/darwin/Foundation"
 import mtk "vendor:darwin/MetalKit"
 
-key_sent, key_seen, resize_seen, hidden_checked: bool
-key_cycle: int
+key_sent, key_seen, resize_seen, hidden_checked, stacking_checked, focus_roles_checked: bool
+key_cycle, stacking_cycle: int
 
 probe_timer: ^ns.Timer
 probe_target: ns.id
@@ -56,12 +58,49 @@ check_native_frame :: proc(index: int) {
 	if index == 0 {
 		window := native_window("Multi-window primary")
 		assert(window != nil)
+		// The first timer tick may precede native application activation.
+		active := intrinsics.objc_send(ns.BOOL, ns.Application.sharedApplication(), "isActive")
+		if active { assert_main_role(window) }
+		if active && counts[0] >= 8 && stacking_cycle == 0 {
+			// Raising/focusing the workspace must not bury its floating tools.
+			window->makeKeyAndOrderFront(nil)
+			assert(intrinsics.objc_send(ns.BOOL, window, "isKeyWindow"))
+			observer := native_window("Observer panel")
+			assert(intrinsics.objc_send(ns.BOOL, observer, "isVisible"))
+			// Place the panel inside the workspace and inspect the actual front
+			// window at their overlap (NSApplication.orderedWindows excludes panels).
+			bounds := intrinsics.objc_send(ns.Rect, window, "frame")
+			origin := ns.Point{bounds.origin.x + 20, bounds.origin.y + 20}
+			intrinsics.objc_send(nil, observer, "setFrameOrigin:", origin)
+			stacking_cycle = counts[0]
+		}
+		if active && stacking_cycle > 0 && counts[0] > stacking_cycle && !stacking_checked {
+			observer := native_window("Observer panel")
+			bounds := intrinsics.objc_send(ns.Rect, observer, "frame")
+			point := ns.Point{bounds.origin.x + 40, bounds.origin.y + 40}
+			front := intrinsics.objc_send(ns.Integer, ns.Window, "windowNumberAtPoint:belowWindowWithWindowNumber:", point, ns.Integer(0))
+			panel_number := intrinsics.objc_send(ns.Integer, observer, "windowNumber")
+			if front != panel_number {
+				fmt.eprintf("Panel stacking mismatch: front=%v panel=%v main=%v\n", front, panel_number, intrinsics.objc_send(ns.Integer, window, "windowNumber"))
+				os.exit(1)
+			}
+			stacking_checked = true
+		}
+		if active && stacking_checked && !focus_roles_checked {
+			observer := native_window("Observer panel")
+			intrinsics.objc_send(nil, observer, "makeKeyWindow")
+			assert(intrinsics.objc_send(ns.BOOL, observer, "isKeyWindow"))
+			assert(!intrinsics.objc_send(ns.BOOL, window, "isKeyWindow"))
+			assert_main_role(window)
+			focus_roles_checked = true
+		}
 		if frame.size == ([2]f32{420, 300}) { resize_seen = true }
-		if counts[0] == 2 {
-			intrinsics.objc_send(nil, window, "setContentSize:", ns.Size{420, 300})
+		if counts[0] == 2 { intrinsics.objc_send(nil, window, "setContentSize:", ns.Size{420, 300}) }
+		if active && counts[0] >= 2 && !key_sent {
 			observer := native_window("Observer panel")
 			assert(observer != nil)
 			intrinsics.objc_send(nil, observer, "makeKeyWindow")
+			assert_main_role(window)
 			chars := ns.String.alloc()->initWithOdinString("a")
 			defer chars->release()
 			event := intrinsics.objc_send(^ns.Event, ns.Event,
@@ -79,6 +118,10 @@ check_native_frame :: proc(index: int) {
 		assert(window != nil)
 		assert(intrinsics.objc_send(ns.Integer, window, "tabbingMode") == 2)
 		assert(!intrinsics.objc_send(ns.BOOL, window, "canBecomeMainWindow"))
+		assert(!intrinsics.objc_send(ns.BOOL, window, "isMainWindow"))
+		assert(intrinsics.objc_send(ns.BOOL, window, "isFloatingPanel"))
+		assert(intrinsics.objc_send(ns.BOOL, window, "hidesOnDeactivate"))
+		assert(intrinsics.objc_send(ns.WindowLevel, window, "level") == .Floating)
 		style := intrinsics.objc_send(ns.WindowStyleMask, window, "styleMask")
 		assert((.Titled in style) == (index == 2))
 		if index == 3 {
@@ -103,7 +146,7 @@ check_native_frame :: proc(index: int) {
 	assert(counts == before)
 }
 
-native_checks_complete :: proc() -> bool { return key_seen && resize_seen && hidden_checked && probe_count > 0 }
+native_checks_complete :: proc() -> bool { return key_seen && resize_seen && hidden_checked && probe_count > 0 && stacking_checked && focus_roles_checked }
 
 close_replacement :: proc() {
 	window := native_window("Multi-window replacement")
@@ -121,4 +164,17 @@ close_main :: proc() {
 quit_application :: proc() {
 	intrinsics.objc_send(nil, ns.Application.sharedApplication(), "terminate:", cast(ns.id)nil)
 	assert(!ui.window_alive(ui.current_window()))
+}
+
+assert_main_role :: proc(window: ^ns.Window) {
+	if !intrinsics.objc_send(ns.BOOL, window, "isMainWindow") {
+		fmt.eprintf("Main role missing: counts=%v active=%v visible=%v key=%v canMain=%v appMain=%v\n", counts,
+			intrinsics.objc_send(ns.BOOL, ns.Application.sharedApplication(), "isActive"),
+			intrinsics.objc_send(ns.BOOL, window, "isVisible"),
+			intrinsics.objc_send(ns.BOOL, window, "isKeyWindow"),
+			intrinsics.objc_send(ns.BOOL, window, "canBecomeMainWindow"),
+			intrinsics.objc_send(^ns.Window, ns.Application.sharedApplication(), "mainWindow"))
+		os.exit(1)
+	}
+	assert(intrinsics.objc_send(^ns.Window, ns.Application.sharedApplication(), "mainWindow") == window)
 }

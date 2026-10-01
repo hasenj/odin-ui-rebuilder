@@ -105,7 +105,10 @@ caller-supplied frame times.
 macOS uses NSWindow for the main window and NSPanel for panels, each with its own
 Metal renderer. MetalKit's independent update timers are paused. The application
 timer snapshots/builds all participants and explicitly draws visible output.
-Panels can receive keyboard focus but do not become the main window. Mouse hit
+Panels float above the workspace while the app is active and hide when another
+app becomes active. A panel can become the native key window (keyboard input)
+while the workspace retains main-window status and its active title-bar appearance.
+Panels never become the main window. Mouse hit
 testing checks the native window under the pointer, so overlapping panels block
 hover beneath them.
 
@@ -130,7 +133,8 @@ The native lifecycle check covers synchronized builder counts/timestamps/order,
 state/resource isolation, deferred creation/closure, slot reuse, stale handles,
 main-window shutdown with live/pending panels, and reinitialization. macOS checks
 also verify native key routing, input snapshot boundaries, tabbing/decoration
-policy, hidden-panel updates, resize, close/quit, and extra draw callbacks.
+policy, main/key focus roles, floating-panel stacking, hidden-panel updates, resize,
+close/quit, and extra draw callbacks.
 
 On macOS, `./bin/app12 --capture` saves both views to `bin/app12-0.png` and
 `bin/app12-1.png`. Linux runtime checks require a graphical Wayland session;

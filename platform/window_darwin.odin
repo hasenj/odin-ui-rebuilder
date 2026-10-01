@@ -26,6 +26,7 @@ application_init_impl :: proc() {
 		cls = ns.objc_allocateClassPair(intrinsics.objc_find_class("NSObject"), "OdinUIRebuilderApplicationDelegate", 0)
 		assert(ns.class_addMethod(cls, intrinsics.objc_find_selector("tick:"), auto_cast application_tick, "v@:@"))
 		assert(ns.class_addMethod(cls, intrinsics.objc_find_selector("applicationShouldTerminate:"), auto_cast application_quit, "Q@:@"))
+		assert(ns.class_addMethod(cls, intrinsics.objc_find_selector("applicationDidBecomeActive:"), auto_cast application_became_active, "v@:@"))
 		ns.objc_registerClassPair(cls)
 	}
 	mac_delegate = ns.class_createInstance(cls, 0)
@@ -38,6 +39,28 @@ application_shutdown_impl :: proc() {
 	mac_app->setDelegate(nil)
 	(cast(^ns.Object)mac_delegate)->release()
 	mac_delegate = nil
+}
+
+// Startup activation can occur after all panels have already been ordered front.
+// Keep the workspace's main role distinct from whichever panel is key.
+@(private)
+restore_main_window_role :: proc() {
+	if !intrinsics.objc_send(ns.BOOL, mac_app, "isActive") { return }
+	record := window_record(main_window)
+	if record == nil || record.closing || record.native == nil { return }
+	renderer := cast(^Metal_Renderer)record.native
+	window := renderer.window
+	if intrinsics.objc_send(ns.BOOL, window, "isVisible") &&
+	   !intrinsics.objc_send(ns.BOOL, window, "isMiniaturized") &&
+	   !intrinsics.objc_send(ns.BOOL, window, "isMainWindow") {
+		intrinsics.objc_send(nil, window, "makeMainWindow")
+	}
+}
+
+@(private)
+application_became_active :: proc "c" (_: ns.id, _: ns.SEL, _: ns.id) {
+	context = mac_context
+	restore_main_window_role()
 }
 
 @(private)
@@ -103,6 +126,11 @@ create_window_impl :: proc(record: ^Window_Record) {
 	origin := ns.Point{bounds.origin.x + offset, bounds.origin.y + bounds.size.height - offset}
 	intrinsics.objc_send(ns.Point, window, "cascadeTopLeftFromPoint:", origin)
 	window->makeKeyAndOrderFront(nil)
+	if !record.panel {
+		// makeKeyAndOrderFront establishes keyboard focus, not main-window
+		// status reliably during startup (before NSApplication.run).
+		intrinsics.objc_send(nil, window, "makeMainWindow")
+	}
 }
 
 @(private)
