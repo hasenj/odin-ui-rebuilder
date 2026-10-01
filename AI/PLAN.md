@@ -4,6 +4,10 @@ Milestone expansion below written by Codex at Hasen's explicit request on
 2026-09-30. [IDEAS.md](IDEAS.md) contains the supporting future-work discussion.
 Milestone numbers identify work packages, not example app numbers. Completed
 work after milestone 3 is grouped retrospectively; future ordering is proposed.
+Updated by Codex at Hasen's request on 2026-10-02 to reflect implementation
+through app12 and the agreed panel behavior. Numbers remain stable even where
+work was completed out of order. DONE describes implemented scope; platform
+verification limits are called out separately.
 
 ## Project Description:
 
@@ -96,7 +100,42 @@ synchronized with the window transaction. Text resize benchmarks and cache tests
 cover repeated preparation work. These changes were made across earlier steps,
 not as a separate chronological phase.
 
-## Next implementation sequence
+## [ DONE ] Supporting scaffold: Render capture and scripted input
+
+Deterministic offscreen Metal rendering to PNG, using the production renderer
+with explicit sizes, display scales, times, and input snapshots. Multi-frame
+scenarios exercise hover, focus, scrolling, modals, and window-owned resources.
+App10–12 provide capture scenarios; native macOS checks cover input delivery and
+window lifecycle. `scripts/check.sh` runs tests and optimized example builds.
+
+This captures UI content, not native title bars or desktop composition. Native
+window behavior needs separate checks; main/key status alone does not prove a
+title bar's visual appearance. Capture currently requires macOS Metal; other
+capture backends return Unsupported. See [core/CAPTURE.md](../core/CAPTURE.md).
+
+## Implementation sequence and current priorities
+
+Implemented since the original roadmap: the main-window/panel lifecycle (12),
+keyboard and scroll snapshots (part of 13), layers/hover (15), focus (16), clipping
+(17), scrolling (18), and the overlay/modal portion of 19. App10 demonstrates the
+interaction foundations, app11 physical keys, and app12 multiple native surfaces.
+
+Remaining near-term work:
+
+- Complete native panel semantics on Wayland and verify them in Omarchy (12).
+- Finish native mouse-transition accumulation and drag/focus-loss coverage (13).
+- Add general typed retained state (14), then custom native drag regions (19).
+- Proceed to text input/composition (20) and text editing (21).
+
+Selective macOS panel keyboard focus is deferred until text-input work provides
+a concrete need. Ordinary panel clicks currently take keyboard focus. This is
+acceptable: a key panel can leave the workspace main while its title-bar buttons
+turn gray. Do not force an active appearance or prevent panels from becoming key.
+
+Cross-platform validation remains explicit: macOS native and Metal checks run
+here; Linux keyboard work was also implemented by the Omarchy agent. New shared
+interaction/rendering and multi-window behavior still needs targeted Wayland
+runtime verification; compile coverage alone is not that verification.
 
 Milestones 12–21 establish a minimum interactive UI foundation, rather than a
 widget collection. Keep macOS and Wayland working through each shared API change.
@@ -105,27 +144,54 @@ examples with `-o:speed`. Record platform checks that have not actually been run
 For interaction/state work, check allocation reuse after warm-up and compare
 timings against a relevant baseline rather than setting a machine-specific limit.
 
-## [ NEXT ] Milestone 12: Multiple native windows
+## [ PARTIAL ] Milestone 12: Main window and auxiliary panels
 
-- Separate application initialization/event-loop ownership from window creation.
-  Use explicit create/close operations and one update procedure per window;
-  creating a window must not start a nested loop.
-- Add generational window handles, per-window frame/input/identity/rendering
-  contexts, and safe deferred destruction when closing during an update.
-- Treat creation size as initial size; preserve subsequent OS/user resizing.
-  Define what happens when the final window closes.
-- Define and enforce image/font resource ownership. Initially keeping resources
-  separate per window is acceptable; shared caches are not a prerequisite.
-- Preserve a convenient single-window entry point and keep the design compatible
-  with a future host-owned application loop.
+Implemented in app12:
 
-**Done when:** two windows update and resize independently on both backends;
-opening/closing/reopening one does not disturb the other, revive stale handles,
-or leave live resources behind. Test a close requested during a callback.
+- One application event loop, explicit `create_window`/`create_panel` lifetimes,
+  and generational handles with deferred creation and destruction.
+- One main window owns application lifetime. Closing a panel leaves the app
+  running; closing the main window closes every panel, including pending ones.
+- Panels default to no decorations and do not require an anchor. Initial size
+  is supplied by the caller; later OS/user resizing remains authoritative.
+- All builders update together: input/dimensions are snapshotted first, then the
+  main builder and panel builders run in creation order with the same time.
+  Hidden/minimized participants still build; presentation can be skipped.
+- Independent frame, input, identity, text/image resource and renderer stores.
+  Handles for fonts/images remain local to the owning window or panel.
+- The single-window convenience entry point remains available.
+- macOS uses floating NSPanel instances, disallows native tabbing for panels,
+  hides them when the app deactivates, and preserves the workspace's main role.
+  Main status and keyboard/key status are distinct; colored title-bar buttons
+  follow key status. Floating behavior has been confirmed manually.
 
-## [ TODO ] Milestone 13: Rich input snapshots
+Remaining:
 
-Depends on 12.
+- Wayland currently creates independent xdg-toplevels on separate connections.
+  Move to a shared application connection and establish panel parenting with
+  `xdg_toplevel.set_parent`. Respect compositor control over activation and
+  appearance instead of promising identical AppKit behavior.
+- Run lifecycle, resize, input isolation and stacking checks in Omarchy.
+- Minimization/restoration, screen placement and related native window controls
+  remain separate follow-up work, not prerequisites for basic panel lifetime.
+
+**Done when:** the implemented lifecycle and resource-isolation checks also pass
+on Wayland, and panels have native parent/auxiliary behavior there. macOS checks
+already cover callback-time closure, stale handles, reopening, synchronized
+updates, native key routing, floating stacking and main/key roles. See
+[core/WINDOWS.md](../core/WINDOWS.md).
+
+## [ PARTIAL ] Milestone 13: Rich input snapshots
+
+Physical keys, pressed/released/held sets, modifiers, locks, repeat, press-time
+modifiers and accumulated wheel/trackpad deltas are implemented on both hosts.
+App11 inspects this data; app12 exercises per-window isolation. macOS native
+checks cover keyboard routing and focus loss; Linux has evdev/XKB input tests.
+
+Remaining: native mouse transitions are currently inferred from sampled held
+state, so a press and release between updates can be missed. Accumulate those
+transitions explicitly and finish multi-window drag/device-loss checks. The
+following requirements still define the complete milestone:
 
 - Add per-window mouse/key pressed, released and held state, keyboard modifiers,
   repeat information, and wheel/trackpad deltas with documented units.
@@ -155,15 +221,17 @@ Depends on the identity system; place after 13 to exercise real input use cases.
 reordering and animation; removing an identity or closing its window cleans up
 its state. Warm stable frames reuse storage without repeated allocation.
 
-## [ TODO ] Milestone 15: Ordered layers and resolved hover
+## [ DONE ] Milestone 15: Ordered layers and resolved hover
 
-Depends on 12–13.
+Implemented and covered by core/capture checks. Latest input resolves against
+the previous frame's geometry at update start; ordered layer buckets preserve
+surface declaration order. Native window occlusion is handled separately by the
+platform. See [core/INTERACTION.md](../core/INTERACTION.md).
 
 - Record eligible hit regions, logical ancestry, effective layer/z-order, and
   declaration order. Separate hit-test participation from focusability.
-- Resolve input against the previous completed interaction geometry. Settle
-  whether resolution runs at frame end or at frame start with the latest input;
-  frame-start resolution avoids an extra frame of stale pointer coordinates.
+- Resolve the latest input at frame start against the previous completed
+  interaction geometry, avoiding an extra frame of stale pointer coordinates.
 - Choose the topmost z-order, then deepest eligible node. Define declaration
   order as the final tie-breaker, and verify rendering and hit order agree.
 - Expose direct hover and inherited ancestor hover; ancestor regions must also
@@ -175,9 +243,12 @@ Depends on 12–13.
 predictable direct/inherited hover matching their displayed stacking. Include
 noninteractive paint and document behavior for newly appearing/moving regions.
 
-## [ TODO ] Milestone 16: Focus and keyboard traversal
+## [ DONE ] Milestone 16: Focus and keyboard traversal
 
-Depends on 13 and 15.
+Implemented: direct/ancestor focus, click focus, Tab/Shift-Tab traversal, nested
+fences, restoration and focused-item scroll reveal. Removed/ineligible focus
+clears, or falls back within an active fence. Logical UI focus is retained across
+native keyboard-focus loss. Native macOS key routing is tested separately.
 
 - Add one directly focused identity per window, ancestor focus queries, explicit
   focus requests, and focusable-node registration.
@@ -192,9 +263,10 @@ Depends on 13 and 15.
 and two windows; ancestor queries are correct; traversal cannot escape a fence;
 removing the focused node produces a valid, documented fallback.
 
-## [ TODO ] Milestone 17: Rectangular clipping and content offsets
+## [ DONE ] Milestone 17: Rectangular clipping and content offsets
 
-Depends on 15.
+Implemented in core and both renderer paths, with Metal readback checks at 1x
+and 2x. GLES runtime verification remains an explicit Linux-host check.
 
 - Add nested rectangular clip scopes and translation scopes for content.
 - Apply intersected clips consistently to solid surfaces, images, text, and hit
@@ -206,9 +278,12 @@ Depends on 15.
 invisible regions do not hover; nested/empty clips and resized/scaled windows
 behave correctly without changing text measurements.
 
-## [ TODO ] Milestone 18: Scrollable containers
+## [ DONE ] Milestone 18: Scrollable containers
 
-Depends on 13–14 and 17.
+Implemented using dedicated identity-owned scroll state; general typed state
+(14) is not required. Nested delta chaining, clamping, programmatic scrolling,
+focus reveal and cleanup have core/capture coverage. Native macOS wheel behavior
+has also been confirmed by Hasen; native Wayland delivery is implemented.
 
 - Combine viewport clips, content offsets, retained scroll position, and known
   content extents. Support horizontal and vertical scrolling and clamp offsets
@@ -222,9 +297,16 @@ Depends on 13–14 and 17.
 scrolled item is hit at its displayed position; content/viewport resizing keeps
 offsets valid; scrolling one window does not change another.
 
-## [ TODO ] Milestone 19: Overlays, modal scopes, and custom drag regions
+## [ PARTIAL ] Milestone 19: Overlays, modal scopes, and custom drag regions
 
-Depends on 15–18.
+Layer scopes can escape ancestor clips while retaining logical identity ancestry.
+App10 opens/closes a modal through buttons, combines a full-window hit barrier
+with a focus fence, and restores focus on dismissal. Capture scenarios cover
+pointer/scroll blocking, Tab traversal, cancelled clicks and restoration.
+
+Remaining: application-defined native drag regions, plus focused coverage for
+nested modal dismissal and owner disappearance. Borderless macOS windows still
+use native background dragging; there is no custom drag-region API yet.
 
 - Let an overlay retain logical parentage while drawing in another layer and
   escaping the parent's clip through an explicit API.
@@ -248,6 +330,10 @@ Depends on 13 and 16–17.
   data/services separate from physical key input.
 - Associate text-input activation and candidate positioning with the focused
   identity and its window; translate caret geometry into native coordinates.
+- Revisit selective panel keyboard focus here: mouse-only palette controls may
+  leave the workspace key, while text fields request keyboard focus for their
+  panel. Keep mouse ownership independent of key-window status if adopting this.
+  This refinement was deliberately deferred after checking Acorn's behavior.
 - Implement the relevant macOS and Wayland integrations, including explicit
   capability handling where a compositor lacks an optional protocol.
 
@@ -312,9 +398,11 @@ explicit offscreen focus/state policy. Depends on 14, 16, and 18.
 ## [ LATER ] Milestone 25: Redraw scheduling
 
 Request frames for input, geometry changes, application changes, and active
-animations. Stop continuous idle redraw; schedule windows independently and
-respect platform visibility and frame pacing. Give external producers a way
-to request presentation when a new frame becomes available.
+animations. Stop continuous idle redraw. An invalidation from any participant
+schedules one application update cycle for the main window and all panels,
+matching the current synchronized builder model. Native presentation may still
+be paced independently according to visibility and compositor readiness. Give
+external producers a way to request presentation when a new frame is available.
 
 **Done when:** idle windows stop generating regular frames while hover fades,
 resizing, scrolling, and explicit invalidation remain responsive. Measure idle
