@@ -14,9 +14,27 @@ muted :: ui.Color{0.58, 0.67, 0.79, 1}
 main :: proc() {
 	if len(os.args) == 2 && os.args[1] == "--capture" {
 		for update, i in ([2]ui.Update{workspace, inspector}) {
-			frames := [?]ui.Capture_Frame{{path = fmt.tprintf("bin/app12-%d.png", i), size = {620, 640}, scale = 2}}
+			frames := [?]ui.Capture_Frame{
+				{path = fmt.tprintf("bin/app12-%d.png", i), size = {620, 640}, scale = 2},
+				{path = fmt.tprintf("bin/app12-%d-hover-left.png", i), size = {620, 640}, scale = 2, time = 1,
+				 input = {mouse_inside = true, mouse_position = {100, 590}}},
+				{path = fmt.tprintf("bin/app12-%d-hover-right.png", i), size = {620, 640}, scale = 2, time = 2,
+				 input = {mouse_inside = true, mouse_position = {480, 590}}},
+			}
 			assert(ui.capture_frames(update, frames[:]).error == .None)
 		}
+		// Exercise the actual panel buttons: a sibling must not overwrite the
+		// pressed identity or activate when releasing over the other button.
+		frames := [?]ui.Capture_Frame{
+			{size = {620, 640}, scale = 1},
+			{size = {620, 640}, scale = 1, time = 1, input = {mouse_inside = true, mouse_position = {100, 590}, mouse_buttons = {.Left}}},
+			{size = {620, 640}, scale = 1, time = 2, input = {mouse_inside = true, mouse_position = {480, 590}}},
+			{size = {620, 640}, scale = 1, time = 3, input = {mouse_inside = true, mouse_position = {100, 590}, mouse_buttons = {.Left}}},
+			{size = {620, 640}, scale = 1, time = 4, input = {mouse_inside = true, mouse_position = {100, 590}}},
+		}
+		assert(ui.capture_frames(inspector, frames[:]).error == .None)
+		assert(shared_value == 1, "Only the press/release within the Add button should activate it")
+		fmt.println("Verified app12 footer button clicks; hover captures saved to bin/app12-*-hover-*.png")
 		return
 	}
 	ui.init()
@@ -66,9 +84,12 @@ draw :: proc(index: int) {
 	}
 	ui.close_rect()
 	ui.pad4(0, 0, 0, 10)
+	// Both buttons need sibling hit regions; the footer itself also covers the left button.
+	ui.open_rect(.Left, ui.current_rect().size.x)
 	if button("Quit app" if index == 0 else "Close panel", index, pressed, released, accent) {
 		if index == 0 { ui.request_close(ui.current_window()) } else { ui.close_panel(ui.current_window()) }
 	}
+	ui.close_rect()
 	ui.close_rect()
 	ui.open_rect(.Bottom, 44)
 	ui.pad4(12, 0, 0, 0)
