@@ -71,6 +71,7 @@ update :: proc() {
 	pressed = frame.input.mouse_pressed | (frame.input.mouse_buttons & ~previous_buttons)
 	released = frame.input.mouse_released | (previous_buttons & ~frame.input.mouse_buttons)
 	previous_buttons = frame.input.mouse_buttons
+	if frame.input.mouse_cancelled { pressed_button = {}; pressed, released = {}, {} }
 	ui.paint(color = {0.04, 0.055, 0.085, 1})
 	ui.open_rect(.Top, 82)
 	ui.paint(color = {0.075, 0.10, 0.15, 1})

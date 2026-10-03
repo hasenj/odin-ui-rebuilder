@@ -31,6 +31,7 @@ sample_frame_input :: proc(renderer: ^Metal_Renderer) {
 		renderer.input_state.scroll_delta = delta
 	}
 	sample_keyboard(&renderer.keyboard, renderer.input_state)
+	sample_mouse(&renderer.mouse, renderer.input_state)
 }
 
 @(private)
@@ -252,6 +253,7 @@ window_resigned_key :: proc "c" (self: ns.id, _: ns.SEL, _: ns.id) {
 	renderer := (cast(^^Metal_Renderer)ns.object_getIndexedIvars(self))^
 	context = renderer.odin_context
 	keyboard_clear(&renderer.keyboard)
+	mouse_clear(&renderer.mouse)
 }
 
 @(private)
@@ -280,16 +282,34 @@ sample_input :: proc(view: ^ns.View, state: ^input.State) {
 	number := intrinsics.objc_send(ns.Integer, window, "windowNumber")
 	state.mouse_inside = front == number && x >= 0 && y >= 0 && x < f32(bounds.size.width) && y < f32(bounds.size.height)
 
-	// NSEvent's mask uses bit 0 for left and bit 1 for right. Map only the
-	// supported buttons and replace the set so releases cannot leave stale flags.
-	buttons := intrinsics.objc_send(ns.UInteger, ns.Event, "pressedMouseButtons")
-	state.mouse_buttons = {}
-	// Keep a drag alive outside the window while it owns native keyboard focus.
-	if !intrinsics.objc_send(ns.BOOL, window, "isKeyWindow") { return }
-	if buttons & 1 != 0 {
-		state.mouse_buttons += {.Left}
+}
+
+// Observe events at the window so native view/background dragging keeps its
+// normal AppKit behavior. Never dispatch UI callbacks from a native event.
+@(private)
+window_send_event :: proc "c" (self: ns.id, selector: ns.SEL, event: ^ns.Event) {
+	window := cast(^ns.Window)self
+	renderer: ^Metal_Renderer
+	view := window->contentView()
+	if intrinsics.objc_send(ns.BOOL, view, "isKindOfClass:", intrinsics.objc_find_class("MTKView")) {
+		renderer = metal_view_renderer(cast(ns.id)view)
 	}
-	if buttons & 2 != 0 {
-		state.mouse_buttons += {.Right}
+	if renderer != nil {
+		context = renderer.odin_context
+		kind := event->type()
+		#partial switch kind {
+		case .LeftMouseDown, .RightMouseDown:
+			point := renderer.view->convertPointFromView(event->locationInWindow(), nil)
+			bounds := renderer.view->bounds()
+			if point.x >= bounds.origin.x && point.y >= bounds.origin.y &&
+			   point.x < bounds.origin.x + bounds.size.width && point.y < bounds.origin.y + bounds.size.height {
+				mouse_press(&renderer.mouse, .Left if kind == .LeftMouseDown else .Right)
+			}
+		case .LeftMouseUp: mouse_release(&renderer.mouse, .Left)
+		case .RightMouseUp: mouse_release(&renderer.mouse, .Right)
+		}
 	}
+	base := ns.class_getSuperclass(ns.object_getClass(self))
+	implementation := cast(proc "c" (ns.id, ns.SEL, ^ns.Event))ns.class_getMethodImplementation(base, selector)
+	implementation(self, selector, event)
 }

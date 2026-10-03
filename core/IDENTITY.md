@@ -104,3 +104,35 @@ retained entries track live nodes rather than the history of all keys. Changing
 all keys can temporarily require both the old and new nodes until reclamation.
 Unchanged frames perform no Odin allocations once capacities are warm. All
 storage is released with the window.
+
+## Typed component state
+
+`ui.state(T, init = nil, cleanup = nil, id = {})` returns a stable `^T` owned by
+an identity. The default is the current identity; an explicit ID must be live
+in this window. There is one record per identity. Use child identity scopes for
+multiple records, and keep the type unchanged for the identity's lifetime.
+
+```odin
+Drag :: struct {active: bool, origin: [2]f32}
+ui.open_rect(.Top, 80, key = item.id)
+value := ui.state(Drag)
+// Read input and update value. Reordering other keys does not reset it.
+ui.close_rect()
+```
+
+First access zero-initializes the value and optionally invokes `init(^T)`.
+`cleanup(^T)` runs exactly once when the node disappears at frame end or the
+window closes. Use it to delete owned CPU allocations. Cleanup must not call
+UI APIs or access other nodes; cleanup order is unspecified and the native
+renderer may already be gone during window teardown. Register callbacks on
+first access; later accesses return the existing record without changing them.
+
+The payload is allocated separately from the growable identity array, so its
+address remains stable until cleanup. Do not keep pointers after that point.
+Allocation and cleanup use the allocator from first access; it must outlive the
+identity (never use a frame arena). Warm frames perform no state allocations.
+
+Application data that must survive disappearing UI should be application-owned.
+In particular, virtualized rows disappearing for a frame lose their component
+state. Keep durable selection, document text and similar data outside row state.
+Demo14 demonstrates independent drag offsets, reordering and disappearance.

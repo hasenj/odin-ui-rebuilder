@@ -221,3 +221,14 @@ The main-thread test explicitly drives draws so it finishes even when display
 refresh callbacks stop; it does not require Accessibility permission. Linux
 tests exercise pointer delivery, physical evdev keys and real XKB modifiers,
 including quick Shift-Tab, repeat, keypad identity across Num Lock and leave reset.
+
+### Native mouse transitions and cancellation
+
+macOS accumulates mouse presses/releases between snapshots. A quick tap can set
+both flags in one frame while held state is empty. Multiple transitions coalesce
+into sets; their counts/order and individual coordinates are not retained.
+Position is the latest sampled pointer position, including outside during a drag.
+Focus loss clears held/pending presses, reports releases, and sets
+`input.mouse_cancelled` for one update. End drags and discard pending click
+activation on cancellation. Input reads remain non-consuming. Wayland currently
+retains its prior held-state behavior pending its native implementation update.

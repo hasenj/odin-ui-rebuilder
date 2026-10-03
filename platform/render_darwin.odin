@@ -25,6 +25,7 @@ Metal_Renderer :: struct {
 	input_state:   ^input.State,
 	pending_scroll: [2]f32,
 	keyboard: Keyboard_Input,
+	mouse: Mouse_Input,
 	odin_context:  runtime.Context,
 	drawing, presenting: bool,
 	resize_pending: bool,

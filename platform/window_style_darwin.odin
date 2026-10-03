@@ -12,6 +12,7 @@ create_macos_window :: proc(width, height: int, decorated, transparent: bool, pa
 		base := intrinsics.objc_find_class("NSPanel") if panel else intrinsics.objc_find_class("NSWindow")
 		cls = ns.objc_allocateClassPair(base, name, 0)
 		assert(cls != nil)
+		assert(ns.class_addMethod(cls, intrinsics.objc_find_selector("sendEvent:"), auto_cast window_send_event, "v@:@"))
 		// Borderless NSWindows otherwise refuse keyboard/main-window status.
 		assert(ns.class_addMethod(cls, intrinsics.objc_find_selector("canBecomeKeyWindow"), auto_cast native_yes, "B@:"))
 		assert(ns.class_addMethod(cls, intrinsics.objc_find_selector("canBecomeMainWindow"), auto_cast (native_no if panel else native_yes), "B@:"))

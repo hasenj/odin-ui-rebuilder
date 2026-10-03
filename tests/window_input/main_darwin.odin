@@ -181,7 +181,27 @@ check_input :: proc() {
 		assert(state.locks == input.Locks{} && state.keys_pressed == input.Keys{.CapsLock})
 	case 26:
 		assert(state.keys_pressed == input.Keys{} && state.keys_released == input.Keys{} && state.keys_down == input.Keys{})
-		fmt.println("Verified native keyboard: physical keys, simultaneous holds, keypad distinction, 128-bit sets, repeat, modifier sides, locks, Tab/fences and focus-loss reset")
+		send_mouse(window, .LeftMouseDown)
+		send_mouse(window, .LeftMouseUp)
+		send_mouse(window, .RightMouseDown)
+	case 27:
+		assert(state.mouse_pressed == input.Mouse_Buttons{.Left, .Right})
+		assert(state.mouse_released == input.Mouse_Buttons{.Left} && state.mouse_buttons == input.Mouse_Buttons{.Right})
+	case 28:
+		assert(state.mouse_pressed == input.Mouse_Buttons{} && state.mouse_released == input.Mouse_Buttons{})
+		assert(state.mouse_buttons == input.Mouse_Buttons{.Right})
+		send_mouse(window, .RightMouseUp, {-20, -20})
+	case 29:
+		assert(state.mouse_buttons == input.Mouse_Buttons{} && state.mouse_released == input.Mouse_Buttons{.Right})
+		send_mouse(window, .LeftMouseDown)
+		intrinsics.objc_send(nil, window, "resignKeyWindow")
+		intrinsics.objc_send(nil, window, "makeKeyWindow")
+	case 30:
+		assert(state.mouse_cancelled && state.mouse_pressed == input.Mouse_Buttons{})
+		assert(state.mouse_buttons == input.Mouse_Buttons{} && state.mouse_released == input.Mouse_Buttons{.Left})
+	case 31:
+		assert(!state.mouse_cancelled && state.mouse_released == input.Mouse_Buttons{})
+		fmt.println("Verified native keyboard, quick mouse taps, holds, outside release and focus-loss cancellation")
 		os.exit(0)
 	}
 	stage += 1
@@ -215,4 +235,13 @@ send_scroll :: proc(view: ^ns.View, precise: bool, y, x: i32) {
 	assert(event != nil)
 	assert(bool(event->hasPreciseScrollingDeltas()) == precise)
 	intrinsics.objc_send(nil, view, "scrollWheel:", event)
+}
+
+
+send_mouse :: proc(window: ^ns.Window, kind: ns.EventType, point: ns.Point = {20, 20}) {
+	event := intrinsics.objc_send(^ns.Event, ns.Event,
+		"mouseEventWithType:location:modifierFlags:timestamp:windowNumber:context:eventNumber:clickCount:pressure:",
+		kind, point, ns.EventModifierFlags{}, f64(0), intrinsics.objc_send(ns.Integer, window, "windowNumber"),
+		rawptr(nil), ns.Integer(0), ns.Integer(1), f32(1))
+	intrinsics.objc_send(nil, window, "sendEvent:", event)
 }

@@ -47,9 +47,11 @@ State :: struct {
 	// between frames, then clear their pending delta after supplying the snapshot.
 	scroll_delta: [2]f32,
 	// Transition sets are supplied per update; they are not retained/consumed.
-	// Native hosts fill keyboard transitions; mouse transitions may also be
-	// supplied by a synthetic host (native held-button changes imply clicks).
+	// macOS accumulates mouse and keyboard transitions between updates. Both
+	// pressed and released may be set for a quick tap; counts/order coalesce.
+	// Hosts without native mouse accumulation can still supply held state.
 	mouse_pressed, mouse_released: Mouse_Buttons,
+	mouse_cancelled: bool, // Focus/device loss: end drags without activating clicks.
 	keys_down, keys_pressed, keys_released: Keys,
 	modifiers: Modifiers,
 	locks: Locks, // Toggle state; independent of a lock key being held.

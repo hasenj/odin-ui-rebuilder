@@ -44,6 +44,7 @@ update :: proc() {
 	pressed = input.mouse_pressed | (input.mouse_buttons & ~previous)
 	released = input.mouse_released | (previous & ~input.mouse_buttons)
 	previous = input.mouse_buttons
+	if input.mouse_cancelled { pressed_id = {}; pressed, released = {}, {} }
 	ui.paint(color = {0.045, 0.06, 0.085, 1})
 	ui.pad(24)
 	ui.open_clip()

@@ -67,6 +67,7 @@ draw :: proc(index: int) {
 	pressed := frame.input.mouse_pressed | (frame.input.mouse_buttons & ~previous[index])
 	released := frame.input.mouse_released | (previous[index] & ~frame.input.mouse_buttons)
 	previous[index] = frame.input.mouse_buttons
+	if frame.input.mouse_cancelled { pressed, released = {}, {} }
 	accent := ui.Color{0.16, 0.36, 0.65, 1} if index == 0 else ui.Color{0.36, 0.23, 0.58, 1}
 	ui.paint(color = {0.04, 0.055, 0.085, 1})
 	ui.pad(24)

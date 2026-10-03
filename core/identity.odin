@@ -65,6 +65,7 @@ Identity_Node :: struct {
 	generation: u32,
 	alive: bool,
 	seen_frame: u64,
+	state: ^Retained_State,
 	first_child, last_child, next_sibling: Identity,
 }
 @(private)
@@ -162,6 +163,7 @@ identity_end_frame :: proc(store: ^Identity_Store) {
 			delete_key(&store.counts, node.path.group)
 		}
 		delete_key(&store.animations, id)
+		if node.state != nil { node.state.destroy(node.state) }
 		generation := node.generation
 		node = Identity_Node{generation = generation}
 		if generation != max(u32) {
@@ -173,6 +175,7 @@ identity_end_frame :: proc(store: ^Identity_Store) {
 
 @(private)
 destroy_identities :: proc(store: ^Identity_Store) {
+	for node in store.nodes { if node.state != nil { node.state.destroy(node.state) } }
 	delete(store.nodes)
 	delete(store.free)
 	delete(store.stack)
