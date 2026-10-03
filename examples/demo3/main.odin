@@ -11,7 +11,8 @@ loaded: bool
 main :: proc() {
 	// Optional file paths replace the three embedded examples:
 	// odin run examples/demo3 -out:bin/demo3 -o:speed -- a.png b.jpg c.png
-	ui.open_window("Odin UI Rebuilder — images", 1040, 720, update, frame_timing = .Summary)
+	// Image alpha shows the checkerboard; the window itself stays opaque.
+	ui.open_window("Odin UI Rebuilder — images", 1040, 720, update, frame_timing = .Summary, transparent = false)
 }
 
 load_images :: proc() {
