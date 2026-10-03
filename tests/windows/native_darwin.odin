@@ -80,11 +80,13 @@ check_native_frame :: proc(index: int) {
 			point := ns.Point{bounds.origin.x + 40, bounds.origin.y + 40}
 			front := intrinsics.objc_send(ns.Integer, ns.Window, "windowNumberAtPoint:belowWindowWithWindowNumber:", point, ns.Integer(0))
 			panel_number := intrinsics.objc_send(ns.Integer, observer, "windowNumber")
-			if front != panel_number {
-				fmt.eprintf("Panel stacking mismatch: front=%v panel=%v main=%v\n", front, panel_number, intrinsics.objc_send(ns.Integer, window, "windowNumber"))
+			// AppKit returns before the window server applies ordering/moves.
+			// A single frame is not always enough, especially after another GUI test.
+			if front != panel_number && counts[0] - stacking_cycle >= 60 {
+				fmt.eprintf("Panel stacking mismatch after settling: front=%v panel=%v main=%v\n", front, panel_number, intrinsics.objc_send(ns.Integer, window, "windowNumber"))
 				os.exit(1)
 			}
-			stacking_checked = true
+			stacking_checked = front == panel_number
 		}
 		if active && stacking_checked && !focus_roles_checked {
 			observer := native_window("Observer panel")
