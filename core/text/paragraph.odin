@@ -24,6 +24,9 @@ prepare_paragraph :: proc(store: ^Store, font: ^Font_Record, entry: ^Paragraph_E
 	if entry.paragraph == nil { return .Shaping_Failed }
 	if native.SBParagraphGetLength(entry.paragraph) != sequence.length { return .Unsupported_Text }
 	if err := load_scripts(store, &sequence); err != .None { return err }
+	select_font_runs(store, value)
+	entry.font_runs = make([]Font_Run, len(store.font_runs))
+	copy(entry.font_runs, store.font_runs[:])
 	entry.scripts = make([]Script_Run, len(store.script_runs))
 	copy(entry.scripts, store.script_runs[:])
 	entry.prefix = make([]i64, len(value) + 1)
@@ -58,10 +61,10 @@ prepare_paragraph :: proc(store: ^Store, font: ^Font_Record, entry: ^Paragraph_E
 					a, b := max(bidi_start, script.start), min(bidi_end, script.end)
 					clear(&store.info_scratch)
 					clear(&store.position_scratch)
+					clear(&store.source_scratch)
 					if err := shape_segment(store, font, value, a, b, script.script, bidi.level & 1 != 0, entry.key.language, start, end); err != .None { return err }
 					// Prefix widths belong to logical clusters even in RTL runs.
 					for info, j in store.info_scratch {
-						if info.codepoint == 0 { return .Missing_Glyph }
 						entry.prefix[int(info.cluster) + 1] += i64(store.position_scratch[j].x_advance)
 						entry.safe[info.cluster] = true
 					}
@@ -72,6 +75,7 @@ prepare_paragraph :: proc(store: ^Store, font: ^Font_Record, entry: ^Paragraph_E
 					glyph_start := len(entry.infos)
 					append(&entry.infos, ..store.info_scratch[:])
 					append(&entry.positions, ..store.position_scratch[:])
+					append(&entry.sources, ..store.source_scratch[:])
 					append(&entry.runs, Paragraph_Run{a, b, glyph_start, len(entry.infos), bidi.level & 1 != 0})
 				}
 			}
@@ -122,6 +126,7 @@ paragraph_glyph_range :: proc(entry: ^Paragraph_Entry, run: Paragraph_Run, start
 reuse_paragraph_line :: proc(store: ^Store, entry: ^Paragraph_Entry, start, end: int) -> bool {
 	clear(&store.info_scratch)
 	clear(&store.position_scratch)
+	clear(&store.source_scratch)
 	if !entry.safe[start] || !entry.safe[end] { return false }
 	line := native.SBParagraphCreateLine(entry.paragraph, uintptr(start), uintptr(end - start))
 	if line == nil { return false }
@@ -139,6 +144,7 @@ reuse_paragraph_line :: proc(store: ^Store, entry: ^Paragraph_Entry, start, end:
 			lo, hi := paragraph_glyph_range(entry, run, x, y)
 			append(&store.info_scratch, ..entry.infos[lo:hi])
 			append(&store.position_scratch, ..entry.positions[lo:hi])
+			append(&store.source_scratch, ..entry.sources[lo:hi])
 		}
 	}
 	return true
@@ -149,6 +155,8 @@ reshape_paragraph_line :: proc(store: ^Store, font: ^Font_Record, entry: ^Paragr
 	store.wrap_reshapes += 1
 	clear(&store.script_runs)
 	append(&store.script_runs, ..entry.scripts)
+	clear(&store.font_runs)
+	append(&store.font_runs, ..entry.font_runs)
 	return shape_bidi_line(store, font, entry.key.value, entry.paragraph, start, end, entry.key.language)
 }
 

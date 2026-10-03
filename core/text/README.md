@@ -110,3 +110,46 @@ variable font with a new optical-size coordinate.
 
 Build/run `./scripts/build.sh demo7` and `./bin/demo7` for Latin wrapping,
 Arabic/English wrapping, and centered labels in differently sized buttons.
+
+## Font stacks and missing characters
+
+Load faces once, then register an immutable ordered stack:
+
+```odin
+_, err := ui.font_stack("Body", {"Sans", "Arabic", "Japanese"})
+assert(err == .None)
+ui.text("Hello 日本語 مرحبا", "Body")
+ui.edit_text(&editor, "Body")
+```
+
+The stack accepts font names or handles and returns a regular font handle.
+Use it everywhere a font is accepted: text, measurements, wrapped/fitted layouts,
+local layout text items, caret geometry and editing. It shares native faces and
+atlases; creating a stack does not duplicate font files. Register once per window.
+Nested stacks are flattened and duplicate faces removed. Stacks cannot be mutated;
+create a new one when the fallback policy changes, giving caches a new identity.
+
+Selection occurs during paragraph preparation. Prefer a face covering a complete
+script run, preserving joining/shaping context. If none does, select whole extended
+graphemes and merge adjacent equal choices; never substitute isolated output
+glyphs from another font. Bidi ordering and original UTF-8 cluster offsets survive
+font changes. All participating faces share a baseline, with enough ascent/descent
+for the tallest face. Static fallbacks use their normal face; variable fallbacks
+inherit the primary's resolved weight, clamped to their supported axis.
+
+Coverage uses the Unicode cmap through FreeType's
+[FT_Get_Char_Index](https://freetype.org/freetype2/docs/reference/ft2-character_mapping.html#ft_get_char_index),
+with positive and negative results cached per face/code point. Coverage is a
+candidate filter, not proof of full script/emoji shaping quality. HarfBuzz still
+shapes the selected spans with surrounding context. Color emoji, variation-sequence
+font preferences and advanced fallback based on shaped output are not implemented.
+
+The run and width-independent paragraph caches retain physical font handles for
+every glyph, plus paragraph font spans for any necessary boundary reshaping.
+Unchanged frames perform no coverage lookups, font searches, shaping or rasterization.
+Ordinary safe word wrapping also reuses font choices at previously unseen widths.
+Unsupported characters use the selected face's glyph zero (`.notdef`/tofu); they
+no longer abort rendering, measurement, wrapping or editing of the entire string.
+
+There is no system-font scan yet. `demo15` explicitly registers bundled Latin and
+Arabic fonts plus macOS's Hiragino file; every field uses the same stack.

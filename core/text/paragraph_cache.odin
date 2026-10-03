@@ -14,9 +14,11 @@ Paragraph_Entry :: struct {
 	key: Run_Key,
 	paragraph: native.SB_Paragraph,
 	scripts: []Script_Run,
+	font_runs: []Font_Run,
 	runs: [dynamic]Paragraph_Run, // Sorted by logical byte offset; glyphs retain run order.
 	infos: [dynamic]native.HB_Glyph_Info,
 	positions: [dynamic]native.HB_Glyph_Position,
+	sources: [dynamic]Font,
 	prefix: []i64, // Exact 26.6 advance sums indexed by source byte boundary.
 	safe: []bool, // HarfBuzz cluster boundaries at which the cached shape may split.
 	words: [dynamic]Word_Bounds,
@@ -102,9 +104,9 @@ paragraph_bytes :: proc(entry: ^Paragraph_Entry) -> int {
 	// Retained native state is a byte-sized type array and level array, plus
 	// fixed object headers. Include a conservative header allowance here.
 	return len(entry.key.value) * 3 + len(entry.key.language) + 512 +
-		len(entry.scripts) * size_of(Script_Run) + len(entry.prefix) * size_of(i64) + len(entry.safe) +
+		len(entry.scripts) * size_of(Script_Run) + len(entry.font_runs) * size_of(Font_Run) + len(entry.prefix) * size_of(i64) + len(entry.safe) +
 		cap(entry.runs) * size_of(Paragraph_Run) + cap(entry.infos) * size_of(native.HB_Glyph_Info) +
-		cap(entry.positions) * size_of(native.HB_Glyph_Position) + cap(entry.words) * size_of(Word_Bounds) +
+		cap(entry.positions) * size_of(native.HB_Glyph_Position) + cap(entry.sources) * size_of(Font) + cap(entry.words) * size_of(Word_Bounds) +
 		cap(entry.hard_lines) * size_of(Hard_Line)
 }
 
@@ -114,9 +116,11 @@ delete_paragraph :: proc(entry: ^Paragraph_Entry) {
 	delete(entry.key.value)
 	delete(entry.key.language)
 	delete(entry.scripts)
+	delete(entry.font_runs)
 	delete(entry.runs)
 	delete(entry.infos)
 	delete(entry.positions)
+	delete(entry.sources)
 	delete(entry.prefix)
 	delete(entry.safe)
 	delete(entry.words)

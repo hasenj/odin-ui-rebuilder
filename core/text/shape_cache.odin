@@ -13,6 +13,7 @@ Run_Entry :: struct {
 	key: Run_Key,
 	infos: []native.HB_Glyph_Info,
 	positions: []native.HB_Glyph_Position,
+	sources: []Font,
 	metrics: Metrics,
 	lines: []Layout_Line,
 	line_height: f32,
@@ -40,13 +41,13 @@ lookup_run :: proc(cache: ^Run_Cache, key: Run_Key, font: ^Font_Record) -> (Shap
 	if !ok { return {}, false }
 	touch_run(cache, index)
 	entry := &cache.entries[index - 1]
-	return {font = font, infos = entry.infos, positions = entry.positions,
+	return {font = font, infos = entry.infos, positions = entry.positions, sources = entry.sources,
 		metrics = entry.metrics, lines = entry.lines, line_height = entry.line_height, pixel_size = key.pixel_size, weight = key.weight, cache_index = index}, true
 }
 
 @(private)
 store_run :: proc(cache: ^Run_Cache, key: Run_Key, run: Shape) -> Shape {
-	bytes := len(key.value) + len(key.language) + len(run.infos) * size_of(native.HB_Glyph_Info) + len(run.positions) * size_of(native.HB_Glyph_Position) + len(run.lines) * size_of(Layout_Line)
+	bytes := len(key.value) + len(key.language) + len(run.infos) * size_of(native.HB_Glyph_Info) + len(run.positions) * size_of(native.HB_Glyph_Position) + len(run.lines) * size_of(Layout_Line) + len(run.sources) * size_of(Font)
 	// Very large runs still render, but do not displace the entire working set.
 	if bytes > MAX_RUN_BYTES { return run }
 	for len(cache.lookup) >= MAX_RUNS || cache.bytes + bytes > MAX_RUN_BYTES {
@@ -64,17 +65,18 @@ store_run :: proc(cache: ^Run_Cache, key: Run_Key, run: Shape) -> Shape {
 	owned_key.language = strings.clone(key.language)
 	entry := &cache.entries[index - 1]
 	entry^ = {key = owned_key, infos = make([]native.HB_Glyph_Info, len(run.infos)),
-		positions = make([]native.HB_Glyph_Position, len(run.positions)), metrics = run.metrics,
+		positions = make([]native.HB_Glyph_Position, len(run.positions)), sources = make([]Font, len(run.sources)), metrics = run.metrics,
 		lines = make([]Layout_Line, len(run.lines)), line_height = run.line_height}
 	copy(entry.infos, run.infos)
 	copy(entry.positions, run.positions)
+	copy(entry.sources, run.sources)
 	copy(entry.lines, run.lines)
 	cache.lookup[owned_key] = index
 	cache.bytes += bytes
 	touch_run(cache, index)
 	result := run
 	result.infos, result.positions = entry.infos, entry.positions
-	result.lines = entry.lines
+	result.lines, result.sources = entry.lines, entry.sources
 	result.cache_index = index
 	return result
 }
@@ -105,6 +107,7 @@ evict_run :: proc(cache: ^Run_Cache) {
 	delete(entry.key.language)
 	delete(entry.infos)
 	delete(entry.positions)
+	delete(entry.sources)
 	delete(entry.lines)
 	delete(entry.quads)
 	entry^ = {}
@@ -123,5 +126,5 @@ destroy_run_cache :: proc(cache: ^Run_Cache) {
 @(private)
 run_entry_bytes :: proc(entry: ^Run_Entry) -> int {
 	return len(entry.key.value) + len(entry.key.language) + len(entry.infos) * size_of(native.HB_Glyph_Info) +
-		len(entry.positions) * size_of(native.HB_Glyph_Position) + len(entry.quads) * size_of(Glyph_Quad) + len(entry.lines) * size_of(Layout_Line)
+		len(entry.positions) * size_of(native.HB_Glyph_Position) + len(entry.sources) * size_of(Font) + len(entry.quads) * size_of(Glyph_Quad) + len(entry.lines) * size_of(Layout_Line)
 }

@@ -57,9 +57,11 @@ improvements. Pasted line breaks/tabs become spaces.
 Geometry uses the same shaped advances as drawing. Ligatures divide their
 advance among graphemes; OpenType ligature caret tables could improve precision.
 Bidi boundary affinity is retained for visual/pointer movement; after an edit,
-the following grapheme's leading edge is preferred. Font selection remains
-explicit: there is no fallback. A missing glyph reports a rendering error but
-the input client remains active so the text can still be selected/deleted.
+the following grapheme's leading edge is preferred. Pass either one font or a named `font_stack` to select an ordered fallback
+list. Drawing, caret geometry and selection all use the same resolved faces.
+If no face covers a character, its missing-glyph symbol (tofu) is rendered in
+place; surrounding text and editing remain functional. System-font discovery
+and automatic fallback outside the explicit stack remain future work.
 
 For a custom editor, use `text_caret_spans` to obtain caller-owned grapheme
 geometry and `text_hit_test` to map an X coordinate to a byte offset and visual
@@ -113,7 +115,8 @@ that arrived during the builder. Losing native keyboard focus cancels marked
 text; moving UI focus commits the currently visible marked text into the old
 field and disables its native composition session.
 
-Candidate geometry is caret-based in this iteration. Fine-grained native
+Live Japanese composition, candidate placement, commit and general editing
+were confirmed by the user on macOS. Candidate geometry is caret-based in this iteration. Fine-grained native
 character-at-point/range geometry, dictation-specific behavior and selective
 panel keyboard focus remain follow-ups. Actual input-method behavior still
 requires a human check; direct protocol callbacks alone do not verify a live

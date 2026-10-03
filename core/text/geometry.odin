@@ -30,7 +30,9 @@ prepare_quads :: proc(store: ^Store, run: Shape) -> ([]Glyph_Quad, Error) {
 			for line < len(run.lines) - 1 && i >= run.lines[line].end { line += 1 }
 			if i == run.lines[line].start { pen = {0, f32(line) * run.line_height} }
 		}
-		glyph, err := cache_glyph(store, run.font, info.codepoint, run.pixel_size, run.weight)
+		font := run.font
+		if len(run.sources) > 0 { font = &store.fonts[int(run.sources[i]) - 1] }
+		glyph, err := cache_glyph(store, font, info.codepoint, run.pixel_size, source_weight(font, run.weight))
 		if err != .None { return nil, err }
 		p := run.positions[i]
 		if glyph.page >= 0 {

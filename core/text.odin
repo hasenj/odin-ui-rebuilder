@@ -20,11 +20,20 @@ find_font :: proc(name: string) -> (Font, bool) {
 	return fonts.find(&active_state.text, name)
 }
 
+// Register an immutable fallback order once; use its name/handle for drawing,
+// measurement, wrapping, local layout or editing. Font files remain shared.
+font_stack :: proc(name: string, sources: []Font_Ref) -> (Font, Text_Error) {
+	_ = current_frame()
+	handles := make([]Font, len(sources), context.temp_allocator)
+	for source, i in sources { handles[i] = resolve_font(source) }
+	return fonts.font_stack(&active_state.text, handles, name)
+}
+
 // Draw one bidi-resolved line at the current rect's top-left. Size is em size in logical
 // points. Weight 0 uses the font default; other values select its 'wght' axis.
 // Direction controls paragraph reading order, not alignment. Language is a BCP-47
 // tag; empty selects ar for Arabic runs, en for Latin, und otherwise.
-// Does not consume space, wrap, clip, or discover fallback fonts.
+// Does not consume space, wrap or clip. A font stack provides explicit fallbacks.
 // Empty rects emit nothing, but still return the same metrics/errors as measurement.
 text :: proc(value: string, font: Font_Ref, size: f32 = 16, color: Color = {1, 1, 1, 1}, weight: f32 = 0, direction: Text_Direction = .Auto, language: string = "") -> (Text_Metrics, Text_Error) {
 	frame := current_frame()

@@ -22,11 +22,16 @@ update :: proc() {
 			_, jp_error := ui.load_font("/System/Library/Fonts/ヒラギノ角ゴシック W3.ttc", "Japanese")
 			if jp_error != .None { fmt.eprintln("Japanese demo font unavailable:", jp_error) }
 		}
+		members := []ui.Font_Ref{"UI", "Arabic"}
+		when ODIN_OS == .Darwin {
+			if _, found := ui.find_font("Japanese"); found { members = []ui.Font_Ref{"UI", "Arabic", "Japanese"} }
+		}
+		_, stack_error := ui.font_stack("Editor", members); assert(stack_error == .None)
 	}
 	ui.paint(color = {0.055, 0.075, 0.11, 1})
 	ui.pad(32)
 	ui.open_rect(.Top, 48); label("Text, now editable", 30); ui.close_rect()
-	ui.open_rect(.Top, 55); label("Click or Tab. Select, drag, copy/paste, undo, and try your input method.", 16); ui.close_rect()
+	ui.open_rect(.Top, 55); label("Mix Latin, Arabic or Japanese in any field. Select, paste, undo, or use IME.", 16); ui.close_rect()
 	for i in 0..<3 {
 		ui.open_identity(key = i)
 		ui.open_rect(.Top, 28)
@@ -47,8 +52,9 @@ update :: proc() {
 		if capture_mode && step == 0 && i == 0 { ui.request_focus() }
 		ui.paint(color = {0.20, 0.48, 0.58, 1} if ui.focused() else {0.20, 0.25, 0.33, 1}, corners = 8)
 		ui.pad(2); ui.paint(color = {0.095, 0.13, 0.18, 1}, corners = 6); ui.pad2(4, 12)
-		font := "Arabic" if i == 1 else "Japanese" if i == 2 && ODIN_OS == .Darwin else "UI"
+		font := "Editor"
 		result := ui.edit_text(&field.editor, font, size = 24)
+		if capture_mode { assert(result.error == .None) }
 		if result.error != .None { label(fmt.tprintf("Font: %v (editing remains available)", result.error), 14) }
 		ui.close_rect()
 		ui.open_rect(.Top, 30)
@@ -67,12 +73,14 @@ destroy_field :: proc(field: ^Field) { ui.destroy_text_edit(&field.editor) }
 
 capture_check :: proc() {
 	capture_mode = true
-	frames: [10]ui.Capture_Frame
+	frames: [12]ui.Capture_Frame
 	for &frame, i in frames { frame = {size = {920, 640}, scale = 2, time = f64(i) / 10} }
 	frames[0].path = "bin/demo15-initial.png"
 	frames[2].path = "bin/demo15-selection.png"
 	frames[5].path = "bin/demo15-composition.png"
 	frames[6].path = "bin/demo15-committed.png"
+	frames[10].path = "bin/demo15-fallback.png"
+	frames[11].path = "bin/demo15-tofu.png"
 	frames[8].path = "bin/demo15-narrow.png"; frames[8].size = {480, 640}
 	result := ui.capture_frames(capture_update, frames[:]); assert(result.error == .None)
 	fmt.println("Verified text editor capture: selection, ordered edits, composition, commit, undo and caret reveal")
@@ -92,7 +100,13 @@ capture_update :: proc() {
 	case 6: target = ids[2]; ops[0] = {kind = .Commit, text = "日本語"}; count = 1
 	case 7: target = ids[2]; ops[0] = {kind = .Command, command = .Undo}; count = 1
 	case 8: target = ids[0]; ui.request_focus(target); ops[0] = {kind = .Commit, text = " — a long line whose caret must stay visible when the window becomes narrow"}; count = 1
-	case: 
+	case 10:
+		ops[0] = {kind = .Command, command = .Select_All}
+		ops[1] = {kind = .Commit, text = "Hello 日本語 مرحبا — café"}; count = 2
+	case 11:
+		ops[0] = {kind = .Command, command = .Select_All}
+		ops[1] = {kind = .Commit, text = "Before \U0010ffff after — 日本語 مرحبا"}; count = 2
+	case:
 	}
 	ui.current_frame().input.text = {target = ui.text_target(target), operations = ops[:count]}
 	update()
@@ -101,5 +115,7 @@ capture_update :: proc() {
 	if step == 6 { assert(ui.text_edit_value(&editors[2].editor) == "日本語" && !editors[2].editor.buffer.composing) }
 	if step == 7 { assert(ui.text_edit_value(&editors[2].editor) == "日本語を入力してください") }
 	if step == 8 { assert(editors[0].editor.scroll > 0) }
+	if step == 10 { assert(ui.text_edit_value(&editors[0].editor) == "Hello 日本語 مرحبا — café") }
+	if step == 11 { assert(ui.text_edit_value(&editors[0].editor) == "Before \U0010ffff after — 日本語 مرحبا") }
 	step += 1
 }

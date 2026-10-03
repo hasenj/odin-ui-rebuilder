@@ -25,6 +25,10 @@ Store :: struct {
 	library: native.FT_Library,
 	buffer: native.HB_Buffer,
 	fonts: [dynamic]Font_Record,
+	shaping_sources: []Font, // Borrowed immutable stack, only used on cache misses.
+	shaping_size: i32,
+	shaping_weight: c.long,
+	coverage_queries: u64,
 	names: map[string]Font,
 	pages: [dynamic]Page,
 	upload: [dynamic]u8,
@@ -36,16 +40,22 @@ Store :: struct {
 	quad_scratch: [dynamic]Glyph_Quad,
 	script_locator: native.SB_Script_Locator,
 	script_runs: [dynamic]Script_Run,
+	font_runs: [dynamic]Font_Run,
 	info_scratch: [dynamic]native.HB_Glyph_Info,
 	position_scratch: [dynamic]native.HB_Glyph_Position,
+	source_scratch: [dynamic]Font,
 	bidi_calls: u64,
 	wrap_infos: [dynamic]native.HB_Glyph_Info,
 	wrap_positions: [dynamic]native.HB_Glyph_Position,
+	wrap_sources: [dynamic]Font,
 	wrap_lines: [dynamic]Layout_Line,
 }
 
 @(private)
 Font_Record :: struct {
+	handle: Font,
+	sources: []Font, // Nonempty for a named stack; owns no native face.
+	coverage: map[rune]bool,
 	face: ^native.FT_Face,
 	hb: native.HB_Font,
 	name: string,
@@ -118,6 +128,7 @@ load :: proc(store: ^Store, path: string, name: string = "", face_index: int = 0
 			}
 		}
 	}
+	record.handle = Font(len(store.fonts) + 1)
 	record.name = strings.clone(alias)
 	record.hb = native.hb_ft_font_create_referenced(face)
 	native.hb_ft_font_set_load_flags(record.hb, native.FT_LOAD_NO_HINTING | native.FT_LOAD_NO_BITMAP)
@@ -138,6 +149,9 @@ destroy :: proc(store: ^Store, renderer: platform.Renderer) {
 	destroy_run_cache(&store.runs)
 	destroy_paragraph_cache(&store.paragraphs)
 	for &font in store.fonts {
+		delete(font.sources)
+		delete(font.coverage)
+		if font.face == nil { delete(font.name); continue }
 		native.hb_font_destroy(font.hb)
 		if font.axes != nil {
 			native.FT_Done_MM_Var(store.library, font.axes)
@@ -157,10 +171,13 @@ destroy :: proc(store: ^Store, renderer: platform.Renderer) {
 	delete(store.upload)
 	delete(store.quad_scratch)
 	delete(store.script_runs)
+	delete(store.font_runs)
 	delete(store.info_scratch)
 	delete(store.position_scratch)
+	delete(store.source_scratch)
 	delete(store.wrap_infos)
 	delete(store.wrap_positions)
+	delete(store.wrap_sources)
 	delete(store.wrap_lines)
 	if store.script_locator != nil { native.SBScriptLocatorRelease(store.script_locator) }
 	if store.buffer != nil { native.hb_buffer_destroy(store.buffer) }
@@ -173,6 +190,7 @@ Shape :: struct {
 	font: ^Font_Record,
 	infos: []native.HB_Glyph_Info,
 	positions: []native.HB_Glyph_Position,
+	sources: []Font, // Physical font per glyph; handles survive font-table growth.
 	metrics: Metrics,
 	pixel_size: i32,
 	weight: c.long,
@@ -189,7 +207,9 @@ shape :: proc(store: ^Store, handle: Font, value: string, pixel_size, weight: f3
 	if !(pixel_size > 0 && pixel_size <= 2048) { return {}, .Invalid_Size }
 	if !(weight >= 0 && weight <= 32767) { return {}, .Invalid_Weight }
 	if len(value) > int(max(i32)) || len(language) > int(max(i32)) { return {}, .Unsupported_Text }
-	font := &store.fonts[int(handle) - 1]
+	family := &store.fonts[int(handle) - 1]
+	font := family
+	if len(family.sources) > 0 { font = &store.fonts[int(family.sources[0]) - 1] }
 	px := max(i32(math.round(pixel_size * 64)), 1)
 	w: c.long
 	if font.weight_axis >= 0 {
@@ -210,6 +230,7 @@ shape :: proc(store: ^Store, handle: Font, value: string, pixel_size, weight: f3
 		store.shape_cache_hits += 1
 		return cached, .None
 	}
+	store.shaping_sources, store.shaping_size, store.shaping_weight = family.sources, px, w
 	if !utf8.valid_string(value) { return {}, .Unsupported_Text }
 	for ch in value {
 		if wrapped && (ch == '\n' || ch == '\r' || ch == '\u2028' || ch == '\u2029' || ch == '\u0085') { continue }
@@ -223,12 +244,25 @@ shape :: proc(store: ^Store, handle: Font, value: string, pixel_size, weight: f3
 		if err := shape_wrapped(store, &run, value, f32(width) / 64, direction, language, handle); err != .None { return {}, err }
 	} else {
 		if err := shape_line(store, font, value, direction, language); err != .None { return {}, err }
-		run.infos, run.positions = store.info_scratch[:], store.position_scratch[:]
-		for info, i in run.infos {
-			if info.codepoint == 0 { return {}, .Missing_Glyph }
+		run.infos, run.positions, run.sources = store.info_scratch[:], store.position_scratch[:], store.source_scratch[:]
+		for _, i in run.infos {
 			run.metrics.width += f32(run.positions[i].x_advance) / 64
 		}
 	}
+	// A common baseline and enough ascent/descent for every participating face.
+	last_source: Font
+	for source in run.sources {
+		if source == last_source { continue }
+		last_source = source
+		f := &store.fonts[int(source) - 1]
+		if err := configure_font(f, px, source_weight(f, w)); err != .None { return {}, err }
+		fm := f.face.size.metrics
+		run.metrics.ascent = max(run.metrics.ascent, f32(fm.ascender) / 64)
+		run.metrics.descent = max(run.metrics.descent, -f32(fm.descender) / 64)
+		run.line_height = max(run.line_height, f32(fm.height) / 64)
+	}
+	run.line_height = max(run.line_height, run.metrics.ascent + run.metrics.descent)
+	run.metrics.height = run.line_height * f32(max(1, len(run.lines)))
 	return store_run(&store.runs, key, run), .None
 }
 

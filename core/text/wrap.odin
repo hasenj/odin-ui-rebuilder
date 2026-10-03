@@ -15,6 +15,7 @@ Word_Bounds :: struct {start, end: int}
 shape_wrapped :: proc(store: ^Store, run: ^Shape, value: string, width: f32, direction: Direction, language: string, handle: Font) -> Error {
 	clear(&store.wrap_infos)
 	clear(&store.wrap_positions)
+	clear(&store.wrap_sources)
 	clear(&store.wrap_lines)
 	start := 0
 	for {
@@ -39,7 +40,7 @@ shape_wrapped :: proc(store: ^Store, run: ^Shape, value: string, width: f32, dir
 		if next > len(value) { break }
 		start = next
 	}
-	run.infos, run.positions, run.lines = store.wrap_infos[:], store.wrap_positions[:], store.wrap_lines[:]
+	run.infos, run.positions, run.lines, run.sources = store.wrap_infos[:], store.wrap_positions[:], store.wrap_lines[:], store.wrap_sources[:]
 	for line in run.lines { run.metrics.width = max(run.metrics.width, line.width) }
 	run.metrics.height = run.line_height * f32(len(run.lines))
 	return .None
@@ -88,6 +89,7 @@ wrap_prepared :: proc(store: ^Store, font: ^Font_Record, entry: ^Paragraph_Entry
 			for &info in store.info_scratch { info.cluster += u32(byte_offset) }
 			append(&store.wrap_infos, ..store.info_scratch[:])
 			append(&store.wrap_positions, ..store.position_scratch[:])
+			append(&store.wrap_sources, ..store.source_scratch[:])
 			append(&store.wrap_lines, Layout_Line{first, len(store.wrap_infos), byte_offset + start, byte_offset + best, advance})
 			word_index = best_index + 1
 		}
@@ -98,8 +100,7 @@ wrap_prepared :: proc(store: ^Store, font: ^Font_Record, entry: ^Paragraph_Entry
 @(private)
 scratch_advance :: proc(store: ^Store) -> (f32, Error) {
 	width: f32
-	for info, i in store.info_scratch {
-		if info.codepoint == 0 { return 0, .Missing_Glyph }
+	for _, i in store.info_scratch {
 		width += f32(store.position_scratch[i].x_advance) / 64
 	}
 	return width, .None

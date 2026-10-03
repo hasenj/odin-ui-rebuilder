@@ -84,6 +84,14 @@ Other building blocks to revisit:
   resolved dimensions into rect cutting, without turning the identity tree
   into a layout tree.
 - System-font discovery, metadata indexing, and automatic font fallback.
+  Index Unicode cmap coverage (script labels alone are insufficient), plus face
+  names/styles, without eagerly loading/rasterizing every face. Use that index
+  to narrow candidates on a cache miss, load suitable faces lazily, and validate
+  shaping for complete clusters/script spans. Retain positive and negative
+  fallback decisions and resolved glyph runs. Catalog changes need a generation
+  so old misses can be retried; unchanged frames must never scan installed fonts.
+  Explicit font stacks should remain the first preference, with system fallback
+  available even when application code provides no fallback list.
 - Application-defined native window drag regions.
 - Text editing: grapheme-aware movement/deletion, caret hit testing, selection
   geometry, clipboard, and IME composition/candidate positioning.

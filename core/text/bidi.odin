@@ -13,6 +13,7 @@ Script_Run :: struct {start, end: int, script: u32}
 shape_line :: proc(store: ^Store, font: ^Font_Record, value: string, direction: Direction, language: string) -> Error {
 	clear(&store.info_scratch)
 	clear(&store.position_scratch)
+	clear(&store.source_scratch)
 	clear(&store.script_runs)
 	if len(value) == 0 { return .None }
 	store.bidi_calls += 1
@@ -32,6 +33,7 @@ shape_line :: proc(store: ^Store, font: ^Font_Record, value: string, direction: 
 	// Other Unicode paragraph separators must not silently truncate the string.
 	if native.SBParagraphGetLength(paragraph) != sequence.length { return .Unsupported_Text }
 	if err := load_scripts(store, &sequence); err != .None { return err }
+	select_font_runs(store, value)
 	return shape_bidi_line(store, font, value, paragraph, 0, len(value), language)
 }
 
@@ -57,6 +59,7 @@ load_scripts :: proc(store: ^Store, sequence: ^native.SB_Sequence) -> Error {
 shape_bidi_line :: proc(store: ^Store, font: ^Font_Record, value: string, paragraph: native.SB_Paragraph, line_start, line_end: int, language: string) -> Error {
 	clear(&store.info_scratch)
 	clear(&store.position_scratch)
+	clear(&store.source_scratch)
 	if line_start == line_end { return .None }
 	line := native.SBParagraphCreateLine(paragraph, uintptr(line_start), uintptr(line_end - line_start))
 	if line == nil { return .Shaping_Failed }
@@ -89,7 +92,7 @@ script_at :: proc(runs: []Script_Run, offset: int) -> int {
 }
 
 @(private)
-shape_segment :: proc(store: ^Store, font: ^Font_Record, value: string, start, end: int, script: u32, rtl: bool, language: string, context_start: int = 0, context_end: int = -1) -> Error {
+shape_segment_native :: proc(store: ^Store, font: ^Font_Record, value: string, start, end: int, script: u32, rtl: bool, language: string, context_start: int = 0, context_end: int = -1) -> Error {
 	buffer := store.buffer
 	native.hb_buffer_clear_contents(buffer)
 	// Keep script-neighbor context within the line, and original byte clusters.
@@ -121,5 +124,6 @@ shape_segment :: proc(store: ^Store, font: ^Font_Record, value: string, start, e
 	for &info in infos { info.cluster += u32(context_start) }
 	append(&store.info_scratch, ..infos)
 	append(&store.position_scratch, ..positions)
+	for _ in infos { append(&store.source_scratch, font.handle) }
 	return .None
 }
