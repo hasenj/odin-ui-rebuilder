@@ -22,10 +22,10 @@ update :: proc() {
 	ui.paint(color = {0.06, 0.08, 0.12, 1})
 	ui.pad(28)
 	ui.open_rect(.Top, 45); label("State follows identity", 28); ui.close_rect()
-	ui.open_rect(.Top, 40); label("Drag either card, then reorder or remove it.", 17); ui.close_rect()
+	ui.open_rect(.Top, 40); label("Overlap the cards, then reverse which one is in front.", 17); ui.close_rect()
 	ui.open_rect(.Top, 42)
 	ui.open_rect(.Left, 180)
-	if button("Reverse order") { app.reverse = !app.reverse }
+	if button("Reverse draw order") { app.reverse = !app.reverse }
 	ui.close_rect()
 	ui.pad4(0, 0, 0, 12)
 	ui.open_rect(.Left, 190)
@@ -39,13 +39,15 @@ update :: proc() {
 		ui.open_identity(key = key)
 		drag := ui.state(Drag)
 		input := ui.current_frame().input
-		base := origin + [2]f32{0, f32(i) * 120}
+		// Position belongs to the card; loop order controls painting/hit order only.
+		base := origin + [2]f32{0, f32(key - 1) * 120}
 		if input.mouse_cancelled { drag.dragging = false }
 		if drag.dragging {
 			drag.offset = input.mouse_position - drag.grab - base
 			if .Left in input.mouse_released || .Left not_in input.mouse_buttons { drag.dragging = false }
 		}
 		ui.open_rect_at({base + drag.offset, {300, 90}})
+		card_ids[key - 1], card_positions[key - 1] = ui.current_identity(), ui.current_bounds().position
 		ui.focusable()
 		if ui.hovered() && .Left in input.mouse_pressed && !input.mouse_cancelled {
 			app.selected = key
@@ -79,28 +81,34 @@ label :: proc(value: string, size: f32) {
 }
 
 capture_step: int
+card_ids: [2]ui.Identity
+card_positions, before_reverse: [2][2]f32
 capture_check :: proc() {
 	frames := [?]ui.Capture_Frame{
 		{size = {740, 540}, scale = 1},
 		{size = {740, 540}, scale = 1, input = {mouse_inside = true, mouse_position = {50, 210}, mouse_pressed = {.Left}, mouse_buttons = {.Left}}},
-		{size = {740, 540}, scale = 1, input = {mouse_position = {400, 210}, mouse_buttons = {.Left}}},
-		{size = {740, 540}, scale = 1, input = {mouse_position = {420, 210}, mouse_released = {.Left}}, path = "bin/demo14-drag.png"},
-		{size = {740, 540}, scale = 1, path = "bin/demo14-reordered.png"},
+		{size = {740, 540}, scale = 1, input = {mouse_position = {130, 340}, mouse_buttons = {.Left}}},
+		{size = {740, 540}, scale = 1, input = {mouse_position = {130, 340}, mouse_released = {.Left}}, path = "bin/demo14-drag.png"},
+		{size = {740, 540}, scale = 1, input = {mouse_inside = true, mouse_position = {60, 130}, mouse_pressed = {.Left}, mouse_released = {.Left}}},
+		{size = {740, 540}, scale = 1, input = {mouse_inside = true, mouse_position = {150, 350}}, path = "bin/demo14-reordered.png"},
+		{size = {740, 540}, scale = 1, input = {mouse_inside = true, mouse_position = {60, 130}, mouse_pressed = {.Left}, mouse_released = {.Left}}},
+		{size = {740, 540}, scale = 1, input = {mouse_inside = true, mouse_position = {150, 350}}},
 		{size = {740, 540}, scale = 1},
 		{size = {740, 540}, scale = 1},
 	}
 	result := ui.capture_frames(capture_update, frames[:])
 	assert(result.error == .None)
-	fmt.println("Verified retained drag state, outside release, reorder, removal and reinitialization")
+	fmt.println("Verified drag state, outside release, stationary reorder, reversed hit order and removal")
 }
 capture_update :: proc() {
 	app := ui.state(App, proc(value: ^App) { value.show_second = true })
-	if capture_step == 4 { app.reverse = true }
-	if capture_step == 5 { app.show_second = false }
-	if capture_step == 6 { app.show_second = true }
+	if capture_step == 8 { app.show_second = false }
+	if capture_step == 9 { app.show_second = true }
 	update()
-	// Read the state through IDs recorded by the builder, without declaring
-	// extra same-key identity occurrences. Visual capture covers the reorder.
+	if capture_step == 3 { before_reverse = card_positions }
+	if capture_step >= 4 && capture_step <= 7 { assert(card_positions == before_reverse, "Reordering must not move the cards") }
+	if capture_step == 5 { assert(app.reverse && ui.direct_hover() == card_ids[0]) }
+	if capture_step == 7 { assert(!app.reverse && ui.direct_hover() == card_ids[1]) }
 	if capture_step >= 2 { assert(app.selected == 1) }
 	capture_step += 1
 }
