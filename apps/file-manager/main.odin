@@ -19,9 +19,11 @@ last_scroll: f32 // Also observed by the synthetic navigation check.
 
 main :: proc() {
 	defer destroy_browser(&browser)
-	if len(os.args) == 2 && os.args[1] == "--capture" { capture_check(); return }
+	defer destroy_list()
+	if len(os.args) == 2 && os.args[1] == "--bench" { benchmark_list(); return }
+	if len(os.args) == 2 && os.args[1] == "--capture" { capture_check(); capture_virtual_list(); return }
 	if len(os.args) > 2 {
-		fmt.eprintln("Usage: file-manager [directory | --capture]")
+		fmt.eprintln("Usage: file-manager [directory | --capture | --bench]")
 		os.exit(1)
 	}
 	if len(os.args) == 2 {
@@ -89,12 +91,17 @@ update :: proc() {
 	ui.open_scroll({ui.current_rect().size.x, f32(len(browser.entries)) * row_height})
 	viewport := ui.current_bounds()
 	last_scroll = ui.current_scroll().offset.y
+	canvas := ui.current_rect()
+	prepare_list(len(browser.entries), browser.folders, browser.generation, last_scroll, viewport.size.y)
 	if len(browser.entries) == 0 {
 		ui.pad(16)
 		label("This folder is empty." if browser.error == "" else "Folder unavailable.", 17, muted)
 	}
-	for entry, i in browser.entries {
-		ui.open_rect(.Top, row_height, key = i)
+	for i in list.indices {
+		entry := browser.entries[i]
+		ui.open_rect_at({position = canvas.position + [2]f32{0, f32(i) * row_height},
+			size = {canvas.size.x, row_height}}, key = i)
+		append(&list.rows, Row_Identity{i, ui.current_identity()})
 		ui.focusable(entry.directory)
 		if activated(entry.directory) {
 			// Preserve the browsed path, including symlink aliases, so Up returns
@@ -103,10 +110,8 @@ update :: proc() {
 			queue_directory(&browser, path)
 			delete(path)
 		}
-		r := ui.current_rect()
-		// Keep all rows available to focus traversal, but prepare/draw text only
-		// for visible rows. Long directories do not rasterize offscreen names.
-		if r.position.y < viewport.position.y + viewport.size.y && r.position.y + r.size.y > viewport.position.y {
+		// Offscreen keyboard targets retain geometry without painting.
+		if i >= list.first && i < list.end {
 			active := entry.directory && (ui.hovered() || ui.focused())
 			amount := ui.animate_f32(1 if active else 0)
 			ui.paint(color = {0.12, 0.24, 0.38, amount}, corners = 6)
