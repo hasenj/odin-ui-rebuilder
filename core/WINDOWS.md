@@ -121,12 +121,12 @@ lifetime semantics and a preference for no decorations. The compositor may
 override decoration requests.
 
 ```sh
-./scripts/build.sh app12
-./bin/app12
+./scripts/build.sh demo12
+./bin/demo12
 ./scripts/check-windows.sh
 ```
 
-App12 opens a workspace and borderless inspector panel. The main window opens or
+Demo12 opens a workspace and borderless inspector panel. The main window opens or
 reopens the panel; the panel can increment shared application data or close itself.
 Closing the main window ends both. Both display the same application update clock.
 
@@ -137,6 +137,6 @@ also verify native key routing, input snapshot boundaries, tabbing/decoration
 policy, main/key focus roles, floating-panel stacking, hidden-panel updates, resize,
 close/quit, and extra draw callbacks.
 
-On macOS, `./bin/app12 --capture` saves both views to `bin/app12-0.png` and
-`bin/app12-1.png`. Linux runtime checks require a graphical Wayland session;
+On macOS, `./bin/demo12 --capture` saves both views to `bin/demo12-0.png` and
+`bin/demo12-1.png`. Linux runtime checks require a graphical Wayland session;
 cross-compilation alone does not verify compositor behavior.

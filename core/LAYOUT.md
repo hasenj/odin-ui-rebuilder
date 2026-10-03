@@ -143,12 +143,12 @@ linear in the number of nodes; text processing has its own cache-dependent cost.
 ## Example and evidence
 
 ```sh
-./scripts/build.sh app13
-./bin/app13
-./bin/app13 --capture
+./scripts/build.sh demo13
+./bin/demo13
+./bin/demo13 --capture
 ```
 
-App13 demonstrates a menu sized by its widest entry, equal-width stretched
+Demo13 demonstrates a menu sized by its widest entry, equal-width stretched
 backgrounds and hit regions, hover fades, focus, selection and keyed reordering.
 Independent left/right toolbar groups are placed with cuts. The explanation in
 the remaining region wraps and sizes itself without caller premeasurement.

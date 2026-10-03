@@ -4,40 +4,40 @@ import "core:fmt"
 import "core:os"
 import "core:strconv"
 import ui "../../core"
-import app4 "../../examples/app4"
-import app5 "../../examples/app5"
-import app6 "../../examples/app6"
-import app7 "../../examples/app7"
-import app8 "../../examples/app8"
-import app9 "../../examples/app9"
-import app10 "../../examples/app10"
-import app11 "../../examples/app11"
-import app12 "../../examples/app12"
-import app13 "../../examples/app13"
-import app14 "../../examples/app14"
+import demo4 "../../examples/demo4"
+import demo5 "../../examples/demo5"
+import demo6 "../../examples/demo6"
+import demo7 "../../examples/demo7"
+import demo8 "../../examples/demo8"
+import demo9 "../../examples/demo9"
+import demo10 "../../examples/demo10"
+import demo11 "../../examples/demo11"
+import demo12 "../../examples/demo12"
+import demo13 "../../examples/demo13"
+import file_manager "../../apps/file-manager"
 
 // Separate executable: example globals and resource handles start fresh.
 main :: proc() {
 	if len(os.args) < 3 || len(os.args) > 9 || len(os.args) == 8 {
-		fmt.eprintln("Usage: capture app4..app14 output.png [width height scale time [mouse_x mouse_y]]")
+		fmt.eprintln("Usage: capture <demo4..demo13 | file-manager> output.png [width height scale time [mouse_x mouse_y]]")
 		os.exit(1)
 	}
 	update: ui.Update
 	size: [2]f32
 	switch os.args[1] {
-	case "app4": update = app4.update; size = {960, 640}
-	case "app5": update = app5.update; size = {980, 800}
-	case "app6": update = app6.update; size = {980, 850}
-	case "app7": update = app7.update; size = {920, 880}
-	case "app8": update = app8.update; size = {960, 640}
-	case "app9": update = app9.update; size = {780, 510}
-	case "app10": update = app10.update; size = {1000, 760}
-	case "app11": update = app11.update; size = {1160, 860}
-	case "app12": update = app12.workspace; size = {660, 700}
-	case "app13": update = app13.update; size = {920, 700}
-	case "app14": update = app14.update; size = {780, 640}
+	case "demo4": update = demo4.update; size = {960, 640}
+	case "demo5": update = demo5.update; size = {980, 800}
+	case "demo6": update = demo6.update; size = {980, 850}
+	case "demo7": update = demo7.update; size = {920, 880}
+	case "demo8": update = demo8.update; size = {960, 640}
+	case "demo9": update = demo9.update; size = {780, 510}
+	case "demo10": update = demo10.update; size = {1000, 760}
+	case "demo11": update = demo11.update; size = {1160, 860}
+	case "demo12": update = demo12.workspace; size = {660, 700}
+	case "demo13": update = demo13.update; size = {920, 700}
+	case "file-manager": update = file_manager.update; size = {780, 640}
 	case:
-		fmt.eprintln("Choose app4 through app14")
+		fmt.eprintln("Choose demo4 through demo13, or file-manager")
 		os.exit(1)
 	}
 	item := ui.Capture_Frame{path = os.args[2], size = size, scale = 2}

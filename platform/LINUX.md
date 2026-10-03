@@ -12,7 +12,7 @@ surface-local logical points, positive towards the content bottom/right; they
 are not multiplied by output scale. Discrete wheel notifications describe the
 same movement and are not counted again. Completed groups accumulate until the
 next update's `input.scroll_delta` snapshot, then reset. Pointer leave or device
-loss clears pending movement. App10 demonstrates scrollable content.
+loss clears pending movement. Demo10 demonstrates scrollable content.
 
 wl_keyboard v5 supplies physical keys and modifiers. Evdev codes map to keys
 named by US keyboard position, independent of layout, Shift and Num Lock. The
@@ -30,8 +30,8 @@ repository root inside the VM:
 
 ```sh
 sudo pacman -S --needed base-devel wayland libglvnd mesa libxkbcommon freetype2 harfbuzz
-./scripts/build.sh app3
-./bin/app3
+./scripts/build.sh demo3
+./bin/demo3
 ```
 
 `wayland` supplies the [client, cursor, and EGL-window libraries](https://archlinux.org/packages/extra/x86_64/wayland/files/).
@@ -45,7 +45,7 @@ The build scripts use `cc` and `ar` to create
 Nothing is downloaded or installed system-wide for SheenBidi. Use
 `./scripts/build-text-deps.sh` to build just that dependency. The Odin binding
 references the archive directly, so after this one-time build, plain commands
-such as `odin run ./examples/app10 -out:bin/app10` work without extra linker flags.
+such as `odin run ./examples/demo10 -out:bin/demo10` work without extra linker flags.
 Run the dependency script again after vendored sources change; `./scripts/build.sh`
 does this automatically.
 
@@ -56,14 +56,14 @@ FreeType, including custom installations configured through `PKG_CONFIG_PATH`.
 Run the application from a terminal in the graphical Wayland session, as your
 normal user. `WAYLAND_DISPLAY` and `XDG_RUNTIME_DIR` must refer to that session;
 running it through an unrelated SSH session or with sudo will not set those up.
-The app0–app6 examples target either platform; app3 embeds its assets, and app4
-demonstrates nested rect cuts, padding, and painting. app5 demonstrates Latin
-text with HarfBuzz and FreeType, and app6 adds Arabic/bidi via SheenBidi; see [text API and setup](../core/TEXT.md).
+The demo0–demo6 examples target either platform; demo3 embeds its assets, and demo4
+demonstrates nested rect cuts, padding, and painting. demo5 demonstrates Latin
+text with HarfBuzz and FreeType, and demo6 adds Arabic/bidi via SheenBidi; see [text API and setup](../core/TEXT.md).
 
 For a VM without working accelerated OpenGL, try Mesa software rendering:
 
 ```sh
-LIBGL_ALWAYS_SOFTWARE=1 ./bin/app3
+LIBGL_ALWAYS_SOFTWARE=1 ./bin/demo3
 ```
 
 Software-rendered timing numbers do not represent GPU-accelerated performance.
@@ -88,9 +88,9 @@ surface retains its default empty opaque region so the compositor honors alpha.
 Clearing every frame removes old shapes without trails. Transparency does not
 change the input region: the full window rectangle still receives pointer input.
 
-Run `./scripts/build.sh app9` and `./bin/app9` for a demo with unpainted gaps,
+Run `./scripts/build.sh demo9` and `./bin/demo9` for a demo with unpainted gaps,
 rounded panels, translucent paint, and a moving circle. Use compositor shortcuts
-to move or close the window. App9 also passes `decorated = false`.
+to move or close the window. Demo9 also passes `decorated = false`.
 
 `decorated = true` (the default) requests server-side decorations through
 `xdg-decoration` when supported. `decorated = false` requests client-side mode;
@@ -129,7 +129,7 @@ odin test platform -out:bin/platform-tests-wayland -o:speed -vet -strict-style -
 This uses the Wayland EGL display and the application's GLES context setup,
 rendering into an offscreen framebuffer. It does not open a window.
 
-Then run `./bin/app3` and check the actual Wayland integration:
+Then run `./bin/demo3` and check the actual Wayland integration:
 
 - Three images appear; the robot's background is transparent.
 - The small robot follows the pointer; left/right holds tint it differently.
@@ -139,7 +139,7 @@ Then run `./bin/app3` and check the actual Wayland integration:
 - Hiding the window stops rendering; restoring it resumes.
 - The compositor's close-window command exits the application normally.
 
-`WAYLAND_DEBUG=1 ./bin/app3` logs protocol traffic if window creation fails.
+`WAYLAND_DEBUG=1 ./bin/demo3` logs protocol traffic if window creation fails.
 The profiler's submission time includes EGL swap waits; it does not measure GPU execution.
 
 ## Current boundaries
@@ -164,7 +164,7 @@ Textures and dimensions are owned by the renderer and released before EGL teardo
 The image decoder tests and GLES pixel-readback tests passed, and all four
 examples built with `-o:speed -vet -strict-style`. Pixel tests passed on both
 surfaceless Mesa `llvmpipe` (software) and Wayland Mesa `virgl` (VM acceleration).
-The rebuilt app3 opened as a native Wayland window and rendered its images.
+The rebuilt demo3 opened as a native Wayland window and rendered its images.
 
 Multi-output scaling and the full interactive checklist above still require
 manual verification on the relevant hardware.
@@ -182,6 +182,6 @@ any builder runs. Compositor callbacks gate only presentation. A shared poll loo
 services independent Wayland connections/EGL contexts; context switches precede
 building, drawing and destruction.
 
-Try `./scripts/build.sh app12` and `./bin/app12`. Run
+Try `./scripts/build.sh demo12` and `./bin/demo12`. Run
 `./scripts/check-windows.sh` in the Wayland session for lifetime/state checks.
 See [core/WINDOWS.md](../core/WINDOWS.md) for API and resource ownership.

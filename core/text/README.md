@@ -98,7 +98,7 @@ and geometry; an unchanged width uses the complete cached result.
 Tests compare glyph IDs, source clusters, advances, offsets, line breaks and quad
 positions against the original exact line shaper across widths and bidi cases.
 `./scripts/bench-text-resize.sh` measures preparation plus geometry over 240 new
-widths for the app7 Latin/Arabic paragraphs, after font/atlas warm-up. It reports
+widths for the demo7 Latin/Arabic paragraphs, after font/atlas warm-up. It reports
 CPU time and the new shaping/paragraph-analysis call counts, excluding GPU waits.
 
 Fitting reuses the desired-size single-line shape and glyph bitmaps across all
@@ -108,5 +108,5 @@ and wrapped-layout caches described above. It does not create a new atlas font
 size for every resize step. This is intentionally distinct from reshaping a
 variable font with a new optical-size coordinate.
 
-Build/run `./scripts/build.sh app7` and `./bin/app7` for Latin wrapping,
+Build/run `./scripts/build.sh demo7` and `./bin/demo7` for Latin wrapping,
 Arabic/English wrapping, and centered labels in differently sized buttons.

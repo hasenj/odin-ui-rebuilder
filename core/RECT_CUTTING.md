@@ -72,7 +72,7 @@ excluded so adjacent areas do not both match their shared edge.
 
 This is a geometry query, without identity or retained state. Rounded paint
 corners and overlapping surfaces do not affect it; overlapping rects can both
-report hover. `examples/app8` demonstrates three sidebar buttons changing color.
+report hover. `examples/demo8` demonstrates three sidebar buttons changing color.
 
 ## Painting
 
@@ -105,7 +105,7 @@ to emitted paint. Buffers retain capacity between frames and are freed when the
 window closes.
 
 The frame is implicit and valid only during the window's update callback, on
-its main thread. `examples/app4` demonstrates nested cuts, padding, HSL colors,
+its main thread. `examples/demo4` demonstrates nested cuts, padding, HSL colors,
 rounded paint, images, and resizing.
 
 For localized content-sized rows/columns, see [LAYOUT.md](LAYOUT.md). A local

@@ -141,7 +141,7 @@ and closing them restores it if the owner remains eligible. If restoration is
 impossible, an enclosing fence chooses its first eligible descendant; otherwise
 focus becomes empty. A fence with no focusable descendants keeps focus empty.
 A keyboard fence alone does not block pointer hits: a modal normally also uses
-a full-window rect on its layer as a hit barrier (see app10).
+a full-window rect on its layer as a hit barrier (see demo10).
 
 `keys_down`, `keys_pressed`, `keys_released`, `modifiers`, `mouse_pressed`,
 `mouse_released` and `scroll_delta` are data supplied by a host. Transition sets
@@ -179,23 +179,23 @@ presses of the same key between updates into one. macOS uses native key repeat;
 Wayland uses the compositor's repeat rate/delay, without replaying missed repeats
 after a stall. Key repeat does not arise merely from `keys_down` being set.
 
-App11 is a keyboard inspector: it shows currently held keys, remembers the last
+Demo11 is a keyboard inspector: it shows currently held keys, remembers the last
 press/release sets, flashes their tiles, and displays aggregate modifiers and
-locks. Run `./scripts/build.sh app11` and `./bin/app11`. Its `--capture` option
-saves deterministic held/released examples to `bin/app11-*.png`.
+locks. Run `./scripts/build.sh demo11` and `./bin/demo11`. Its `--capture` option
+saves deterministic held/released examples to `bin/demo11-*.png`.
 
 ## Evidence and example
 
 ```sh
-./scripts/build.sh app10
-./bin/app10 --capture
+./scripts/build.sh demo10
+./bin/demo10 --capture
 ```
 
-This runs assertions and produces `bin/app10-*.png` for ordinary focus, scrolling,
+This runs assertions and produces `bin/demo10-*.png` for ordinary focus, scrolling,
 focus reveal, opening a modal by clicking, Tab inside the modal, closing with
 either button, focus restoration, and resizing. It also checks cancelled clicks
 and the modal's pointer/scroll barrier.
-Running app10 without the flag opens the sample window. Click **Open modal** in
+Running demo10 without the flag opens the sample window. Click **Open modal** in
 the header, then **Continue** or **Cancel** to close it. Focus returns to the
 opener. The sample activates buttons on release inside after a press inside;
 dragging off before release cancels activation. Pointer hover/click focus and

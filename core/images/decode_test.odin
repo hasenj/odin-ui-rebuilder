@@ -29,9 +29,9 @@ decode_png_pixels_and_errors :: proc(t: ^testing.T) {
 @(test)
 decode_sample_images :: proc(t: ^testing.T) {
 	assets := [?][]u8{
-		#load("../../examples/app3/assets/coast.png", []u8),
-		#load("../../examples/app3/assets/oranges.png", []u8),
-		#load("../../examples/app3/assets/robot.png", []u8),
+		#load("../../examples/demo3/assets/coast.png", []u8),
+		#load("../../examples/demo3/assets/oranges.png", []u8),
+		#load("../../examples/demo3/assets/robot.png", []u8),
 		#load("testdata/rgb.jpg", []u8),
 	}
 	for data, i in assets {

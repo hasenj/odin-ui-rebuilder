@@ -5,7 +5,7 @@ Milestone expansion below written by Codex at Hasen's explicit request on
 Milestone numbers identify work packages, not example app numbers. Completed
 work after milestone 3 is grouped retrospectively; future ordering is proposed.
 Updated by Codex at Hasen's request on 2026-10-02 to reflect implementation
-through app12 and the agreed panel behavior. Numbers remain stable even where
+through demo12 and the agreed panel behavior. Numbers remain stable even where
 work was completed out of order. DONE describes implemented scope; platform
 verification limits are called out separately.
 
@@ -40,7 +40,7 @@ as a readable frame snapshot. Keyboard, transitions, and scrolling are later wor
 ## [ DONE ] Milestone 3: Images
 
 PNG/JPEG loading, alpha-aware image painting, generational resource handles,
-and image-size queries. App3 demonstrates images and pointer interaction.
+and image-size queries. Demo3 demonstrates images and pointer interaction.
 
 ## [ DONE ] Milestone 4: Linux / Wayland backend
 
@@ -54,18 +54,18 @@ path after desktop OpenGL failed in the VM.
 Implicit frame context, `open_rect`/`close_rect`, padding, geometry queries,
 and `paint`. Cuts resolve geometry immediately; painting emits surfaces without
 creating layout elements. The earlier flexbox experiment was replaced rather
-than retained alongside cutting. App4 demonstrates this model.
+than retained alongside cutting. Demo4 demonstrates this model.
 
 ## [ DONE ] Milestone 6: Font loading and Latin text
 
 FreeType and HarfBuzz, explicit font files and names/handles, variable font
 weights, measurement, and GPU glyph atlases. Cached shaping and prepared glyph
-geometry avoid repeating work during unchanged frames. App5 demonstrates text.
+geometry avoid repeating work during unchanged frames. Demo5 demonstrates text.
 
 ## [ DONE ] Milestone 7: Arabic and bidirectional text
 
 SheenBidi paragraph analysis integrated with script shaping, visual ordering,
-Arabic joining/diacritics, and mixed Arabic/Latin/numeric text. App6 demonstrates
+Arabic joining/diacritics, and mixed Arabic/Latin/numeric text. Demo6 demonstrates
 both base directions. This does not yet include editable text or font fallback.
 
 ## [ DONE ] Milestone 8: Wrapped and fitted text
@@ -73,19 +73,19 @@ both base directions. This does not yet include editable text or font fallback.
 `layout_text` wraps paragraphs; `layout_text_fit` shrinks a label to a minimum
 size, optionally wraps there, and checks width and height limits. Paragraph
 preparation is cached independently of width so normal resizing reuses shaping
-and bidi analysis. App7 demonstrates wrapping, fitting, and centered labels.
+and bidi analysis. Demo7 demonstrates wrapping, fitting, and centered labels.
 
 ## [ DONE ] Milestone 9: Hover, logical identities, and animation
 
 Rect-level hover queries; a retained identity tree using parent, explicit integer
 or caller-location key, and per-key occurrence; generational node handles; and
-retained float animation. Distinct integer types remain distinct keys. App8
+retained float animation. Distinct integer types remain distinct keys. Demo8
 demonstrates independently animated hover colors. Overlap-aware hover and focus
 are not part of this completed milestone.
 
 ## [ DONE ] Milestone 10: Transparent windows and decoration options
 
-App9 demonstrates unpainted transparent regions, translucent surfaces, and
+Demo9 demonstrates unpainted transparent regions, translucent surfaces, and
 moving shapes. macOS supports transparent and borderless windows, native
 background dragging, and Command-Q. Wayland supports transparent windows and
 requests decoration preferences through `xdg-decoration`; the compositor can
@@ -105,7 +105,7 @@ not as a separate chronological phase.
 Deterministic offscreen Metal rendering to PNG, using the production renderer
 with explicit sizes, display scales, times, and input snapshots. Multi-frame
 scenarios exercise hover, focus, scrolling, modals, and window-owned resources.
-App10–12 provide capture scenarios; native macOS checks cover input delivery and
+Demo10–12 provide capture scenarios; native macOS checks cover input delivery and
 window lifecycle. `scripts/check.sh` runs tests and optimized example builds.
 
 This captures UI content, not native title bars or desktop composition. Native
@@ -117,8 +117,8 @@ capture backends return Unsupported. See [core/CAPTURE.md](../core/CAPTURE.md).
 
 Implemented since the original roadmap: the main-window/panel lifecycle (12),
 keyboard and scroll snapshots (part of 13), layers/hover (15), focus (16), clipping
-(17), scrolling (18), and the overlay/modal portion of 19. App10 demonstrates the
-interaction foundations, app11 physical keys, and app12 multiple native surfaces.
+(17), scrolling (18), and the overlay/modal portion of 19. Demo10 demonstrates the
+interaction foundations, demo11 physical keys, and demo12 multiple native surfaces.
 
 Remaining near-term work:
 
@@ -146,7 +146,7 @@ timings against a relevant baseline rather than setting a machine-specific limit
 
 ## [ PARTIAL ] Milestone 12: Main window and auxiliary panels
 
-Implemented in app12:
+Implemented in demo12:
 
 - One application event loop, explicit `create_window`/`create_panel` lifetimes,
   and generational handles with deferred creation and destruction.
@@ -185,7 +185,7 @@ updates, native key routing, floating stacking and main/key roles. See
 
 Physical keys, pressed/released/held sets, modifiers, locks, repeat, press-time
 modifiers and accumulated wheel/trackpad deltas are implemented on both hosts.
-App11 inspects this data; app12 exercises per-window isolation. macOS native
+Demo11 inspects this data; demo12 exercises per-window isolation. macOS native
 checks cover keyboard routing and focus loss; Linux has evdev/XKB input tests.
 
 Remaining: native mouse transitions are currently inferred from sampled held
@@ -300,7 +300,7 @@ offsets valid; scrolling one window does not change another.
 ## [ PARTIAL ] Milestone 19: Overlays, modal scopes, and custom drag regions
 
 Layer scopes can escape ancestor clips while retaining logical identity ancestry.
-App10 opens/closes a modal through buttons, combines a full-window hit barrier
+Demo10 opens/closes a modal through buttons, combines a full-window hit barrier
 with a focus fence, and restores focus on dismissal. Capture scenarios cover
 pointer/scroll blocking, Tab traversal, cancelled clicks and restoration.
 

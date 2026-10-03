@@ -217,7 +217,7 @@ deep_rect_scene :: proc() {
 	}
 }
 
-// Regression for shrinking app5: after height runs out, repeated line cuts
+// Regression for shrinking demo5: after height runs out, repeated line cuts
 // share an origin. They must not emit overlapping glyphs at that origin.
 @(private)
 empty_rect_text :: proc(t: ^testing.T) {

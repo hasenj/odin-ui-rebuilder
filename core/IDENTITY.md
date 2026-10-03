@@ -85,7 +85,7 @@ finite. Elapsed time comes from the window's monotonic frame time; no start/end
 times are required and reversal starts from the current value. Near the target,
 the result snaps exactly to it (tolerance `1e-5 * max(1, abs(target))`). Repeated
 calls in successive frames at the same time do not advance a stable target.
-Color interpolation is the caller's choice; app8 interpolates RGB using one
+Color interpolation is the caller's choice; demo8 interpolates RGB using one
 retained hover amount per button. No automatic animation scheduling is needed
 with the current continuously drawing window backends.
 

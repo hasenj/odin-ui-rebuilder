@@ -10,13 +10,13 @@ platforms return `Unsupported` for now; their normal windows are unchanged.
 From the repository root:
 
 ```sh
-./scripts/capture.sh app9 bin/app9.png
-./bin/capture app7 bin/app7-narrow.png 600 880 2 0
-./bin/capture app8 bin/app8-hover.png 960 640 2 0 56 120
+./scripts/capture.sh demo9 bin/demo9.png
+./bin/capture demo7 bin/demo7-narrow.png 600 880 2 0
+./bin/capture demo8 bin/demo8-hover.png 960 640 2 0 56 120
 ```
 
-The script builds an optimized `bin/capture`. The runner supports app4 through
-app14, importing their existing update procedures. Arguments after the output
+The script builds an optimized `bin/capture`. The runner supports demo4 through
+demo13 and file-manager, importing their existing update procedures. Arguments after the output
 path are optional width, height, scale, and time; supply both mouse coordinates
 to simulate a pointer inside the window. Default dimensions match each example,
 scale is 2, and time is 0. Relative paths are resolved from the repo root when

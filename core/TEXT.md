@@ -22,8 +22,8 @@ sudo pacman -S --needed freetype2 harfbuzz
 From the repository root:
 
 ```sh
-./scripts/build.sh app6
-./bin/app6
+./scripts/build.sh demo6
+./bin/demo6
 ./scripts/check.sh
 ```
 
@@ -42,7 +42,7 @@ On Linux with shared dependencies in standard locations, you can also use:
 
 ```sh
 ./scripts/build-text-deps.sh # Once per host, and after vendored sources change.
-odin run ./examples/app10 -out:bin/app10
+odin run ./examples/demo10 -out:bin/demo10
 ```
 
 Plain Odin commands do not compile the C dependency automatically. A missing
@@ -50,8 +50,8 @@ archive reports the setup command. On macOS, continue using the build helper to
 locate Homebrew's FreeType/HarfBuzz libraries.
 
 Build Linux executables inside the VM; this helper does not set up a cross sysroot.
-The app5/app6 fonts are read from files, so run them from the repository root.
-Existing examples remain available as app0 through app5.
+The demo5/demo6 fonts are read from files, so run them from the repository root.
+Existing examples remain available as demo0 through demo5.
 
 ## Usage
 
@@ -135,7 +135,7 @@ English retain their bidi behavior within an RTL paragraph.
 `en` for Latin, and `und` for others. An explicit tag applies to every shaped
 segment. Strings remain in logical UTF-8 order; callers must not reverse them.
 Direction does not imply right alignment: the line's visual left edge is placed
-at the current rect's origin. app6 demonstrates separate right alignment by
+at the current rect's origin. demo6 demonstrates separate right alignment by
 measuring the line and cutting a rect of that width from `.Right`.
 
 On a cache miss, SheenBidi resolves the paragraph and visual line runs, and its

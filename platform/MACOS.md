@@ -36,7 +36,7 @@ window-wide native behavior, not an application input-routing implementation.
 
 Linux keeps its existing decorated/opaque defaults, but supports explicit
 `transparent = true`. `decorated = false` requests client-side decorations on
-Linux, subject to compositor policy. App9 requests transparency and no system
+Linux, subject to compositor policy. Demo9 requests transparency and no system
 decorations on both platforms.
 
 ## Example and checks
@@ -46,7 +46,7 @@ Wheel and trackpad scrolling are delivered through the Metal view's
 remain in logical points; coarse deltas use 40 points per line. AppKit applies
 the user's natural-scroll preference. Both axes accumulate between frames and
 are supplied once in `input.scroll_delta`; idle frames receive zero.
-App10 demonstrates native scrolling. `./scripts/check-macos-input.sh` verifies
+Demo10 demonstrates native scrolling. `./scripts/check-macos-input.sh` verifies
 real NSEvents and their subsequent frame snapshots on the AppKit main thread.
 
 The Metal view is the window's first responder and captures physical keys,
@@ -59,9 +59,9 @@ Keypad Enter and Return are distinct. Modifier changes expose left/right sides
 using IOKit's device flags; Caps Lock reports a tap and separate toggle state.
 F1–F20 are mapped on macOS; delivery of system/media/Fn keys depends on the OS
 and keyboard settings. Text entry and IME remain deferred. Command-Q still uses
-the application menu. App11 displays the raw key snapshots.
+the application menu. Demo11 displays the raw key snapshots.
 
-Run `./scripts/build.sh app9` and `./bin/app9` from the repository root. The
+Run `./scripts/build.sh demo9` and `./bin/demo9` from the repository root. The
 example leaves its root, gaps and padding unpainted, draws an opaque rounded
 header and a translucent blue panel, and moves an orange circle across empty
 space. The circle should leave no trails. Drag a painted area to move the window;
@@ -97,4 +97,4 @@ Closing the main window or using Command-Q closes all panels and returns from
 One application timer snapshots input and runs every builder, main first. Paused
 MetalKit views only present the resulting output; they do not run independent UI
 updates. Hidden/minimized/occluded participants still build UI. Resize callbacks
-refresh the entire application. See [core/WINDOWS.md](../core/WINDOWS.md) and app12.
+refresh the entire application. See [core/WINDOWS.md](../core/WINDOWS.md) and demo12.
