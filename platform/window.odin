@@ -26,6 +26,7 @@ Window_Record :: struct {
 	frame_timing: Frame_Timing,
 	input_state: ^input.State,
 	decorated, transparent, closing, panel: bool,
+	drag_region: primitives.Clip,
 	renderer: Renderer,
 	size: [2]f32,
 	surfaces: []primitives.Surface,
@@ -117,6 +118,15 @@ window_record :: proc(handle: Window) -> ^Window_Record {
 window_alive :: proc(window: Window) -> bool {
 	record := window_record(window)
 	return record != nil && !record.closing
+}
+
+// Opt into a custom drag area, in content-local logical coordinates. An empty
+// region disables background dragging. Currently consumed by macOS; Wayland
+// compositors can still move borderless windows using their own bindings.
+set_window_drag_region :: proc(window: Window, position, size: [2]f32) {
+	if record := window_record(window); record != nil {
+		record.drag_region = {true, position, position + [2]f32{max(0, size.x), max(0, size.y)}}
+	}
 }
 
 // Idempotent; stale handles do nothing. The entire current cycle finishes.

@@ -57,6 +57,31 @@ check_window :: proc() {
 	assert(submenu != nil)
 	quit := intrinsics.objc_send(^ns.MenuItem, submenu, "itemAtIndex:", ns.Integer(0))
 	assert(string(quit->keyEquivalent()->UTF8String()) == "q")
+	if !decorated { check_drag_region(window, view) }
 	fmt.printf("Verified macOS window: decorated=%v, transparent=%v\n", decorated, transparent)
 	os.exit(0)
+}
+
+// Exercise the real NSWindow event path, not only the stored region. Queue a
+// release so AppKit's nested drag loop cannot wait for physical mouse input.
+check_drag_region :: proc(window: ^ns.Window, view: ^mtk.View) {
+	ui.window_drag_region({{40, 0}, {160, 36}})
+	for point, i in ([3][2]f32{{20, 80}, {80, 18}, {220, 18}}) {
+		p := ns.Point{ns.Float(point.x), ns.Float(point.y)}
+		if !view->isFlipped() { p.y = view->bounds().size.height - p.y }
+		p = intrinsics.objc_send(ns.Point, view, "convertPoint:toView:", p, cast(^ns.View)nil)
+		up := mouse_event(window, .LeftMouseUp, p)
+		intrinsics.objc_send(nil, ns.Application.sharedApplication(), "postEvent:atStart:", up, ns.BOOL(true))
+		intrinsics.objc_send(nil, window, "sendEvent:", mouse_event(window, .LeftMouseDown, p))
+		assert(bool(intrinsics.objc_send(ns.BOOL, window, "isMovableByWindowBackground")) == (i == 1),
+			"Only the address area should drag; controls and file rows must receive ordinary clicks")
+		intrinsics.objc_send(nil, window, "sendEvent:", up)
+	}
+}
+
+mouse_event :: proc(window: ^ns.Window, kind: ns.EventType, point: ns.Point) -> ^ns.Event {
+	return intrinsics.objc_send(^ns.Event, ns.Event,
+		"mouseEventWithType:location:modifierFlags:timestamp:windowNumber:context:eventNumber:clickCount:pressure:",
+		kind, point, ns.EventModifierFlags{}, f64(0), intrinsics.objc_send(ns.Integer, window, "windowNumber"),
+		rawptr(nil), ns.Integer(0), ns.Integer(1), f32(1))
 }

@@ -304,6 +304,16 @@ window_send_event :: proc "c" (self: ns.id, selector: ns.SEL, event: ^ns.Event) 
 		case .LeftMouseDown, .RightMouseDown:
 			point := renderer.view->convertPointFromView(event->locationInWindow(), nil)
 			bounds := renderer.view->bounds()
+			if kind == .LeftMouseDown {
+				if record := window_record(renderer.window_handle); record != nil && record.drag_region.enabled {
+					x := f32(point.x - bounds.origin.x)
+					y := f32(point.y - bounds.origin.y)
+					if !renderer.view->isFlipped() { y = f32(bounds.size.height) - y }
+					area := record.drag_region
+					drag := x >= area.min.x && y >= area.min.y && x < area.max.x && y < area.max.y
+					window->setMovableByWindowBackground(ns.BOOL(drag))
+				}
+			}
 			if point.x >= bounds.origin.x && point.y >= bounds.origin.y &&
 			   point.x < bounds.origin.x + bounds.size.width && point.y < bounds.origin.y + bounds.size.height {
 				mouse_press(&renderer.mouse, .Left if kind == .LeftMouseDown else .Right)

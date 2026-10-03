@@ -7,18 +7,26 @@ import "core:fmt"
 import "core:path/filepath"
 import "core:strings"
 
-ink :: ui.Color{0.10, 0.16, 0.23, 1}
-muted :: ui.Color{0.40, 0.46, 0.51, 1}
-blue :: ui.Color{0.12, 0.46, 0.48, 1}
-row_height :: f32(56)
+ink :: ui.Color{0.90, 0.92, 0.93, 1}
+muted :: ui.Color{0.60, 0.66, 0.69, 1}
+blue :: ui.Color{0.22, 0.72, 0.69, 1}
+row_height :: f32(30)
+address_height :: f32(36)
+column_height :: f32(24)
+footer_height :: f32(24)
+list_top :: address_height + column_height
+chrome :: ui.Color{0.14, 0.16, 0.18, 1}
 
 browser: Browser
 font: ui.Font
+home_path: string
 previous, pressed, released: ui.Mouse_Buttons
 pressed_id: ui.Identity
 last_scroll: f32 // Also observed by the synthetic navigation check.
 
 main :: proc() {
+	home_path, _ = os.user_home_dir(context.allocator)
+	defer delete(home_path)
 	defer destroy_browser(&browser)
 	defer destroy_list()
 	if len(os.args) == 2 && os.args[1] == "--bench" { benchmark_list(); return }
@@ -31,7 +39,7 @@ main :: proc() {
 		browser.initialized = true
 		browse(&browser, os.args[1])
 	}
-	ui.open_window("Files", 780, 640, update, frame_timing = .Summary, transparent = false)
+	ui.open_window("Files", 640, 480, update, frame_timing = .Summary, decorated = false, transparent = false)
 }
 
 update :: proc() {
@@ -63,53 +71,27 @@ update :: proc() {
 	if ui.direct_focus() == (ui.Identity{}) { ui.request_focus() }
 	ui.focusable(ui.direct_focus() == ui.current_identity())
 	update_typeahead()
-	ui.paint(color = {0.965, 0.962, 0.95, 1})
-	ui.pad(24)
+	ui.paint(color = {0.105, 0.12, 0.135, 1})
 	ui.open_clip()
-
-	ui.open_rect(.Top, 72)
-	ui.open_rect(.Left, 58)
-	ui.open_rect(.Top, 44)
-	parent := filepath.dir(browser.path)
-	can_go_up := browser.path != "" && parent != browser.path
-	if button("Up", can_go_up) { queue_directory(&browser, parent) }
-	ui.close_rect()
-	ui.close_rect()
-	ui.pad4(0, 0, 0, 20)
-	ui.open_rect(.Top, 38)
-	title := filepath.base(browser.path) if browser.path != "" else "Files"
-	label(title, 28, ink, weight = 650)
-	ui.close_rect()
-	label(browser.path, 14, muted)
-	ui.close_rect()
-
-	ui.open_rect(.Bottom, 32)
-	ui.pad4(8, 0, 0, 0)
+	address_bar()
+	ui.open_rect(.Bottom, footer_height)
+	ui.paint(color = chrome)
+	ui.pad2(0, 10)
 	if query := edit.value(&list.search.buffer); query != "" {
 		prefix := "No match: " if list.search.no_match else "Find: "
-		label(fmt.tprintf("%s%s", prefix, query), 13, ink)
+		label(fmt.tprintf("%s%s", prefix, query), 12, ink)
 	} else if browser.error != "" {
-		label(browser.error, 13, {0.65, 0.25, 0.20, 1})
+		label(browser.error, 12, {1, 0.55, 0.48, 1})
 	} else {
-		if ui.current_rect().size.x >= 430 {
-			ui.open_rect(.Right, 190)
-			status := "Reading..." if browser.state == .Reading else "Watching for changes" if browser.active != nil else "Ready"
-			label(status, 13, blue, align = .End)
-			ui.close_rect()
-		}
 		buffer: [96]u8
-		label(fmt.bprintf(buffer[:], "%d folders / %d files", browser.folders, len(browser.entries) - browser.folders), 13, muted)
+		label("Reading folder…" if browser.state == .Reading else fmt.bprintf(buffer[:], "%d folders · %d files", browser.folders, len(browser.entries) - browser.folders), 11, muted)
 	}
 	ui.close_rect()
-	ui.pad4(16, 0, 8, 0)
-	ui.paint(color = {1, 1, 1, 1}, corners = 12)
-	ui.pad(8)
-	ui.open_rect(.Top, 32)
-	ui.paint(color = {0.962, 0.967, 0.97, 1}, corners = 5)
+	ui.open_rect(.Top, column_height)
+	ui.paint(color = chrome)
 	ui.pad2(0, 12)
-	columns("KIND", "SIZE", true)
-	ui.pad4(0, 0, 0, 52)
-	label("NAME", 11, muted, weight = 600)
+	columns("Kind", "Size", true)
+	label("Name", 12, muted)
 	ui.close_rect()
 	// A new directory gets a fresh subtree, so old hover, focus and scrolling
 	// cannot transfer to an unrelated row with the same array index.
@@ -128,8 +110,8 @@ update :: proc() {
 	canvas := ui.current_rect()
 	prepare_list(len(browser.entries), browser.generation, last_scroll, viewport.size.y)
 	if len(browser.entries) == 0 {
-		ui.pad(16)
-		label("Reading folder..." if browser.state == .Reading else "This folder is empty." if browser.error == "" else "Folder unavailable.", 17, muted)
+		ui.pad(12)
+		label("Reading folder..." if browser.state == .Reading else "This folder is empty." if browser.error == "" else "Folder unavailable.", 13, muted)
 	}
 	for i in list.indices {
 		entry := browser.entries[i]
@@ -151,23 +133,22 @@ update :: proc() {
 			selected := i == list.search.match if list.search.match >= 0 else ui.focused()
 			active := selected || (entry.directory && ui.hovered())
 			amount := ui.animate_f32(1 if active else 0)
-			ui.paint(color = {0.72, 0.88, 0.87, amount * 0.65}, corners = 5)
-			ui.open_rect(.Bottom, 1)
-			ui.paint(color = {0.94, 0.95, 0.955, 1})
-			ui.close_rect()
+			ui.paint(color = {0.08, 0.38, 0.39, amount * 0.65})
 			ui.pad2(0, 12)
 			buffer: [48]u8
 			size := "—" if entry.directory else file_size(entry.info.size, buffer[:])
 			columns(file_kind(entry), size, false)
-			ui.open_rect(.Left, 52)
+			ui.open_rect(.Left, 28)
 			file_icon(entry)
 			ui.close_rect()
-			label(entry.info.name, 16, ink)
+			label(entry.info.name, 13, ink)
 
 		}
 		ui.close_rect()
 	}
+	view_scroll := ui.current_scroll()
 	ui.close_scroll()
+	paint_scrollbar(view_scroll)
 	ui.close_identity()
 	ui.close_clip()
 	ui.focusable(ui.direct_focus() == ui.current_identity())
@@ -187,14 +168,28 @@ activated :: proc(enabled: bool) -> bool {
 		(.Space in input.keys_pressed && .Space not_in input.text.handled_keys)))
 }
 
-button :: proc(value: string, enabled: bool) -> bool {
+up_button :: proc(enabled: bool) -> bool {
 	ui.focusable(enabled)
 	publish_typeahead()
 	clicked := activated(enabled)
 	amount := ui.animate_f32(1 if enabled && (ui.hovered() || ui.focused()) else 0)
-	base := ui.Color{0.91, 0.93, 0.93, 1}
-	ui.paint(color = base + (ui.Color{0.72, 0.87, 0.86, 1} - base) * amount, corners = 7)
-	label(value, 16, ink if enabled else muted, align = .Center)
+	base := ui.Color{0.19, 0.22, 0.24, 1}
+	ui.paint(color = base + (ui.Color{0.16, 0.36, 0.37, 1} - base) * amount, corners = 4)
+	// Draw the navigation arrow from geometry, independent of font coverage.
+	color := ink if enabled else muted
+	r := ui.current_rect()
+	origin := r.position + (r.size - [2]f32{12, 14}) / 2
+	ui.open_rect_at({origin + [2]f32{5, 1}, {2, 13}})
+	ui.paint(color = color)
+	ui.close_rect()
+	for i in 0..<6 {
+		ui.open_rect_at({origin + [2]f32{f32(5-i), f32(i)}, {2, 2}}, key = i)
+		ui.paint(color = color)
+		ui.close_rect()
+		ui.open_rect_at({origin + [2]f32{f32(5+i), f32(i)}, {2, 2}}, key = i + 6)
+		ui.paint(color = color)
+		ui.close_rect()
+	}
 	return clicked
 }
 

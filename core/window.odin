@@ -16,6 +16,12 @@ run :: platform.run
 window_alive :: platform.window_alive
 request_close :: platform.request_close
 
+// Publish the draggable portion of custom window chrome. Call again after
+// resizing. Other input regions remain ordinary UI. Currently macOS only.
+window_drag_region :: proc(rect: Rect) {
+	platform.set_window_drag_region(current_window(), rect.position, rect.size)
+}
+
 // Initial dimensions are logical points. OS resizing determines later sizes.
 // Fonts, images, identities, focus and scroll state belong to this window.
 // Create/close requests inside update are applied after the application cycle.

@@ -106,7 +106,7 @@ publish_typeahead :: proc() {
 	value := edit.value(&s.buffer)
 	// The footer exposes the transient query and anchors native IME candidates.
 	frame := ui.current_frame()
-	caret := ui.Rect{{24, max(0, frame.size.y - 40)}, {1, 18}}
+	caret := ui.Rect{{10, max(0, frame.size.y - footer_height + 3)}, {1, 18}}
 	ui.request_text_input(value, edit.selection(&s.buffer), caret,
 		s.buffer.marked if s.buffer.composing else {-1, -1})
 	s.target = ui.text_target(ui.current_identity())

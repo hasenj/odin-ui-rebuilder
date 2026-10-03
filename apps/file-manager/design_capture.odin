@@ -44,12 +44,14 @@ capture_design :: proc() {
 	assert(read_and_wait(&browser, design_root))
 	design_step = 0
 	frames := [?]ui.Capture_Frame{
-		{size = {780, 640}, scale = 2},
-		{size = {780, 640}, scale = 2, path = "bin/file-manager-design.png"},
-		{size = {780, 640}, scale = 2},
-		{size = {780, 640}, scale = 2, input = {mouse_inside = true, mouse_position = {300, 250}, scroll_delta = {0, 800}}},
-		{size = {780, 640}, scale = 2, path = "bin/file-manager-watch.png"},
-		{size = {780, 640}, scale = 2},
+		{size = {640, 480}, scale = 2},
+		{size = {640, 480}, scale = 2, path = "bin/file-manager-design.png"},
+		{size = {640, 480}, scale = 2},
+		{size = {640, 480}, scale = 2, input = {mouse_inside = true, mouse_position = {300, 250}, scroll_delta = {0, 800}}},
+		{size = {640, 480}, scale = 2, path = "bin/file-manager-watch.png"},
+		{size = {640, 480}, scale = 2},
+		{size = {400, 360}, scale = 2, path = "bin/file-manager-compact.png"},
+		{size = {320, 240}, scale = 2, path = "bin/file-manager-small.png"},
 	}
 	result := ui.capture_frames(design_update, frames[:])
 	assert(result.error == .None)

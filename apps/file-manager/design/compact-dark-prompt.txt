@@ -1,0 +1,9 @@
+Built-in image generation tool.
+
+Use case: ui-mockup / precise-object-edit.
+Revise the supplied file manager mockup for design review. Keep the two front-facing compact windows, the realistic file list, teal accents, selection on Projects, small icons, readable typography, responsive metadata columns, and size labels. Make these changes in BOTH windows:
+1. Default DARK theme: matte deep charcoal file area, slightly lighter charcoal address bar and footer, subtle thin separators, high-contrast soft off-white primary text, muted gray secondary text. Restrained teal folder icons and a dark teal selection fill. No gradients or glow.
+2. Completely REMOVE the entire title bar containing the folder icon and standalone Downloads title. There must be ONLY ONE top bar: the compact ADDRESS BAR. It has an Up arrow button at far left, '~/Downloads' taking the available middle space, and ONE small X close button integrated at far right. No minimize button, no maximize button, no separate title row, no app name heading, no native decorations. Column headers immediately follow the address bar. Use reclaimed vertical space for the list.
+3. Completely remove the Live label AND its colored dot in both bottom bars. Footer contains ONLY '3 folders · 9 files' on the left; the rest is quiet empty space.
+Preserve the large mockup with Name / Kind / Size columns, and narrow mockup with Name / Size columns. Dense practical file browser suitable for a quarter-screen Hyprland tile. About 30px rows, 36px address bar, 22px table heading, 22px footer in logical units; ample readable filenames without oversized paddings. No cards or sidebar. Long filename ellipsis in narrow view. Keep clean square outer corners and a thin border.
+Neutral medium-dark presentation background; size annotations '640 × 480' and '400 × 360' beneath respective windows. Make both mockups crisp and beautifully composed. This is a visual concept, not a screenshot of implemented software.

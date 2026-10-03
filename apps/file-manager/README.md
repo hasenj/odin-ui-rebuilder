@@ -11,7 +11,7 @@ hover animation and focus. From the repository root:
 ./bin/file-manager --bench         # Warm update timings for 20 / 2,000 / 20,000 rows
 ```
 
-Click a teal folder name to enter it; Up returns to its parent. Wheel/trackpad
+Click a folder row to enter it; the Up arrow returns to its parent. Wheel/trackpad
 scrolls the list. Tab focuses entries or Up; Enter activates directories. Files
 can be selected but are not opened. Hidden entries are included. Folders appear first, with
 case-insensitive alphabetical ordering within each group.
@@ -36,10 +36,24 @@ focus targets (current entry, neighbors, first/last entry). Tab/Shift-Tab
 traverse entries in order and reveal the destination, even after manual
 scrolling. Per-frame row work depends on viewport height, not entry count.
 
-The light theme follows an [image-generated reference](design/reference.png);
-the [generation prompt](design/README.md) is saved with it. `--capture` writes
-`bin/file-manager-design.png` with real thumbnails and verifies directory
-watching, scroll preservation, navigation, and 20,000-row virtualization.
+The default design is compact and dark, with 30-point rows, one address bar,
+an integrated Close button, and no native title bar. The initial window is
+640×480; it also fits 400×360 and 320×240 tiles. Kind disappears below 564 points
+of window width, and Size below 324; filenames retain their font size. The
+footer shows counts, an active find prefix, or an error/loading state.
+The address replaces the home directory with `~` and reveals the tail of long
+paths. On macOS, drag the address area to move the window; file rows and the
+Up/Close controls never start a window drag. Command-Q also quits. Wayland
+window movement continues to use compositor bindings; native Wayland drag
+regions are not implemented here.
+
+The [approved dark mockup](design/compact-dark.png) and its
+[generation prompt](design/compact-dark-prompt.txt) are saved alongside the
+original design. `--capture` verifies navigation, watched directory updates,
+type-to-select and 20,000-row virtualization, and writes actual GPU captures:
+`bin/file-manager-design.png`, `bin/file-manager-compact.png` (400×360), and
+`bin/file-manager-small.png` (320×240). A thin scrollbar indicates position;
+use wheel/trackpad or keyboard to scroll (the indicator is not draggable).
 
 Type a filename prefix to select and reveal it, e.g. `dow` selects Downloads.
 Matching uses Unicode simple case folding; it does not normalize accent forms or

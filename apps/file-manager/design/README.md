@@ -1,8 +1,14 @@
-# Design reference
+# Design references
 
 Created by Codex with the built-in image generation tool. The native UI uses
 this as a visual reference; it does not display a screenshot as its interface.
 
+Current approved reference: [compact-dark.png](compact-dark.png).
+Its [prompt](compact-dark-prompt.txt) specifies dark mode, a single address bar
+with an integrated Close button, dense rows, responsive metadata columns and
+no Live indicator. Dimensions in the mockup are illustrative.
+
+The earlier light design is preserved below as historical reference.
 Saved output: [reference.png](reference.png).
 
 Final prompt:

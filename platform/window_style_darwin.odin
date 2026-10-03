@@ -37,7 +37,8 @@ create_macos_window :: proc(width, height: int, decorated, transparent: bool, pa
 		// Avoid a native rectangular shadow surrounding application-painted shapes.
 		intrinsics.objc_send(nil, window, "setHasShadow:", ns.BOOL(false))
 	}
-	// Until custom drag regions exist, a borderless window moves by its background.
+	// Borderless windows default to background dragging; a published drag region
+	// restricts it at mouseDown (without changing older transparent-window demos).
 	window->setMovableByWindowBackground(ns.BOOL(!decorated))
 	return window
 }
