@@ -4,7 +4,7 @@ set -eu
 cd "$(dirname "$0")/.."
 mkdir -p bin
 . ./scripts/text-link-paths.sh
-for package in core core/text core/images platform apps/file-manager; do
+for package in core core/text core/images core/files platform apps/file-manager; do
     output=$(basename "$package")
     odin test "$package" "-out:bin/$output-tests" -o:speed -vet -strict-style \
         "-extra-linker-flags:$link_paths"

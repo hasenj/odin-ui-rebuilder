@@ -54,6 +54,7 @@ Frame_State :: struct {
 	surface_scratch: [dynamic]Surface,
 	interaction: Interaction_Store,
 	layout: Layout_Store,
+	image_files: Image_File_Store,
 }
 
 @(private)
@@ -68,6 +69,7 @@ destroy_frame_state :: proc(state: ^Frame_State) {
 	delete(state.surface_runs)
 	delete(state.layer_buckets)
 	delete(state.surface_scratch)
+	destroy_image_files(&state.image_files)
 	destroy_layout(&state.layout)
 	destroy_interaction(&state.interaction)
 	destroy_identities(&state.identities)
@@ -85,6 +87,7 @@ build_frame :: proc(renderer: platform.Renderer, elapsed: f64, size: [2]f32, use
 	state.frame.size = size
 	state.frame.renderer = renderer
 	state.frame.scale = platform.pixel_scale(renderer)
+	state.image_files.frame += 1
 	clear(&state.frame.surfaces)
 	state.surface_cursor = 0
 	clear(&state.clips)
