@@ -26,6 +26,7 @@ Frame :: struct {
 	time:       f64, // Monotonic application time, shared by every builder in a cycle.
 	size:       [2]f32, // Current content size in logical points.
 	scale:      f32, // Physical pixels per logical point.
+	text_client: input.Text_Client, // Output consumed by the native text adapter after update.
 	input:      Input, // Current input snapshot; read this during update.
 	renderer:   platform.Renderer, // Used by image loading; owned by the window.
 	surfaces:   [dynamic]Surface,
@@ -83,6 +84,7 @@ build_frame :: proc(renderer: platform.Renderer, elapsed: f64, size: [2]f32, use
 	state := cast(^Frame_State)user_data
 	active_state = state
 	defer { active_state = nil }
+	state.frame.text_client = {}
 	state.frame.time = elapsed
 	state.frame.size = size
 	state.frame.renderer = renderer
@@ -111,5 +113,7 @@ build_frame :: proc(renderer: platform.Renderer, elapsed: f64, size: [2]f32, use
 	identity_end_frame(&state.identities)
 	interaction_end()
 	assert(fonts.flush(&state.text, renderer) == .None, "Could not upload text atlas")
+	if state.frame.text_client.target != text_target(direct_focus()) { state.frame.text_client = {} }
+	platform.text_input_update(renderer, state.frame.text_client)
 	return state.frame.surfaces[:]
 }

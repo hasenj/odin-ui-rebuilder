@@ -29,6 +29,7 @@ foreign sheenbidi {
 	SBAlgorithmRelease :: proc(algorithm: SB_Algorithm) ---
 	SBAlgorithmCreateParagraph :: proc(algorithm: SB_Algorithm, offset, length: uintptr, level: u8) -> SB_Paragraph ---
 	SBParagraphRelease :: proc(paragraph: SB_Paragraph) ---
+	SBParagraphGetLevelsPtr :: proc(paragraph: SB_Paragraph) -> [^]u8 ---
 	SBParagraphGetLength :: proc(paragraph: SB_Paragraph) -> uintptr ---
 	SBParagraphCreateLine :: proc(paragraph: SB_Paragraph, offset, length: uintptr) -> SB_Line ---
 	SBLineRelease :: proc(line: SB_Line) ---

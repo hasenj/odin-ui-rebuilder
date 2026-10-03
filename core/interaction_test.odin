@@ -110,6 +110,10 @@ focus_pipeline :: proc(t: ^testing.T) {
 	state.frame.input.keys_pressed = {.Tab}
 	build_frame(nil, 1, {100, 100}, &state)
 	testing.expect_value(t, state.interaction.focused, focus_ids[0])
+	state.frame.input.text.handled_keys = {.Tab}
+	build_frame(nil, 1.5, {100, 100}, &state)
+	testing.expect_value(t, state.interaction.focused, focus_ids[0]) // IME-owned Tab must not leave the field.
+	state.frame.input.text.handled_keys = {}
 	build_frame(nil, 2, {100, 100}, &state)
 	testing.expect_value(t, state.interaction.focused, focus_ids[2]) // Disabled middle button skipped.
 	state.frame.input.modifiers = {.Shift}

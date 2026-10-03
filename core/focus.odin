@@ -66,7 +66,7 @@ resolve_focus_input :: proc() {
 		}
 	}
 	tab_modifiers := input.key_press_modifiers[.Tab] if input.has_key_press_modifiers else input.modifiers
-	if .Tab in input.keys_pressed && (tab_modifiers & ~Modifiers{.Shift}) == (Modifiers{}) {
+	if .Tab not_in input.text.handled_keys && .Tab in input.keys_pressed && (tab_modifiers & ~Modifiers{.Shift}) == (Modifiers{}) {
 		count := len(store.previous)
 		index := -1
 		for entry, i in store.previous { if entry.id == store.focused { index = i; break } }

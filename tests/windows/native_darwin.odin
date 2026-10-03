@@ -14,8 +14,10 @@ key_cycle, stacking_cycle: int
 probe_timer: ^ns.Timer
 probe_target: ns.id
 probe_count: int
+probe_ticks: int
 
 start_native_checks :: proc() {
+	probe_ticks = 0
 	cls := ns.objc_lookUpClass("PanelDrawProbe")
 	if cls == nil {
 		cls = ns.objc_allocateClassPair(intrinsics.objc_find_class("NSObject"), "PanelDrawProbe", 0)
@@ -35,6 +37,11 @@ stop_native_checks :: proc() {
 // Out-of-cycle native draw requests must also leave every UI builder untouched.
 probe_draws :: proc "c" (_: ns.id, _: ns.SEL, _: ns.id) {
 	context = runtime.default_context()
+	probe_ticks += 1
+	if probe_ticks == 2400 {
+		fmt.eprintln("Native window test timed out:", counts, key_seen, resize_seen, hidden_checked, stacking_checked, focus_roles_checked)
+		os.exit(1)
+	}
 	before := counts
 	if window := native_window("Observer panel"); window != nil {
 		view := cast(^mtk.View)window->contentView()
@@ -143,7 +150,8 @@ check_native_frame :: proc(index: int) {
 	for i in 0..<intrinsics.objc_send(ns.UInteger, array, "count") {
 		window := intrinsics.objc_send(^ns.Window, array, "objectAtIndex:", i)
 		view := cast(^mtk.View)window->contentView()
-		view->draw()
+		// AppKit may own auxiliary input-method windows in this process.
+		if intrinsics.objc_send(ns.BOOL, view, "isKindOfClass:", intrinsics.objc_find_class("MTKView")) { view->draw() }
 	}
 	assert(counts == before)
 }

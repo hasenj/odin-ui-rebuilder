@@ -144,6 +144,7 @@ destroy_window_impl :: proc(record: ^Window_Record) {
 	renderer.window->release()
 	renderer.view->release()
 	(cast(^ns.Object)renderer.delegate)->release()
+	destroy_macos_text(&renderer.text_input)
 	metal_destroy(renderer)
 	free(renderer)
 	record.native = nil

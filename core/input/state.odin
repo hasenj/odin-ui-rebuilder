@@ -60,4 +60,5 @@ State :: struct {
 	// and use modifiers for all presses, as before.
 	has_key_press_modifiers: bool,
 	key_press_modifiers: [Key]Modifiers,
+	text: Text_Input,
 }

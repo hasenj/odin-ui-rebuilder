@@ -85,3 +85,27 @@ draw_text_layout :: proc(layout: Text_Layout, color: Color = {1, 1, 1, 1}, align
 	rect := current_rect()
 	return fonts.draw_layout(&active_state.text, frame.renderer, layout, rect.position, rect.size, color, &frame.surfaces, align, valign)
 }
+
+Text_Caret_Span :: fonts.Caret_Span
+
+// Caller-owned single-line grapheme geometry for building custom editors.
+// leading/trailing are visual X coordinates relative to the rendered origin;
+// start/end are logical UTF-8 bytes. A logical selection can have disjoint spans.
+// Rebuild when text/font/style/scale changes; retain the result between frames.
+text_caret_spans :: proc(value: string, font: Font_Ref, spans: ^[dynamic]Text_Caret_Span, size: f32 = 16, weight: f32 = 0, direction: Text_Direction = .Auto, language: string = "") -> (Text_Metrics, Text_Error) {
+	frame := current_frame()
+	return fonts.caret_spans(&active_state.text, resolve_font(font), value, size, frame.scale, weight, spans, direction, language)
+}
+
+// Nearest visual caret edge. Retain X as affinity: at a bidi boundary one byte
+// offset can have two visual positions. Empty geometry returns the line start.
+text_hit_test :: proc(spans: []Text_Caret_Span, x: f32) -> (byte: int, position: f32) {
+	best: f32 = max(f32)
+	for span in spans {
+		for edge in ([2]struct {index: int, x: f32}{{span.start, span.leading}, {span.end, span.trailing}}) {
+			distance := abs(x - edge.x)
+			if distance < best { byte, position, best = edge.index, edge.x, distance }
+		}
+	}
+	return
+}

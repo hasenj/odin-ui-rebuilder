@@ -32,6 +32,7 @@ sample_frame_input :: proc(renderer: ^Metal_Renderer) {
 	}
 	sample_keyboard(&renderer.keyboard, renderer.input_state)
 	sample_mouse(&renderer.mouse, renderer.input_state)
+	sample_macos_text(renderer)
 }
 
 @(private)
@@ -192,6 +193,7 @@ metal_view_key_down :: proc "c" (self: ns.id, _: ns.SEL, event: ^ns.Event) {
 		// Repeated native keyDown events also produce one-frame presses.
 		keyboard_press(&renderer.keyboard, key)
 	}
+	macos_text_key(renderer, event)
 }
 
 @(private)
@@ -254,6 +256,7 @@ window_resigned_key :: proc "c" (self: ns.id, _: ns.SEL, _: ns.id) {
 	context = renderer.odin_context
 	keyboard_clear(&renderer.keyboard)
 	mouse_clear(&renderer.mouse)
+	macos_text_cancel(renderer)
 }
 
 @(private)
@@ -309,7 +312,22 @@ window_send_event :: proc "c" (self: ns.id, selector: ns.SEL, event: ^ns.Event) 
 		case .RightMouseUp: mouse_release(&renderer.mouse, .Right)
 		}
 	}
+	context = renderer.odin_context if renderer != nil else mac_context
+	handle := renderer.window_handle if renderer != nil else Window{}
 	base := ns.class_getSuperclass(ns.object_getClass(self))
 	implementation := cast(proc "c" (ns.id, ns.SEL, ^ns.Event))ns.class_getMethodImplementation(base, selector)
 	implementation(self, selector, event)
+	// AppKit's borderless background-drag loop can consume mouseUp itself.
+	// Reconcile only after that native mouseDown handler returns, keeping
+	// ordinary event-owned holds (including synthetic ones) intact.
+	if event->type() == .LeftMouseDown {
+		if record := window_record(handle); record != nil && !record.closing && record.native != nil {
+			r := cast(^Metal_Renderer)record.native
+			context = r.odin_context
+			if intrinsics.objc_send(ns.BOOL, r.window, "isMovableByWindowBackground") &&
+			   intrinsics.objc_send(ns.UInteger, ns.Event, "pressedMouseButtons") & 1 == 0 {
+				mouse_release(&r.mouse, .Left)
+			}
+		}
+	}
 }

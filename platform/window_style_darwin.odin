@@ -55,6 +55,7 @@ allocate_metal_view :: proc() -> ^mtk.View {
 		assert(ns.class_addMethod(cls, intrinsics.objc_find_selector("keyDown:"), auto_cast metal_view_key_down, "v@:@"))
 		assert(ns.class_addMethod(cls, intrinsics.objc_find_selector("keyUp:"), auto_cast metal_view_key_up, "v@:@"))
 		assert(ns.class_addMethod(cls, intrinsics.objc_find_selector("flagsChanged:"), auto_cast metal_view_flags_changed, "v@:@"))
+		install_text_client(cls)
 		ns.objc_registerClassPair(cls)
 	}
 	return intrinsics.objc_send(^mtk.View, cast(^ns.Object)cls, "alloc")
