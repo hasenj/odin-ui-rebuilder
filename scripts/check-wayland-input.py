@@ -18,7 +18,7 @@ def run(*args, **kwargs):
 
 
 def main():
-    previous = subprocess.run(["wl-paste", "--no-newline"], capture_output=True)
+    previous = subprocess.run(["wl-paste", "--no-newline", "--type", "text"], capture_output=True)
     if previous.returncode != 0:
         types = subprocess.run(["wl-paste", "--list-types"], capture_output=True)
         if types.returncode == 0 and types.stdout.strip():

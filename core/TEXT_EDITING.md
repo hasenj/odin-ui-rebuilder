@@ -1,9 +1,8 @@
 # Text input and single-line editing
 
 Text input is separate from physical keyboard snapshots. Shared core implements
-editing; macOS implements the native input-method and clipboard adapter. Wayland
-native text input and clipboard are intentionally deferred to its host agent.
-The shared editor can already be driven using synthetic input on either host.
+editing; macOS and Wayland provide native text-input and clipboard adapters.
+The shared editor also accepts synthetic input for capture and testing.
 
 ## Build an editable field
 
@@ -48,8 +47,8 @@ selecting mixed-direction text may paint multiple disjoint visual spans.
 Backspace/Delete operate on logical graphemes, including combining accents,
 emoji modifiers, ZWJ sequences and flag pairs. Home/End select the logical line
 endpoints. Word commands currently use whitespace-delimited words and logical
-order. Native command bindings include the macOS Command shortcuts for select
-all, copy/cut/paste, undo/redo. History retains at most 128 whole-buffer snapshots;
+order. Native command bindings use Command on macOS and Control on Wayland for
+select all, copy/cut/paste and undo/redo. History retains at most 128 whole-buffer snapshots;
 each commit is an undo step, while an entire IME composition is one step.
 Typing coalescence, richer word-boundary rules and multiline editing are future
 improvements. Pasted line breaks/tabs become spaces.
@@ -124,7 +123,8 @@ Japanese candidate window.
 
 `clipboard_read` returns an owned string and success flag (delete the string);
 `clipboard_write` returns success. Unsupported backends report false. Automated
-checks do not overwrite the user's clipboard.
+core checks do not modify the clipboard. The optional Wayland native-input
+check temporarily exchanges text and restores the previous text selection.
 
 - `core/edit` tests: editing, graphemes, composition, cancellation, undo/redo.
 - `core/text` tests: Latin/Arabic caret spans agree with shaped widths.
@@ -134,4 +134,27 @@ checks do not overwrite the user's clipboard.
   focus-loss cancellation, native key interpretation/undo and window teardown.
 - `demo15 --capture`: editor/selection/composition PNGs under `bin/`.
 - `demo15`: live Latin, Arabic and Japanese fields for IME/clipboard verification.
-  Its Japanese font is loaded from macOS's Hiragino font file, not embedded.
+  Its Japanese font uses Hiragino on macOS or the system Noto Sans CJK file on
+  Arch Linux (`noto-fonts-cjk`); missing glyphs remain local if the font is absent.
+
+## Wayland adapter and verification
+
+Wayland uses XKB for layout-aware typing, Compose/dead keys and repeat, plus
+text-input-v3 when available for preedit, committed text, surrounding deletion
+and logical caret geometry. An enabled protocol does not suppress ordinary
+keyboard text: compositor input-method grabs handle IME-owned keys. Focus and
+identity changes prevent stale composition events from reaching another editor.
+
+`ui.text_input_capabilities()` reports basic typing, composition-protocol and
+clipboard availability for the current window. Composition protocol support
+requires a separately installed and configured input method to show candidates;
+basic XKB typing remains available without it. Clipboard access uses native
+Wayland data-device transfers and requires a focused seat/window for selection
+access. The backend does not require clipboard command-line utilities.
+
+`platform` tests exercise real XKB state and the text-input callback pipeline.
+The optional [native input check](../scripts/check-wayland-input.py) drives
+Hyprland key events into main/panel windows and checks clipboard exchange with
+another client. See [LINUX.md](../platform/LINUX.md) for commands, dependencies
+and transfer limits. Live IME candidate placement needs manual verification;
+callback tests alone do not establish that an installed IME works correctly.

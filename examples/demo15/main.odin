@@ -21,11 +21,12 @@ update :: proc() {
 		when ODIN_OS == .Darwin {
 			_, jp_error := ui.load_font("/System/Library/Fonts/ヒラギノ角ゴシック W3.ttc", "Japanese")
 			if jp_error != .None { fmt.eprintln("Japanese demo font unavailable:", jp_error) }
+		} else when ODIN_OS == .Linux {
+			_, jp_error := ui.load_font("/usr/share/fonts/noto-cjk/NotoSansCJK-Regular.ttc", "Japanese")
+			if jp_error != .None { fmt.eprintln("Japanese demo font unavailable (install noto-fonts-cjk):", jp_error) }
 		}
 		members := []ui.Font_Ref{"UI", "Arabic"}
-		when ODIN_OS == .Darwin {
-			if _, found := ui.find_font("Japanese"); found { members = []ui.Font_Ref{"UI", "Arabic", "Japanese"} }
-		}
+		if _, found := ui.find_font("Japanese"); found { members = []ui.Font_Ref{"UI", "Arabic", "Japanese"} }
 		_, stack_error := ui.font_stack("Editor", members); assert(stack_error == .None)
 	}
 	ui.paint(color = {0.055, 0.075, 0.11, 1})
@@ -45,7 +46,6 @@ update :: proc() {
 		if !field.initialized {
 			initials := [3]string{"Office café — select me and start typing", "مرحبا بالعالم — Hello 123", "日本語を入力してください"}
 			initial := initials[i]
-			if i == 2 && ODIN_OS != .Darwin { initial = "Native text input awaits the Wayland adapter" }
 			ui.init_text_edit(&field.editor, initial); field.initialized = true
 		}
 		if i == 0 && !capture_mode && ui.current_frame().time < 0.1 { ui.request_focus() }
@@ -64,7 +64,8 @@ update :: proc() {
 		ui.pad4(16, 0, 0, 0)
 		ui.close_identity()
 	}
-	label("Enter submits a line. Escape cancels composition. Command-Z undoes an edit.", 14)
+	undo := "Command-Z" if ODIN_OS == .Darwin else "Control-Z"
+	label(fmt.tprintf("Enter submits a line. Escape cancels composition. %s undoes an edit.", undo), 14)
 }
 label :: proc(value: string, size: f32) {
 	_, err := ui.text(value, "UI", size = size, color = {0.84, 0.89, 0.95, 1}); assert(err == .None)
