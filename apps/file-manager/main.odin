@@ -1,6 +1,7 @@
 package file_manager
 
 import ui "../../core"
+import edit "../../core/edit"
 import "core:os"
 import "core:fmt"
 import "core:path/filepath"
@@ -21,7 +22,7 @@ main :: proc() {
 	defer destroy_browser(&browser)
 	defer destroy_list()
 	if len(os.args) == 2 && os.args[1] == "--bench" { benchmark_list(); return }
-	if len(os.args) == 2 && os.args[1] == "--capture" { capture_check(); capture_design(); capture_virtual_list(); return }
+	if len(os.args) == 2 && os.args[1] == "--capture" { capture_check(); capture_design(); capture_virtual_list(); capture_typeahead(); return }
 	if len(os.args) > 2 {
 		fmt.eprintln("Usage: file-manager [directory | --capture | --bench]")
 		os.exit(1)
@@ -57,6 +58,11 @@ update :: proc() {
 	released = input.mouse_released | (previous & ~input.mouse_buttons)
 	previous = input.mouse_buttons
 	if input.mouse_cancelled { pressed_id = {}; pressed, released = {}, {} }
+	// The root owns text input while no control has focus. Once a control
+	// takes focus, omit the root from Tab traversal so the existing order stays.
+	if ui.direct_focus() == (ui.Identity{}) { ui.request_focus() }
+	ui.focusable(ui.direct_focus() == ui.current_identity())
+	update_typeahead()
 	ui.paint(color = {0.965, 0.962, 0.95, 1})
 	ui.pad(24)
 	ui.open_clip()
@@ -79,7 +85,10 @@ update :: proc() {
 
 	ui.open_rect(.Bottom, 32)
 	ui.pad4(8, 0, 0, 0)
-	if browser.error != "" {
+	if query := edit.value(&list.search.buffer); query != "" {
+		prefix := "No match: " if list.search.no_match else "Find: "
+		label(fmt.tprintf("%s%s", prefix, query), 13, ink)
+	} else if browser.error != "" {
 		label(browser.error, 13, {0.65, 0.25, 0.20, 1})
 	} else {
 		if ui.current_rect().size.x >= 430 {
@@ -108,9 +117,16 @@ update :: proc() {
 	ui.open_scroll({ui.current_rect().size.x, f32(len(browser.entries)) * row_height})
 	if changed && browser.refresh { ui.scroll_to({0, last_scroll}) }
 	viewport := ui.current_bounds()
+	if list.search.match >= 0 {
+		offset := ui.current_scroll().offset.y
+		top := f32(list.search.match) * row_height
+		if top < offset { offset = top }
+		if top + row_height > offset + viewport.size.y { offset = top + row_height - viewport.size.y }
+		ui.scroll_to({0, offset})
+	}
 	last_scroll = ui.current_scroll().offset.y
 	canvas := ui.current_rect()
-	prepare_list(len(browser.entries), browser.folders, browser.generation, last_scroll, viewport.size.y)
+	prepare_list(len(browser.entries), browser.generation, last_scroll, viewport.size.y)
 	if len(browser.entries) == 0 {
 		ui.pad(16)
 		label("Reading folder..." if browser.state == .Reading else "This folder is empty." if browser.error == "" else "Folder unavailable.", 17, muted)
@@ -120,7 +136,9 @@ update :: proc() {
 		ui.open_rect_at({position = canvas.position + [2]f32{0, f32(i) * row_height},
 			size = {canvas.size.x, row_height}}, key = i)
 		append(&list.rows, Row_Identity{i, ui.current_identity()})
-		ui.focusable(entry.directory)
+		ui.focusable()
+		if i == list.search.match { ui.request_focus() }
+		publish_typeahead()
 		if activated(entry.directory) {
 			// Preserve the browsed path, including symlink aliases, so Up returns
 			// to the directory the user actually came from.
@@ -130,7 +148,8 @@ update :: proc() {
 		}
 		// Offscreen keyboard targets retain geometry without painting.
 		if i >= list.first && i < list.end {
-			active := entry.directory && (ui.hovered() || ui.focused())
+			selected := i == list.search.match if list.search.match >= 0 else ui.focused()
+			active := selected || (entry.directory && ui.hovered())
 			amount := ui.animate_f32(1 if active else 0)
 			ui.paint(color = {0.72, 0.88, 0.87, amount * 0.65}, corners = 5)
 			ui.open_rect(.Bottom, 1)
@@ -151,6 +170,8 @@ update :: proc() {
 	ui.close_scroll()
 	ui.close_identity()
 	ui.close_clip()
+	ui.focusable(ui.direct_focus() == ui.current_identity())
+	publish_typeahead()
 	if .Left in released { pressed_id = {} }
 }
 
@@ -160,11 +181,15 @@ activated :: proc(enabled: bool) -> bool {
 	if ui.hovered() && .Left in pressed { pressed_id = id }
 	input := ui.current_frame().input
 	return (.Left in released && pressed_id == id && ui.hovered()) ||
-		(ui.focused() && (.Enter in input.keys_pressed || .KeypadEnter in input.keys_pressed || .Space in input.keys_pressed))
+		(ui.focused() && (list.search.match < 0 || focused_row() == list.search.match) && (list.search.submit ||
+		(.Enter in input.keys_pressed && .Enter not_in input.text.handled_keys) ||
+		(.KeypadEnter in input.keys_pressed && .KeypadEnter not_in input.text.handled_keys) ||
+		(.Space in input.keys_pressed && .Space not_in input.text.handled_keys)))
 }
 
 button :: proc(value: string, enabled: bool) -> bool {
 	ui.focusable(enabled)
+	publish_typeahead()
 	clicked := activated(enabled)
 	amount := ui.animate_f32(1 if enabled && (ui.hovered() || ui.focused()) else 0)
 	base := ui.Color{0.91, 0.93, 0.93, 1}
@@ -174,8 +199,8 @@ button :: proc(value: string, enabled: bool) -> bool {
 }
 
 // Fixed-size, single-line names, clipped rather than made unreadably small.
-// Until font fallback exists, display unsupported names as reversible byte
-// escapes. The original filesystem name is always used for navigation.
+// Invalid/control-containing names use reversible byte escapes. Unsupported
+// glyphs render as tofu; navigation always uses the original filesystem name.
 label :: proc(value: string, size: f32, color: ui.Color, weight: f32 = 0, align: ui.Text_Align = .Start) {
 	r := ui.current_rect()
 	if r.size.x <= 0 || r.size.y <= 0 { return }

@@ -12,8 +12,8 @@ hover animation and focus. From the repository root:
 ```
 
 Click a teal folder name to enter it; Up returns to its parent. Wheel/trackpad
-scrolls the list. Tab focuses folders or Up; Enter/Space activates them. Files
-are displayed only. Hidden entries are included. Folders appear first, with
+scrolls the list. Tab focuses entries or Up; Enter activates directories. Files
+can be selected but are not opened. Hidden entries are included. Folders appear first, with
 case-insensitive alphabetical ordering within each group.
 
 Directory reads and sorting run on a worker. The browser tracks None / Reading /
@@ -32,8 +32,8 @@ initial loads show `!`. See [the image API](../../core/IMAGES.md) for cache life
 and [the worker service](../../core/files/README.md) for polling limitations.
 
 The virtual list builds only visible rows plus at most five offscreen keyboard
-focus targets (current folder, neighbors, first/last folder). Tab/Shift-Tab
-traverse folders in order and reveal the destination, even after manual
+focus targets (current entry, neighbors, first/last entry). Tab/Shift-Tab
+traverse entries in order and reveal the destination, even after manual
 scrolling. Per-frame row work depends on viewport height, not entry count.
 
 The light theme follows an [image-generated reference](design/reference.png);
@@ -41,7 +41,22 @@ the [generation prompt](design/README.md) is saved with it. `--capture` writes
 `bin/file-manager-design.png` with real thumbnails and verifies directory
 watching, scroll preservation, navigation, and 20,000-row virtualization.
 
-The sample uses the bundled Latin font. Names containing unsupported glyphs or
-control bytes fall back to byte escapes; navigation always uses the original
-name. Long names and paths are clipped. System-font fallback, full-size previews, file
-operations, selection and search are not part of this first version.
+Type a filename prefix to select and reveal it, e.g. `dow` selects Downloads.
+Matching uses Unicode simple case folding; it does not normalize accent forms or
+perform fuzzy/substring matching. One second of inactivity starts a new prefix.
+Backspace shortens it; Escape clears it. Repeated single letters cycle matching
+entries when the repeated-letter prefix has no match. A failed search leaves
+selection unchanged. The footer shows the prefix and whether it matched.
+Typing Space is part of the prefix, not folder activation. Native text input
+supports the active layout, dead keys and IME; composition stays on its current
+focus target until committed. A new directory snapshot clears the prefix.
+
+Matching scans filenames only when the prefix changes; unchanged frames do no
+search work. Results are scrolled into view before building the visible rows,
+keeping the same virtualization bounds. Native type-to-select currently needs
+the macOS text-input adapter; the Wayland adapter remains separate work.
+
+The sample uses the bundled Latin font. Unsupported glyphs display as tofu;
+invalid/control-containing names fall back to byte escapes. Navigation/matching
+always uses the original name. Long names and paths are clipped. System-font
+fallback, full-size previews, file operations and content search remain future work.
