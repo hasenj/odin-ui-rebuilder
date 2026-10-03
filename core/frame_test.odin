@@ -50,6 +50,7 @@ rect_frame_pipeline :: proc(t: ^testing.T) {
 	hover_rects(t)
 	identity_animation_pipeline(t)
 	local_layout_pipeline(t)
+	local_layout_stretch_pipeline(t)
 	clip_pipeline(t)
 	interaction_pipeline(t)
 	scroll_pipeline(t)

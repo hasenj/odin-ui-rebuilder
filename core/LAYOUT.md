@@ -2,7 +2,7 @@
 
 Rect cutting still handles resolved regions. Inside one of those regions,
 `open_layout` records a small layout tree; `close_layout` measures and positions
-it, consumes a top/bottom strip, and emits its surfaces. Application code runs
+it, consumes a strip in the requested direction, and emits its surfaces. Application code runs
 once, including input reactions and retained animation. The layout passes only
 process recorded data.
 
@@ -36,35 +36,59 @@ returned by `close_layout`; other successfully recorded content can still paint.
 
 ## Sizing rules
 
+Every root inherits maximum width **and** height from the current remaining rect.
+It resolves to its content size within those bounds, rather than filling them.
+Fixed sizes are also capped by the available bounds.
+
 - Flow is `.Column` by default, or `.Row`. `gap` separates immediate children.
 - `padding = {vertical, horizontal}` applies inside the box, around its children.
   Painting covers the whole box, including padding.
-- Width defaults to content size. `layout_fixed(n)` preserves an explicit width;
-  `layout_fill(weight)` receives remaining width. Fill weights must be positive.
-- A row reserves fixed widths and gaps first. Content children keep their natural
-  widths when space permits, or share a shortage in proportion to their natural
-  widths. Fill children divide any surplus by weight. Fixed children, padding,
-  and gaps may overflow a very narrow allocation.
-- A column constrains content children to its inner width. Fill children take
-  that width; fixed children retain their explicit width.
-- Height defaults to the extent of the children after text wrapping, plus
-  padding/gaps. `height = layout_fixed(n)` overrides it. Height fill is unsupported.
-- `align = .Start`, `.Center`, or `.End` positions children on the cross axis:
-  vertically in a row, horizontally in a column. It does not stretch children.
-- A content-width box cannot have a direct fill-width child. Give that parent a
-  fixed or fill width to remove the circular sizing dependency.
+- Width and height default to content size. Use `layout_fixed(n)` to request an
+  explicit size. There is no `Fill` size mode, growth weight, or flex shrink.
+- A row adds child widths and gaps; a column adds child heights and gaps. Spare
+  main-axis space stays unused. Children are each constrained by the parent's
+  inner bounds, not assigned competing shares of its main-axis space.
+- If siblings together exceed the main-axis extent, they overflow in declaration
+  order. They are not proportionally shrunk or automatically wrapped onto a new
+  row/column. Use clipping/scrolling or separate cut regions to handle overflow.
+- Wrapped text is measured after width constraints and horizontal stretching
+  resolve. Its height sizes its ancestors, subject to their height limits.
+- `stretch = true` on a parent stretches its content-sized children across its
+  resolved inner cross axis: width in a column, height in a row. A child's fixed
+  cross size takes precedence. Stretch does not make the parent fill spare space.
+- `align = .Start`, `.Center`, or `.End` positions children on the cross axis.
+  Alignment matters for children that do not stretch (or have a fixed cross size).
 
-The root consumes a `.Top` or `.Bottom` strip from the current resolved rect.
-Its width is always the available width; leave the root style's width unset.
-Its height is clamped to the remaining height, matching ordinary rect cutting.
-The returned `Rect` describes that consumed strip. There is no automatic clip:
-fixed content, unbreakable words or descendants of a height-constrained box may
-extend outside it. Open a clip around the layout when that is undesirable.
+For a menu, the widest natural entry plus menu padding determines the menu width,
+up to the enclosing width limit. `stretch = true` then gives the other entries
+that same inner width. Their painted backgrounds and hit bounds stretch together;
+their content heights remain independent.
 
-There is no row wrapping, flex-basis, CSS shrink/min/max machinery, baseline
-alignment, height fill, or left/right content-width root in this first version.
-Text wrapping retains the existing text engine's rules, including unbroken long
-words and explicit newlines.
+```odin
+ui.open_layout(.Left, {gap = 4, padding = {8, 8}, stretch = true})
+ui.paint(color = menu_background, corners = 8)
+for item in items {
+    ui.open_box({padding = {8, 12}}, key = item.id)
+    ui.focusable()
+    ui.paint(color = hovered_color if ui.hovered() else normal_color)
+    ui.text_item(item.label, "UI", 16)
+    ui.close_box()
+}
+menu_bounds, err := ui.close_layout()
+```
+
+Roots support `.Top`, `.Bottom`, `.Left`, and `.Right`. `close_layout` returns the
+resolved **content bounds**, anchored to the requested edge and the start of the
+other axis. It removes a full strip along the cut axis from the parent: top/bottom
+consume resolved height; left/right consume resolved width. A left-cut menu can
+therefore leave empty space below itself while reserving its column. Rect cutting
+can place independent layout groups at the left and right ends of a toolbar.
+
+There is no automatic clipping. Although resolved sizes are constrained, sibling
+placement or glyphs for unbreakable words can extend outside their bounds. Open a
+clip around the layout when overflow should be hidden. Text wrapping retains the
+existing text engine's rules, including explicit newlines and unbroken long words.
+There is no baseline alignment, row wrapping, or CSS flex allocation machinery.
 
 ## Identity, input, and retained state
 
@@ -109,8 +133,9 @@ arrays, ordered paint/text commands, and copied string bytes. Parent indices and
 subtree-end indices replace child pointers. Capacity is retained across roots
 and frames; storage is released with the owning window/capture session.
 
-Resolution visits those arrays for intrinsic measurement, width allocation,
-width-dependent text measurement and height propagation, then placement. Finally
+Resolution visits those arrays for intrinsic measurement, width constraints and
+horizontal stretch, width-dependent text measurement and height propagation,
+then placement and vertical stretch. Finally
 it writes hit bounds and emits surfaces in command order before ordinary cutting
 resumes. Existing paragraph/shape/glyph caches are reused. Each tree pass is
 linear in the number of nodes; text processing has its own cache-dependent cost.
@@ -123,13 +148,16 @@ linear in the number of nodes; text processing has its own cache-dependent cost.
 ./bin/app13 --capture
 ```
 
-App13 has content-sized buttons with hover fades and focus, click-to-reorder
-behavior, and a card combining a fixed icon, wrapped text, and fill-width cells.
-The content height moves subsequent sections without caller premeasurement.
+App13 demonstrates a menu sized by its widest entry, equal-width stretched
+backgrounds and hit regions, hover fades, focus, selection and keyed reordering.
+Independent left/right toolbar groups are placed with cuts. The explanation in
+the remaining region wraps and sizes itself without caller premeasurement.
 
-Core integration checks verify exact resolved geometry, inherited clipping,
-previous-frame hover/click focus, one execution per update, state through keyed
-reordering, cleanup, bottom cuts, exhausted space, and warmed buffer reuse.
-Metal capture checks compare wrapped/nested heights against the text engine at
-1x/2x, validate temporary-string ownership and deferred errors, and save app13 at
-wide/narrow sizes. Wayland runtime verification remains a Linux-host task.
+Core integration checks verify content-derived bounds, both stretch axes, fixed
+cross-size precedence, width/height limits, no main-axis growth or proportional
+shrink, inherited clipping, previous-frame hover/click focus, one execution per
+update, state through reordering, cleanup, directional cuts, exhausted space,
+and warmed buffer reuse. Metal captures compare nested wrapped heights with the
+text engine at 1x/2x, validate temporary-string ownership and deferred errors,
+and exercise clicks in the stretched part of a menu row. Wayland runtime
+verification remains a Linux-host task.

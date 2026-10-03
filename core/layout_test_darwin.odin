@@ -34,14 +34,13 @@ local_layout_text_scene :: proc() {
 		assert(err == .None)
 	}
 	font := layout_text_test_font
-	// One fixed-width sibling plus a fill column. Both column and enclosing
-	// row must grow from width-dependent text height without premeasurement.
-	open_layout(.Top, {flow = .Row, gap = 8, padding = {6, 10}})
+	// Rect cutting allocates the icon area. A local content-sized column
+	// measures wrapped text within the remaining width, without fill behavior.
+	open_rect(.Left, 40)
+	close_rect()
+	open_layout(.Top, {padding = {6, 10}})
 	paint()
-	open_box({width = layout_fixed(32), height = layout_fixed(20)})
-	paint(color = {1, 0, 0, 1})
-	close_box()
-	open_box({width = layout_fill(), gap = 5})
+	open_box({gap = 5})
 	paragraph := "A paragraph that wraps when its allocated width becomes smaller.\nAn explicit second line."
 	text_item(paragraph, font, 16)
 	for i in 0..<2 {
@@ -61,9 +60,9 @@ local_layout_text_scene :: proc() {
 	// Independent text-layout results agree with final leaf geometry. Copied
 	// commands still contain the labels, despite overwriting the caller buffer.
 	store := &active_state.layout
-	assert(abs(store.measure[3].size.y - expected.height) < 0.001)
+	assert(abs(store.measure[2].size.y - expected.height) < 0.001)
 	for command, i in store.commands {
-		if command.kind != .Text || i < 3 { continue }
+		if command.kind != .Text || i < 2 { continue }
 		value := transmute(string)store.strings[command.value_start:command.value_end]
 		assert(value == "Label 1" || value == "Label 2")
 	}

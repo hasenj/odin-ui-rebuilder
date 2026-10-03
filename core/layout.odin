@@ -4,24 +4,24 @@ import "base:intrinsics"
 import fonts "text"
 
 Layout_Flow :: enum {Column, Row}
-Layout_Size_Mode :: enum {Content, Fixed, Fill}
+Layout_Size_Mode :: enum {Content, Fixed}
 Layout_Size :: struct {mode: Layout_Size_Mode, value: f32}
 layout_fixed :: proc(value: f32) -> Layout_Size { return {.Fixed, value} }
-layout_fill :: proc(weight: f32 = 1) -> Layout_Size { return {.Fill, weight} }
 
-// Padding is vertical, horizontal. Fill is supported for width only. Content
-// widths shrink to their allocation; fixed widths may overflow. Height follows
-// wrapped content unless fixed. Alignment applies across the flow direction.
+// Padding is vertical, horizontal. Sizes are content-derived or fixed, bounded
+// by the enclosing rect. Stretch affects content-sized children on the cross
+// axis only; fixed cross sizes take precedence. No main-axis growth or shrink.
 Layout_Style :: struct {
 	flow: Layout_Flow,
 	width, height: Layout_Size,
 	padding: [2]f32,
 	gap: f32,
 	align: Text_Align,
+	stretch: bool,
 }
 
 @(private) Layout_Node :: struct {parent, end, hit, text_command: int}
-@(private) Layout_Measure :: struct {preferred, size: [2]f32, text: Text_Layout}
+@(private) Layout_Measure :: struct {preferred, size: [2]f32, max_height: f32, text: Text_Layout}
 @(private) Layout_Command_Kind :: enum {Paint, Text}
 @(private) Layout_Command :: struct {
 	kind: Layout_Command_Kind,
@@ -48,9 +48,9 @@ Layout_Style :: struct {
 	strings: [dynamic]u8,
 }
 
-// Start a local width-constrained layout, consuming a Top/Bottom strip only
-// when close_layout resolves its content height. Root width is the available
-// rect width. Nested boxes use open_box, not another open_layout.
+// Start a local content-sized layout constrained by the current remaining rect.
+// close_layout consumes its resolved extent along the requested cut direction.
+// Nested boxes use open_box, not another open_layout.
 open_layout :: proc{open_layout_implicit, open_layout_keyed}
 @(private)
 open_layout_implicit :: proc(direction: Direction, style: Layout_Style = {}, loc := #caller_location) {
@@ -62,8 +62,6 @@ open_layout_keyed :: proc(direction: Direction, style: Layout_Style = {}, key: $
 }
 @(private)
 open_layout_key :: proc(direction: Direction, style: Layout_Style, key: Identity_Key) {
-	assert(direction == .Top || direction == .Bottom, "Local layout currently consumes Top/Bottom strips")
-	assert(style.width == (Layout_Size{}), "Root width comes from the enclosing resolved rect")
 	area := current_rect() // Also rejects nesting unresolved layout roots.
 	flush_surface_state()
 	store := &active_state.layout
@@ -72,9 +70,7 @@ open_layout_key :: proc(direction: Direction, style: Layout_Style, key: Identity
 	store.available, store.direction = area, direction
 	store.surface_start = len(current_frame().surfaces)
 	store.active = true
-	root_style := style
-	root_style.width = layout_fixed(area.size.x)
-	layout_enter(root_style, key, .Layout_Root)
+	layout_enter(style, key, .Layout_Root)
 }
 
 open_box :: proc{open_box_implicit, open_box_keyed}
@@ -92,13 +88,9 @@ layout_enter :: proc(style: Layout_Style, key: Identity_Key, kind: Identity_Scop
 	assert(store.active, "open_box needs a local layout")
 	assert(valid_length(style.gap) && valid_length(style.padding.x) && valid_length(style.padding.y))
 	assert(valid_length(style.width.value) && valid_length(style.height.value))
-	assert(style.height.mode != .Fill, "Height fill is not supported in content-height layouts")
-	if style.width.mode == .Fill { assert(style.width.value > 0, "Fill weight must be positive") }
 	parent := -1
 	if len(store.stack) > 0 {
 		parent = store.stack[len(store.stack) - 1]
-		assert(style.width.mode != .Fill || store.styles[parent].width.mode != .Content,
-			"A content-width parent cannot depend on a fill-width child; give the parent a width")
 	}
 	id := identity_enter(key, kind)
 	index := len(store.nodes)
@@ -143,7 +135,8 @@ layout_paint :: proc(color: Color, image: Image, corners: f32) {
 }
 
 // Resolves only recorded data: identities, input handlers and animations are
-// never replayed. Returns the consumed rect and the first deferred text error.
+// never replayed. Returns the content bounds and first deferred text error.
+// Cutting removes a full strip; these bounds need not fill its cross axis.
 close_layout :: proc() -> (Rect, Text_Error) {
 	store := &active_state.layout
 	assert(store.active && len(store.stack) == 1, "Unclosed layout boxes")
@@ -153,14 +146,17 @@ close_layout :: proc() -> (Rect, Text_Error) {
 	clear(&store.stack)
 	err := layout_solve(store)
 	root := store.available
-	root.size.y = min(store.measure[0].size.y, root.size.y)
-	if store.direction == .Bottom { root.position.y += store.available.size.y - root.size.y }
+	root.size = store.measure[0].size
+	axis := 1 if store.direction == .Top || store.direction == .Bottom else 0
+	if store.direction == .Bottom || store.direction == .Right {
+		root.position[axis] += store.available.size[axis] - root.size[axis]
+	}
 	store.bounds[0] = root
 	layout_place(store)
 	store.active = false
 	parent := current_rect_context()
-	parent.remaining.size.y -= root.size.y
-	if store.direction == .Top { parent.remaining.position.y += root.size.y }
+	parent.remaining.size[axis] -= root.size[axis]
+	if store.direction == .Top || store.direction == .Left { parent.remaining.position[axis] += root.size[axis] }
 	for node, i in store.nodes { active_state.interaction.current[node.hit].bounds = store.bounds[i] }
 	frame := current_frame()
 	for command in store.commands {
@@ -215,35 +211,23 @@ layout_solve :: proc(store: ^Layout_Store) -> Text_Error {
 		if style.height.mode == .Fixed { preferred.y = style.height.value }
 		store.measure[i].preferred = preferred
 	}
-	// Top-down widths. Fixed children keep their width; content children share
-	// a shortage proportionally; fill children split any surplus by weight.
-	store.measure[0].size.x = store.available.size.x
+	// Top-down constraints. Siblings each get the parent's inner bounds;
+	// they do not compete for a share of remaining main-axis space. A row may
+	// therefore overflow as a group even though each item is constrained.
+	store.measure[0].size.x = min(store.measure[0].preferred.x, store.available.size.x)
+	store.measure[0].max_height = store.available.size.y
 	for node, i in store.nodes {
 		style := store.styles[i]
-		width := max(0, store.measure[i].size.x - 2 * style.padding.y)
-		fixed, content, weights: f32
-		count := 0
-		for c := i + 1; c < node.end; c = store.nodes[c].end {
-			child := store.styles[c]
-			switch child.width.mode {
-			case .Fixed: fixed += child.width.value
-			case .Content: content += store.measure[c].preferred.x
-			case .Fill: weights += child.width.value
-			}
-			count += 1
+		if style.height.mode == .Fixed {
+			store.measure[i].max_height = min(store.measure[i].max_height, style.height.value)
 		}
-		available := max(0, width - fixed - f32(max(0, count - 1)) * style.gap)
+		width := max(0, store.measure[i].size.x - 2 * style.padding.y)
+		height := max(0, store.measure[i].max_height - 2 * style.padding.x)
 		for c := i + 1; c < node.end; c = store.nodes[c].end {
-			child := store.styles[c]
-			w := store.measure[c].preferred.x
-			if style.flow == .Column {
-				if child.width.mode == .Fill { w = width }
-				if child.width.mode == .Content { w = min(w, width) }
-			} else {
-				if child.width.mode == .Content && content > 0 { w *= min(1, available / content) }
-				if child.width.mode == .Fill { w = max(0, available - content) * child.width.value / weights }
-			}
+			w := min(store.measure[c].preferred.x, width)
+			if style.flow == .Column && style.stretch && store.styles[c].width.mode == .Content { w = width }
 			store.measure[c].size.x = w
+			store.measure[c].max_height = height
 		}
 	}
 	// Width-dependent text and bottom-up heights; no application-code replay.
@@ -265,7 +249,7 @@ layout_solve :: proc(store: ^Layout_Store) -> Text_Error {
 			height += 2 * style.padding.x
 		}
 		if style.height.mode == .Fixed { height = style.height.value }
-		store.measure[i].size.y = height
+		store.measure[i].size.y = min(height, store.measure[i].max_height)
 	}
 	return err
 }
@@ -280,6 +264,11 @@ layout_place :: proc(store: ^Layout_Store) {
 		inner := bounds.size - inset * 2
 		for c := i + 1; c < node.end; c = store.nodes[c].end {
 			size := store.measure[c].size
+			// Width stretch was resolved before text wrapping. Height stretch
+			// follows final parent height, and propagates through nested rows.
+			if style.flow == .Row && style.stretch && store.styles[c].height.mode == .Content {
+				size.y = max(0, inner.y)
+			}
 			p := position
 			space := max(0, inner[1 - axis] - size[1 - axis])
 			if style.align == .Center { p[1 - axis] += space / 2 }

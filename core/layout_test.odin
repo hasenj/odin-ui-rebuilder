@@ -78,7 +78,7 @@ local_layout_scene :: proc() {
 	open_layout(.Bottom if layout_test_bottom else .Top, {flow = .Row, gap = 10, padding = {5, 10}, align = .Center})
 	paint(color = {0.1, 0.1, 0.1, 1})
 	for i in layout_test_order {
-		width := layout_fixed(40) if i == 0 else layout_fill(f32(i))
+		width := layout_fixed(80 if i == 2 else 40)
 		heights := [3]f32{20, 30, 10}
 		open_box({width = width, height = layout_fixed(heights[i])}, key = i)
 		layout_test_ids[i] = current_identity()
@@ -97,4 +97,60 @@ local_layout_scene :: proc() {
 	open_layer(4)
 	paint()
 	close_layer()
+}
+
+@(private) stretch_menu, stretch_row: Rect
+@(private)
+local_layout_stretch_pipeline :: proc(t: ^testing.T) {
+	state := Frame_State{update = local_layout_stretch_scene}
+	defer destroy_frame_state(&state)
+	surfaces := build_frame(nil, 0, {300, 200}, &state)
+	testing.expect_value(t, stretch_menu.size, [2]f32{108, 66})
+	// All menu rows match the widest content plus their own padding, not the
+	// entire 300-point enclosing rect. Their children keep natural fixed widths.
+	for index in ([?]int{1, 3, 5}) { testing.expect_value(t, surfaces[index].size, [2]f32{92, 16}) }
+	testing.expect_value(t, surfaces[2].size, [2]f32{40, 10})
+	testing.expect_value(t, stretch_row, Rect{{246, 66}, {54, 60}})
+	testing.expect_value(t, surfaces[7].size, [2]f32{20, 50}) // Content-height child stretches.
+	testing.expect_value(t, surfaces[8].size, [2]f32{20, 30}) // Explicit cross size wins.
+	// Extra width is unused; a smaller enclosure constrains each item, without
+	// dividing available main-axis space between siblings.
+	surfaces = build_frame(nil, 1, {70, 200}, &state)
+	testing.expect_value(t, stretch_menu.size, [2]f32{70, 66})
+	for index in ([?]int{1, 3, 5}) { testing.expect_value(t, surfaces[index].size.x, f32(54)) }
+	surfaces = build_frame(nil, 2, {30, 200}, &state)
+	testing.expect_value(t, stretch_row.size.x, f32(30))
+	testing.expect_value(t, surfaces[7].size.x, f32(20))
+	testing.expect_value(t, surfaces[8].size.x, f32(20)) // Row overflows; neither sibling is shrunk to 8.
+	build_frame(nil, 3, {70, 40}, &state)
+	testing.expect_value(t, stretch_menu.size, [2]f32{70, 40}) // Root respects the available height too.
+	testing.expect_value(t, stretch_row.size.y, f32(0)) // No height remains after the cut.
+}
+
+@(private)
+local_layout_stretch_scene :: proc() {
+	open_layout(.Top, {gap = 4, padding = {5, 8}, stretch = true})
+	paint()
+	for width in ([?]f32{40, 80, 50}) {
+		open_box({padding = {3, 6}})
+		paint()
+		open_box({width = layout_fixed(width), height = layout_fixed(10)})
+		paint()
+		close_box()
+		close_box()
+	}
+	err: Text_Error
+	stretch_menu, err = close_layout()
+	assert(err == .None)
+	open_layout(.Right, {flow = .Row, height = layout_fixed(60), padding = {5, 5}, gap = 4, stretch = true})
+	open_box({width = layout_fixed(20)})
+	paint()
+	open_box({height = layout_fixed(10)})
+	close_box()
+	close_box()
+	open_box({width = layout_fixed(20), height = layout_fixed(30)})
+	paint()
+	close_box()
+	stretch_row, err = close_layout()
+	assert(err == .None)
 }
