@@ -6,10 +6,10 @@ import "core:fmt"
 import "core:path/filepath"
 import "core:strings"
 
-ink :: ui.Color{0.91, 0.94, 0.98, 1}
-muted :: ui.Color{0.52, 0.60, 0.69, 1}
-blue :: ui.Color{0.49, 0.72, 1, 1}
-row_height :: f32(40)
+ink :: ui.Color{0.10, 0.16, 0.23, 1}
+muted :: ui.Color{0.40, 0.46, 0.51, 1}
+blue :: ui.Color{0.12, 0.46, 0.48, 1}
+row_height :: f32(56)
 
 browser: Browser
 font: ui.Font
@@ -21,7 +21,7 @@ main :: proc() {
 	defer destroy_browser(&browser)
 	defer destroy_list()
 	if len(os.args) == 2 && os.args[1] == "--bench" { benchmark_list(); return }
-	if len(os.args) == 2 && os.args[1] == "--capture" { capture_check(); capture_virtual_list(); return }
+	if len(os.args) == 2 && os.args[1] == "--capture" { capture_check(); capture_design(); capture_virtual_list(); return }
 	if len(os.args) > 2 {
 		fmt.eprintln("Usage: file-manager [directory | --capture | --bench]")
 		os.exit(1)
@@ -37,14 +37,16 @@ update :: proc() {
 	if !browser.initialized {
 		browser.initialized = true
 		home, err := os.user_home_dir(context.allocator)
-		if err == nil { browse(&browser, home); delete(home) } else { set_error(&browser, err) }
+		if err == nil { browse(&browser, home); delete(home) } else { browser.error = fmt.aprintf("Could not locate home: %v", err) }
 	}
 	if browser.pending != "" {
 		pending := browser.pending
 		browser.pending = ""
-		if browse(&browser, pending) { ui.clear_focus(); pressed_id = {} }
+		browse(&browser, pending)
 		delete(pending)
 	}
+	changed := poll_browser(&browser)
+	if changed { ui.clear_focus(); pressed_id = {} }
 	if font == 0 {
 		err: ui.Text_Error
 		font, err = ui.load_font("examples/assets/fonts/NotoSansDisplay-VariableFont.ttf")
@@ -54,48 +56,63 @@ update :: proc() {
 	pressed = input.mouse_pressed | (input.mouse_buttons & ~previous)
 	released = input.mouse_released | (previous & ~input.mouse_buttons)
 	previous = input.mouse_buttons
-	ui.paint(color = {0.045, 0.058, 0.075, 1})
+	ui.paint(color = {0.965, 0.962, 0.95, 1})
 	ui.pad(24)
 	ui.open_clip()
 
-	ui.open_rect(.Top, 64)
-	ui.open_rect(.Left, 76)
-	ui.open_rect(.Top, 38)
+	ui.open_rect(.Top, 72)
+	ui.open_rect(.Left, 58)
+	ui.open_rect(.Top, 44)
 	parent := filepath.dir(browser.path)
 	can_go_up := browser.path != "" && parent != browser.path
 	if button("Up", can_go_up) { queue_directory(&browser, parent) }
 	ui.close_rect()
 	ui.close_rect()
-	ui.pad4(0, 0, 0, 18)
-	ui.open_rect(.Top, 32)
-	label("Files", 27, ink, weight = 650)
+	ui.pad4(0, 0, 0, 20)
+	ui.open_rect(.Top, 38)
+	title := filepath.base(browser.path) if browser.path != "" else "Files"
+	label(title, 28, ink, weight = 650)
 	ui.close_rect()
 	label(browser.path, 14, muted)
 	ui.close_rect()
 
-	ui.open_rect(.Bottom, 36)
-	ui.pad4(10, 0, 0, 0)
+	ui.open_rect(.Bottom, 32)
+	ui.pad4(8, 0, 0, 0)
 	if browser.error != "" {
-		label(browser.error, 14, {1, 0.59, 0.47, 1})
+		label(browser.error, 13, {0.65, 0.25, 0.20, 1})
 	} else {
+		if ui.current_rect().size.x >= 430 {
+			ui.open_rect(.Right, 190)
+			status := "Reading..." if browser.state == .Reading else "Watching for changes" if browser.active != nil else "Ready"
+			label(status, 13, blue, align = .End)
+			ui.close_rect()
+		}
 		buffer: [96]u8
-		label(fmt.bprintf(buffer[:], "%d folders / %d files", browser.folders, len(browser.entries) - browser.folders), 14, muted)
+		label(fmt.bprintf(buffer[:], "%d folders / %d files", browser.folders, len(browser.entries) - browser.folders), 13, muted)
 	}
 	ui.close_rect()
-	ui.pad4(12, 0, 8, 0)
-	ui.paint(color = {0.063, 0.080, 0.105, 1}, corners = 10)
+	ui.pad4(16, 0, 8, 0)
+	ui.paint(color = {1, 1, 1, 1}, corners = 12)
 	ui.pad(8)
+	ui.open_rect(.Top, 32)
+	ui.paint(color = {0.962, 0.967, 0.97, 1}, corners = 5)
+	ui.pad2(0, 12)
+	columns("KIND", "SIZE", true)
+	ui.pad4(0, 0, 0, 52)
+	label("NAME", 11, muted, weight = 600)
+	ui.close_rect()
 	// A new directory gets a fresh subtree, so old hover, focus and scrolling
 	// cannot transfer to an unrelated row with the same array index.
 	ui.open_identity(key = browser.generation)
 	ui.open_scroll({ui.current_rect().size.x, f32(len(browser.entries)) * row_height})
+	if changed && browser.refresh { ui.scroll_to({0, last_scroll}) }
 	viewport := ui.current_bounds()
 	last_scroll = ui.current_scroll().offset.y
 	canvas := ui.current_rect()
 	prepare_list(len(browser.entries), browser.folders, browser.generation, last_scroll, viewport.size.y)
 	if len(browser.entries) == 0 {
 		ui.pad(16)
-		label("This folder is empty." if browser.error == "" else "Folder unavailable.", 17, muted)
+		label("Reading folder..." if browser.state == .Reading else "This folder is empty." if browser.error == "" else "Folder unavailable.", 17, muted)
 	}
 	for i in list.indices {
 		entry := browser.entries[i]
@@ -114,14 +131,19 @@ update :: proc() {
 		if i >= list.first && i < list.end {
 			active := entry.directory && (ui.hovered() || ui.focused())
 			amount := ui.animate_f32(1 if active else 0)
-			ui.paint(color = {0.12, 0.24, 0.38, amount}, corners = 6)
+			ui.paint(color = {0.72, 0.88, 0.87, amount * 0.65}, corners = 5)
+			ui.open_rect(.Bottom, 1)
+			ui.paint(color = {0.94, 0.95, 0.955, 1})
+			ui.close_rect()
 			ui.pad2(0, 12)
-			if entry.directory {
-				ui.open_rect(.Right, 22)
-				label("/", 18, blue)
-				ui.close_rect()
-			}
-			label(entry.info.name, 17, blue if entry.directory else ink)
+			buffer: [48]u8
+			size := "—" if entry.directory else file_size(entry.info.size, buffer[:])
+			columns(file_kind(entry), size, false)
+			ui.open_rect(.Left, 52)
+			file_icon(entry)
+			ui.close_rect()
+			label(entry.info.name, 16, ink)
+
 		}
 		ui.close_rect()
 	}
@@ -144,8 +166,8 @@ button :: proc(value: string, enabled: bool) -> bool {
 	ui.focusable(enabled)
 	clicked := activated(enabled)
 	amount := ui.animate_f32(1 if enabled && (ui.hovered() || ui.focused()) else 0)
-	base := ui.Color{0.11, 0.15, 0.20, 1}
-	ui.paint(color = base + (ui.Color{0.16, 0.31, 0.48, 1} - base) * amount, corners = 7)
+	base := ui.Color{0.91, 0.93, 0.93, 1}
+	ui.paint(color = base + (ui.Color{0.72, 0.87, 0.86, 1} - base) * amount, corners = 7)
 	label(value, 16, ink if enabled else muted, align = .Center)
 	return clicked
 }

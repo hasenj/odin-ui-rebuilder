@@ -32,25 +32,25 @@ capture_check :: proc() {
 		delete(path)
 	}
 	browser.initialized = true
-	assert(browse(&browser, root))
+	assert(read_and_wait(&browser, root))
 	assert(browser.folders == 3 && len(browser.entries) == 37)
 	assert(browser.entries[0].info.name == "Documents" && browser.entries[1].info.name == "Empty")
 	frames := [?]ui.Capture_Frame{
 		{path = "bin/file-manager-files.png"},
-		{input = {mouse_inside = true, mouse_position = {150, 128}, mouse_buttons = {.Left}}},
-		{input = {mouse_inside = true, mouse_position = {150, 128}}},
+		{input = {mouse_inside = true, mouse_position = {150, 180}, mouse_buttons = {.Left}}},
+		{input = {mouse_inside = true, mouse_position = {150, 180}}},
 		{path = "bin/file-manager-folder.png"},
 		{input = {mouse_inside = true, mouse_position = {50, 43}, mouse_buttons = {.Left}}},
 		{input = {mouse_inside = true, mouse_position = {50, 43}}},
 		{},
 		{path = "bin/file-manager-scrolled.png", input = {mouse_inside = true, mouse_position = {200, 200}, scroll_delta = {0, 1200}}},
 		{input = {mouse_inside = true, mouse_position = {200, 200}, scroll_delta = {0, -1200}}},
-		{input = {mouse_inside = true, mouse_position = {150, 168}, mouse_buttons = {.Left}}},
-		{input = {mouse_inside = true, mouse_position = {150, 168}}},
+		{input = {mouse_inside = true, mouse_position = {150, 236}, mouse_buttons = {.Left}}},
+		{input = {mouse_inside = true, mouse_position = {150, 236}}},
 		{path = "bin/file-manager-empty.png"},
 		{},
-		{input = {mouse_inside = true, mouse_position = {150, 248}, mouse_buttons = {.Left}}},
-		{input = {mouse_inside = true, mouse_position = {150, 248}}},
+		{input = {mouse_inside = true, mouse_position = {150, 348}, mouse_buttons = {.Left}}},
+		{input = {mouse_inside = true, mouse_position = {150, 348}}},
 		{},
 		{path = "bin/file-manager-error.png"},
 		{path = "bin/file-manager-narrow.png", size = {360, 320}, scale = 1},
@@ -73,6 +73,13 @@ capture_update :: proc() {
 		queue_directory(&browser, path)
 		delete(path)
 	}
+	if browser.pending != "" {
+		pending := browser.pending
+		browser.pending = ""
+		browse(&browser, pending)
+		delete(pending)
+	}
+	wait_for_browser(&browser)
 	update()
 	switch capture_step {
 	case 3:

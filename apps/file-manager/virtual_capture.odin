@@ -24,18 +24,18 @@ capture_virtual_list :: proc() {
 	frames: [33]ui.Capture_Frame
 	for &frame, i in frames { frame = {size = {780, 640}, scale = 1, time = f64(i) / 60} }
 	for i in 1..=20 { frames[i].input.keys_pressed = {.Tab} }
-	frames[21].input = {mouse_inside = true, mouse_position = {300, 250}, scroll_delta = {0, 400000}}
+	frames[21].input = {mouse_inside = true, mouse_position = {300, 250}, scroll_delta = {0, 560000}}
 	frames[22].path = "bin/file-manager-virtual-middle.png"
 	frames[23].input.keys_pressed = {.Tab}
 	frames[24].input = {keys_pressed = {.Tab}, modifiers = {.Shift}}
-	frames[25].input = {mouse_inside = true, mouse_position = {300, 250}, scroll_delta = {0, -1000000}}
+	frames[25].input = {mouse_inside = true, mouse_position = {300, 250}, scroll_delta = {0, -2000000}}
 	frames[26].input = {mouse_inside = true, mouse_position = {50, 43}, mouse_buttons = {.Left}}
 	frames[27].input = {mouse_inside = true, mouse_position = {5, 5}}
 	frames[28].input = {keys_pressed = {.Tab}, modifiers = {.Shift}}
 	frames[28].path = "bin/file-manager-virtual-last.png"
 	frames[29].input.keys_pressed = {.Tab}
-	frames[30].input = {mouse_inside = true, mouse_position = {150, 544}, mouse_buttons = {.Left}}
-	frames[31].input = {mouse_inside = true, mouse_position = {150, 544}}
+	frames[30].input = {mouse_inside = true, mouse_position = {150, 548}, mouse_buttons = {.Left}}
+	frames[31].input = {mouse_inside = true, mouse_position = {150, 548}}
 	frames[32].size = {140, 100}
 	result := ui.capture_frames(virtual_update, frames[:])
 	assert(result.error == .None)

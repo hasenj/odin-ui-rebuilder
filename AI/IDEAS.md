@@ -122,15 +122,10 @@ alive when the final window closes.
 
 ## Images by path
 
-First, provide an immediate-mode image helper that accepts a filename/path.
-Cache a resource record per path: queue a worker decode on first use, emit
-nothing while loading, and draw the cached image once ready. Do not read or
-decode the file every frame. Keep GPU upload/resource replacement on the
-renderer-owning thread, and define failure/retry and resource-lifetime policies.
-
-As a follow-up, watch the filesystem and reload modified images on a worker.
-Keep the last successful image visible until its replacement is ready; handle
-rapid edits and stale worker results without replacing newer content.
+Extend the path image loader with native filesystem notifications if polling
+becomes a bottleneck, and integrate worker completions with redraw-on-demand.
+Consider byte-based cache budgets, additional image formats, full-size previews,
+and explicit resource pinning for application-controlled retention.
 
 ## External GPU content and engine integration — future direction
 
