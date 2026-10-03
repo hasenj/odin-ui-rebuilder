@@ -203,18 +203,22 @@ keyboard_enter :: proc "c" (data, _: rawptr, _: u32, surface: rawptr, keys: ^WL_
 }
 
 @(private)
-keyboard_leave :: proc "c" (data, _: rawptr, _: u32, _: rawptr) {
+keyboard_leave :: proc "c" (data, _: rawptr, _: u32, surface: rawptr) {
 	w := cast(^Wayland_Window)data
 	context = w.odin_context
+	if surface != w.surface { return }
 	clear_wayland_keyboard(w)
+	mouse_clear(&w.mouse)
 }
 
 @(private)
-keyboard_key :: proc "c" (data, _: rawptr, _: u32, _: u32, code, state: u32) {
+keyboard_key :: proc "c" (data, _: rawptr, serial: u32, _: u32, code, state: u32) {
 	w := cast(^Wayland_Window)data
 	context = w.odin_context
 	if !w.keyboard_focused { return }
+	w.clipboard.serial = serial
 	if state == 1 {
+		wayland_text_key(w, code)
 		// A newly pressed repeating key replaces the previous repeat owner,
 		// even when its code is outside the named-key API.
 		repeats := w.xkb_keymap != nil && xkb_keymap_key_repeats(w.xkb_keymap, code + 8) != 0
@@ -266,6 +270,7 @@ wayland_repeat :: proc(w: ^Wayland_Window) {
 	if !w.repeat_active || !w.keyboard_focused || w.repeat_rate <= 0 || time.tick_since(w.repeat_at) < 0 { return }
 	if key, ok := w.held_keys[w.repeat_code]; ok {
 		keyboard_press(&w.keyboard, key)
+		wayland_text_key(w, w.repeat_code)
 		// Skip missed repeats rather than flooding the next frame after a stall.
 		w.repeat_at = time.tick_add(time.tick_now(), max(time.Second / time.Duration(w.repeat_rate), time.Millisecond))
 	}
@@ -273,6 +278,7 @@ wayland_repeat :: proc(w: ^Wayland_Window) {
 
 @(private)
 clear_wayland_keyboard :: proc(w: ^Wayland_Window) {
+	wayland_text_cancel(w)
 	keyboard_clear(&w.keyboard)
 	clear(&w.held_keys)
 	w.keyboard_focused, w.repeat_active = false, false

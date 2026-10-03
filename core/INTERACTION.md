@@ -202,13 +202,12 @@ dragging off before release cancels activation. Pointer hover/click focus and
 wheel/trackpad scrolling work with native input. Tab and Shift-Tab cycle focus,
 wrap inside the modal, and reveal focused items in the scroll region.
 
-`./scripts/check.sh` tests the core and real Metal renderer, builds all examples
-with speed optimizations, then runs the capture scenarios on macOS. Core tests
+`./scripts/check.sh` tests core and the native Metal/GLES renderer, builds all
+examples with speed optimizations, and runs capture scenarios on both platforms. Core tests
 cover nested scroll chaining, resize/content clamping, clipped/occluded hover,
 layer order, click/Tab focus, fences, cleanup, and allocation-free warmed frames.
-Metal readback tests cover rectangular clip edges at 1x and 2x. GLES has the same
-shader/attribute changes and Linux ARM64 compile coverage; actual Wayland/GLES
-execution still needs the Linux host.
+Render readback and capture tests cover clipping, transparency and image/text
+rendering. Live Wayland checks run separately against the compositor driver.
 
 `./scripts/check-macos-input.sh` sends real precise and coarse NSEvents to the
 production Metal view and verifies both axes, accumulation, next-frame delivery,
@@ -224,11 +223,11 @@ including quick Shift-Tab, repeat, keypad identity across Num Lock and leave res
 
 ### Native mouse transitions and cancellation
 
-macOS accumulates mouse presses/releases between snapshots. A quick tap can set
+macOS and Wayland accumulate mouse presses/releases between snapshots. A quick tap can set
 both flags in one frame while held state is empty. Multiple transitions coalesce
 into sets; their counts/order and individual coordinates are not retained.
 Position is the latest sampled pointer position, including outside during a drag.
 Focus loss clears held/pending presses, reports releases, and sets
 `input.mouse_cancelled` for one update. End drags and discard pending click
-activation on cancellation. Input reads remain non-consuming. Wayland currently
-retains its prior held-state behavior pending its native implementation update.
+activation on cancellation. Input reads remain non-consuming. Wayland also
+cancels interactions on pointer leave and pointer-device loss.

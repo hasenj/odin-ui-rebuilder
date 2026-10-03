@@ -37,6 +37,7 @@ foreign wayland_client {
 	wl_registry_interface, wl_compositor_interface, wl_surface_interface: WL_Interface
 	wl_callback_interface, wl_seat_interface, wl_pointer_interface, wl_keyboard_interface: WL_Interface
 	wl_output_interface, wl_shm_interface: WL_Interface
+	wl_data_device_manager_interface, wl_data_device_interface, wl_data_offer_interface, wl_data_source_interface: WL_Interface
 }
 foreign wayland_egl {
 	wl_egl_window_create :: proc(surface: rawptr, width, height: i32) -> rawptr ---

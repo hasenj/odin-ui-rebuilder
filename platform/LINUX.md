@@ -144,9 +144,9 @@ The profiler's submission time includes EGL swap waits; it does not measure GPU 
 
 ## Current boundaries
 
-There is one window and one pointer seat. Integer output scaling is supported;
-fractional scaling is left to the compositor. There is no text/IME input,
-touch, or client-drawn title bar yet. Server decorations are requested when
+There is one main window with auxiliary panels and one input seat. Integer
+output scaling is supported; fractional scaling is left to the compositor.
+Touch input and general client-drawn decorations are not implemented. Server decorations are requested when
 `xdg-decoration` is available; otherwise the compositor's window-management
 shortcuts can move, resize, and close the window.
 
@@ -161,10 +161,10 @@ Textures and dimensions are owned by the renderer and released before EGL teardo
 
 ## Validation performed in the Omarchy ARM64 VM
 
-The image decoder tests and GLES pixel-readback tests passed, and all four
-examples built with `-o:speed -vet -strict-style`. Pixel tests passed on both
-surfaceless Mesa `llvmpipe` (software) and Wayland Mesa `virgl` (VM acceleration).
-The rebuilt demo3 opened as a native Wayland window and rendered its images.
+The core capture, editor, text-layout and image-resource integration tests pass
+on surfaceless GLES. Platform tests cover pixels, keyboard/mouse snapshots, XKB
+text, composition, and clipboard transfers. Native checks cover application and
+panel lifecycle, and Hyprland key delivery with cross-client clipboard exchange.
 
 Multi-output scaling and the full interactive checklist above still require
 manual verification on the relevant hardware.
@@ -179,9 +179,69 @@ the application independently.
 One application update deadline drives all builders, including surfaces waiting
 for compositor frame callbacks. Input is snapshotted for every participant before
 any builder runs. Compositor callbacks gate only presentation. A shared poll loop
-services independent Wayland connections/EGL contexts; context switches precede
-building, drawing and destruction.
+services one application Wayland connection. Panels use `xdg_toplevel.set_parent`
+to identify the main window as their parent. Each window has its own EGL context,
+input snapshot and resources; context switches precede building, drawing and
+destruction. Placement, stacking and activation remain compositor policy.
 
 Try `./scripts/build.sh demo12` and `./bin/demo12`. Run
 `./scripts/check-windows.sh` in the Wayland session for lifetime/state checks.
 See [core/WINDOWS.md](../core/WINDOWS.md) for API and resource ownership.
+
+## Native text input and clipboard
+
+An active `request_text_input` client receives UTF-8 commits and editing commands
+separately from physical keys. XKB supplies layout-aware typing, dead-key/Compose
+sequences and repeat. Control shortcuts provide selection, copy/cut/paste and
+undo/redo; Shift extends navigation selections. Ordinary typing works without
+an input-method daemon or the optional `zwp_text_input_manager_v3` protocol.
+
+When the compositor exposes text-input-v3, the adapter enables it for the focused
+text identity and publishes surrounding text and the caret rectangle in logical
+surface coordinates. Preedit, commit and surrounding-deletion events are applied
+at `done`. Operations retain the identity that owned them, including across focus
+changes. Focus/device loss cancels composition. The adapter does not install or
+configure an IME; candidate UI and language conversion belong to the compositor's
+input method. No v1/v2 text-input protocol fallback is provided.
+
+Clipboard operations use `wl_data_device`, offering and accepting UTF-8 plain
+text. Copy requires a focused window and an input serial. Clipboard reads return
+an owned string, or false when no supported selection exists or transfer fails.
+External reads are bounded to one second and 16 MiB; outgoing transfers are
+nonblocking. Selection ownership lasts while the application runs or until
+another client takes it. No clipboard utility is required by the backend.
+
+## Mouse transitions and window dragging
+
+Press/release bits accumulate between frames, including a complete click within
+one update interval. Pointer leave, device loss and keyboard-focus loss cancel
+held interactions instead of activating clicks. Motion remains surface-local
+and can extend outside the window during an implicit drag grab.
+
+`set_window_drag_region` publishes a content-local rectangle. A left press in it
+requests `xdg_toplevel.move` with that button's serial and cancels the UI click.
+An empty region disables application-requested movement. Compositor window
+bindings remain available; the compositor decides whether/how to move a window.
+
+## Capture and native input checks
+
+`capture_frames` uses GLES on Mesa's surfaceless EGL platform and writes PNGs
+without opening a window. It supports transparent output, explicit scales and
+scripted multi-frame input; see [CAPTURE.md](../core/CAPTURE.md). `check-linux.sh`
+runs the same core capture/editor/image integration tests and demo capture
+scenarios as macOS, as well as native window lifecycle checks.
+
+For a live Hyprland Lua session, this optional test checks native key delivery,
+main/panel input isolation and clipboard exchange with another client:
+
+```sh
+odin build tests/wayland_input -out:bin/wayland-input-check -o:speed -vet -strict-style
+python3 scripts/check-wayland-input.py
+```
+
+The test driver requires Python, `hyprctl`, and `wl-clipboard`. It opens its own
+windows, injects keys only into those windows, and restores the text clipboard.
+Protocol-callback tests additionally cover dead keys, preedit/commit ordering,
+surrounding deletion, stale identity events, quick clicks and large/cancelled
+clipboard pipe transfers. Live IME candidate placement and multi-output scaling
+still need manual verification with the relevant input method and hardware.

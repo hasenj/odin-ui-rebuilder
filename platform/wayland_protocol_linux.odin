@@ -165,6 +165,7 @@ zxdg_toplevel_decoration_v1_interface: WL_Interface
 
 @(private)
 wayland_init_protocols :: proc() {
+	wayland_init_text_protocol()
 	xdg_wm_base_interface = {"xdg_wm_base", 1, i32(len(xdg_wm_base_requests)), raw_data(xdg_wm_base_requests[:]), i32(len(xdg_wm_base_events)), raw_data(xdg_wm_base_events[:])}
 	xdg_positioner_interface = {"xdg_positioner", 1, i32(len(xdg_positioner_requests)), raw_data(xdg_positioner_requests[:]), i32(len(xdg_positioner_events)), raw_data(xdg_positioner_events[:])}
 	xdg_surface_interface = {"xdg_surface", 1, i32(len(xdg_surface_requests)), raw_data(xdg_surface_requests[:]), i32(len(xdg_surface_events)), raw_data(xdg_surface_events[:])}

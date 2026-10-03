@@ -121,8 +121,8 @@ window_alive :: proc(window: Window) -> bool {
 }
 
 // Opt into a custom drag area, in content-local logical coordinates. An empty
-// region disables background dragging. Currently consumed by macOS; Wayland
-// compositors can still move borderless windows using their own bindings.
+// region disables background dragging. Wayland requests an interactive move
+// using the initiating button serial; the compositor controls placement.
 set_window_drag_region :: proc(window: Window, position, size: [2]f32) {
 	if record := window_record(window); record != nil {
 		record.drag_region = {true, position, position + [2]f32{max(0, size.x), max(0, size.y)}}

@@ -74,3 +74,28 @@ wayland_keyboard_snapshots :: proc(t: ^testing.T) {
 	snapshot = take_wayland_input(&w)
 	testing.expect(t, snapshot.keys_down == input.Keys{} && snapshot.keys_released == expected)
 }
+
+// Events within one update retain both transitions; leave/device loss cancels
+// drags. Events for another surface on the shared connection stay isolated.
+@(test)
+wayland_mouse_transitions :: proc(t: ^testing.T) {
+	w := Wayland_Window{odin_context = context, pointer_focused = true}
+	pointer_button(&w, nil, 1, 0, 0x110, 1)
+	pointer_button(&w, nil, 2, 0, 0x110, 0)
+	snapshot := take_wayland_input(&w)
+	testing.expect(t, snapshot.mouse_buttons == input.Mouse_Buttons{})
+	testing.expect(t, snapshot.mouse_pressed == input.Mouse_Buttons{.Left} && snapshot.mouse_released == input.Mouse_Buttons{.Left})
+	snapshot = take_wayland_input(&w)
+	testing.expect(t, snapshot.mouse_pressed == input.Mouse_Buttons{} && snapshot.mouse_released == input.Mouse_Buttons{})
+	pointer_button(&w, nil, 3, 0, 0x111, 1)
+	pointer_leave(&w, nil, 4, nil)
+	snapshot = take_wayland_input(&w)
+	testing.expect(t, snapshot.mouse_cancelled && snapshot.mouse_buttons == input.Mouse_Buttons{} && .Right in snapshot.mouse_released)
+	pointer_button(&w, nil, 5, 0, 0x110, 1)
+	testing.expect(t, take_wayland_input(&w).mouse_buttons == input.Mouse_Buttons{})
+	w.surface = rawptr(uintptr(1))
+	w.pointer_focused = true
+	pointer_button(&w, nil, 6, 0, 0x110, 1)
+	pointer_leave(&w, nil, 7, rawptr(uintptr(2)))
+	testing.expect(t, w.pointer_focused && .Left in take_wayland_input(&w).mouse_buttons)
+}

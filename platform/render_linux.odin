@@ -7,6 +7,7 @@ import "../core/primitives"
 
 @(private)
 GL_Renderer :: struct {
+	window: ^Wayland_Window,
 	display: egl.Display,
 	surface: egl.Surface,
 	program, vao, buffer, white_texture: u32,
@@ -189,5 +190,6 @@ gl_batch :: proc(batch: []GPU_Surface, texture: u32) {
 
 @(private)
 pixel_scale_impl :: proc(handle: Renderer) -> f32 {
-	return max((cast(^GL_Renderer)handle).logical_scale, 1)
+	scale := (cast(^GL_Renderer)handle).logical_scale
+	return scale if scale > 0 else 1
 }

@@ -23,6 +23,9 @@ Wayland_Window :: struct {
 	input: inputs.State,
 	scroll_group: [2]f32,
 	keyboard: Keyboard_Input,
+	mouse: Mouse_Input,
+	text_input: Wayland_Text_Input,
+	clipboard: Wayland_Clipboard,
 	xkb_context, xkb_keymap, xkb_state: rawptr,
 	held_keys: map[u32]inputs.Key,
 	keyboard_focused, repeat_active: bool,
@@ -37,10 +40,26 @@ Wayland_Window :: struct {
 }
 
 @(private)
-application_init_impl :: proc() { wayland_init_protocols() }
+wayland_display: rawptr
+@(private)
+wayland_egl_display: egl.Display
 
 @(private)
-application_shutdown_impl :: proc() {}
+application_init_impl :: proc() {
+	wayland_init_protocols()
+	wayland_display = wl_display_connect(nil)
+	linux_require(wayland_display != nil, "Could not connect to Wayland")
+	wayland_egl_display = egl.GetPlatformDisplay(.WAYLAND_KHR, wayland_display, nil)
+	egl_require(bool(egl.Initialize(wayland_egl_display, nil, nil)), "Could not initialize Wayland EGL")
+}
+
+@(private)
+application_shutdown_impl :: proc() {
+	shutdown_wayland_clipboard()
+	egl.Terminate(wayland_egl_display)
+	wl_display_disconnect(wayland_display)
+	wayland_display, wayland_egl_display = nil, nil
+}
 
 @(private)
 create_window_impl :: proc(record: ^Window_Record) {
@@ -51,8 +70,9 @@ create_window_impl :: proc(record: ^Window_Record) {
 		outputs = make([dynamic]Wayland_Output),
 		renderer = GL_Renderer{transparent = record.transparent},
 	}
+	window.renderer.window = window
 	record.native = window
-	window.display = wl_display_connect(nil)
+	window.display = wayland_display
 	linux_require(window.display != nil, "Could not connect to Wayland. Run inside a Wayland desktop session (check WAYLAND_DISPLAY and XDG_RUNTIME_DIR).")
 	window.registry = wl_construct(window.display, 1, &wl_registry_interface, []WL_Argument{{o = nil}})
 	wl_listen(window.registry, &registry_listener, window)
@@ -66,6 +86,11 @@ create_window_impl :: proc(record: ^Window_Record) {
 	wl_listen(window.shell_surface, &shell_surface_listener, window)
 	window.toplevel = wl_construct(window.shell_surface, 1, &xdg_toplevel_interface, []WL_Argument{{o = nil}})
 	wl_listen(window.toplevel, &toplevel_listener, window)
+	if record.panel {
+		parent := window_record(main_window)
+		linux_require(parent != nil && parent.native != nil, "Panel requires a native main window")
+		wl_request(window.toplevel, 1, []WL_Argument{{o = (cast(^Wayland_Window)parent.native).toplevel}})
+	}
 	native_title := strings.clone_to_cstring(record.title)
 	defer delete(native_title)
 	wl_request(window.toplevel, 2, []WL_Argument{{s = native_title}})
@@ -89,8 +114,7 @@ create_window_impl :: proc(record: ^Window_Record) {
 	}
 	window.native_window = wl_egl_window_create(window.surface, window.width * window.scale, window.height * window.scale)
 	linux_require(window.native_window != nil, "Could not create the Wayland EGL window")
-	window.renderer.display = egl.GetPlatformDisplay(.WAYLAND_KHR, window.display, nil)
-	linux_require(bool(egl.Initialize(window.renderer.display, nil, nil)), "Could not initialize EGL on Wayland")
+	window.renderer.display = wayland_egl_display
 	config := gles_config(window.renderer.display, egl.WINDOW_BIT)
 	window.egl_context = gles_context(window.renderer.display, config)
 	window.renderer.surface = egl.CreateWindowSurface(window.renderer.display, config, egl.NativeWindowType(window.native_window), nil)
@@ -101,63 +125,40 @@ create_window_impl :: proc(record: ^Window_Record) {
 	update_window_scale(window)
 }
 
-// Independent Wayland connections and EGL contexts keep native/input/resource
-// ownership local to each window. One poll loop services all connections;
-// waiting for one occluded window's frame callback never blocks another.
+// One connection permits native panel parenting. Contexts/resources and input
+// snapshots remain per-window; an occluded panel never stalls other builders.
 @(private)
 application_run_impl :: proc() {
-	descriptors := make([dynamic]posix.pollfd)
-	pending := make([dynamic]^Wayland_Window)
-	defer delete(descriptors)
-	defer delete(pending)
 	previous_cycle: time.Tick
 	for window_count() > 0 {
+		if wl_display_dispatch_pending(wayland_display) < 0 { request_close(main_window) }
 		for record in windows {
-			if record == nil || record.native == nil { continue }
-			window := cast(^Wayland_Window)record.native
-			if wl_display_dispatch_pending(window.display) < 0 || !window.running { request_close(record.handle) }
+			if record != nil && record.native != nil && !(cast(^Wayland_Window)record.native).running { request_close(record.handle) }
 		}
 		if previous_cycle == (time.Tick{}) || time.tick_since(previous_cycle) >= time.Second / 60 {
 			previous_cycle = time.tick_now()
 			application_cycle()
 		}
 		service_windows()
+		flush_clipboard_writes()
 		if window_count() == 0 { break }
-		clear(&descriptors)
-		clear(&pending)
 		remaining := max(time.Duration(0), time.Second / 60 - time.tick_since(previous_cycle))
-		timeout := i32((remaining + time.Millisecond - 1) / time.Millisecond)
-		for record in windows {
-			if record == nil || record.closing || record.native == nil { continue }
-			window := cast(^Wayland_Window)record.native
-			prepared := false
-			for window.running {
-				if wl_display_prepare_read(window.display) == 0 { prepared = true; break }
-				if wl_display_dispatch_pending(window.display) < 0 { window.running = false }
-			}
-			if !window.running {
-				if prepared { wl_display_cancel_read(window.display) }
-				request_close(record.handle)
-				continue
-			}
-			events: posix.Poll_Event = {.IN}
-			// A full socket needs POLLOUT before retrying the flush.
-			if wl_display_flush(window.display) < 0 { events += {.OUT} }
-			append(&descriptors, posix.pollfd{fd = posix.FD(wl_display_get_fd(window.display)), events = events})
-			append(&pending, window)
-		}
-		// Wake at the earliest ready window deadline, or on any native input.
-		ready := posix.poll(raw_data(descriptors), posix.nfds_t(len(descriptors)), timeout)
-		for window, i in pending {
-			flags := descriptors[i].revents
-			if ready > 0 && .IN in flags {
-				if wl_display_read_events(window.display) < 0 { request_close(window.record.handle) }
-			} else {
-				wl_display_cancel_read(window.display)
-			}
-			if flags & {.ERR, .HUP, .NVAL} != {} { request_close(window.record.handle) }
-		}
+		wayland_poll(i32((remaining + time.Millisecond - 1) / time.Millisecond))
 	}
+}
+
+@(private)
+wayland_poll :: proc(timeout: i32) {
+	for wl_display_prepare_read(wayland_display) != 0 {
+		if wl_display_dispatch_pending(wayland_display) < 0 { request_close(main_window); return }
+	}
+	descriptor := posix.pollfd{fd = posix.FD(wl_display_get_fd(wayland_display)), events = {.IN}}
+	if wl_display_flush(wayland_display) < 0 { descriptor.events += {.OUT} }
+	ready := posix.poll(&descriptor, 1, timeout)
+	if ready > 0 && .IN in descriptor.revents {
+		if wl_display_read_events(wayland_display) < 0 { request_close(main_window) }
+	} else { wl_display_cancel_read(wayland_display) }
+	if descriptor.revents & {.ERR, .HUP, .NVAL} != {} { request_close(main_window) }
 }
 
 @(private)
@@ -203,6 +204,8 @@ present_window_impl :: proc(record: ^Window_Record) {
 take_wayland_input :: proc(window: ^Wayland_Window) -> inputs.State {
 	wayland_repeat(window)
 	sample_keyboard(&window.keyboard, &window.input)
+	sample_mouse(&window.mouse, &window.input)
+	sample_wayland_text(window)
 	result := window.input
 	window.input.scroll_delta = {}
 	return result
@@ -210,6 +213,8 @@ take_wayland_input :: proc(window: ^Wayland_Window) -> inputs.State {
 
 @(private)
 wayland_destroy :: proc(window: ^Wayland_Window) {
+	destroy_wayland_clipboard(window)
+	destroy_wayland_text(window)
 	destroy_wayland_keyboard(window)
 	if window.renderer.program != 0 {
 		gl_destroy(&window.renderer)
@@ -222,7 +227,6 @@ wayland_destroy :: proc(window: ^Wayland_Window) {
 		if window.egl_context != nil {
 			egl.DestroyContext(window.renderer.display, window.egl_context)
 		}
-		egl.Terminate(window.renderer.display)
 	}
 	if window.native_window != nil {
 		wl_egl_window_destroy(window.native_window)
@@ -252,7 +256,6 @@ wayland_destroy :: proc(window: ^Wayland_Window) {
 		}
 	}
 	wl_display_flush(window.display)
-	wl_display_disconnect(window.display)
 }
 
 @(private)

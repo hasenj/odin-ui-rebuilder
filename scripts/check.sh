@@ -15,14 +15,15 @@ for target in demo0 demo1 demo2 demo3 demo4 demo5 demo6 demo7 demo8 demo9 demo10
     ./scripts/build.sh "$target"
 done
 
+./bin/demo10 --capture
+./bin/demo11 --capture
+./bin/demo12 --capture
+./bin/demo13 --capture
+./bin/demo14 --capture
+./bin/demo15 --capture
+./bin/file-manager --capture
+
 if [ "$(uname -s)" = Darwin ]; then
-    ./bin/demo10 --capture
-    ./bin/demo11 --capture
-    ./bin/demo12 --capture
-    ./bin/demo13 --capture
-    ./bin/demo14 --capture
-    ./bin/demo15 --capture
-    ./bin/file-manager --capture
     ./scripts/check-macos-input.sh
     odin build tests/text_input -out:bin/text-input-check -o:speed -vet -strict-style "-extra-linker-flags:$link_paths"
     ./bin/text-input-check

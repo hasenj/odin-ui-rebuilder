@@ -113,7 +113,8 @@ Panels never become the main window. Mouse hit
 testing checks the native window under the pointer, so overlapping panels block
 hover beneath them.
 
-Wayland uses one poll loop over independent connections/EGL contexts. Application
+Wayland uses one poll loop and one application connection, with an independent
+EGL context for each window. Panels identify the main toplevel as their parent. Application
 update deadlines are independent of compositor frame callbacks. A compositor
 callback permits presentation of a surface; waiting for it never stops UI builds
 in that or another window. Panels use ordinary xdg-toplevel surfaces with framework
@@ -137,6 +138,6 @@ also verify native key routing, input snapshot boundaries, tabbing/decoration
 policy, main/key focus roles, floating-panel stacking, hidden-panel updates, resize,
 close/quit, and extra draw callbacks.
 
-On macOS, `./bin/demo12 --capture` saves both views to `bin/demo12-0.png` and
+On macOS and Linux, `./bin/demo12 --capture` saves both views to `bin/demo12-0.png` and
 `bin/demo12-1.png`. Linux runtime checks require a graphical Wayland session;
 cross-compilation alone does not verify compositor behavior.

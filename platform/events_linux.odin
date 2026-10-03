@@ -11,6 +11,10 @@ registry_global :: proc "c" (data, registry: rawptr, name: u32, interface: cstri
 	iface: ^WL_Interface
 	bind_version: u32
 	switch string(interface) {
+	case "wl_data_device_manager":
+		if w.clipboard.manager == nil { iface = &wl_data_device_manager_interface; bind_version = 1 }
+	case "zwp_text_input_manager_v3":
+		if w.text_input.manager == nil { iface = &zwp_text_input_manager_v3_interface; bind_version = 1 }
 	case "wl_compositor":
 		if version >= 3 && w.compositor == nil {
 			iface = &wl_compositor_interface
@@ -47,6 +51,10 @@ registry_global :: proc "c" (data, registry: rawptr, name: u32, interface: cstri
 	}
 	proxy := wl_construct(registry, 0, iface, []WL_Argument{{u = name}, {s = interface}, {u = bind_version}, {o = nil}}, bind_version)
 	switch string(interface) {
+	case "wl_data_device_manager":
+		w.clipboard.manager = proxy
+	case "zwp_text_input_manager_v3":
+		w.text_input.manager = proxy
 	case "wl_compositor":
 		w.compositor = proxy
 	case "xdg_wm_base":
@@ -64,6 +72,8 @@ registry_global :: proc "c" (data, registry: rawptr, name: u32, interface: cstri
 		append(&w.outputs, Wayland_Output{proxy = proxy, name = name, scale = 1})
 		wl_listen(proxy, &output_listener, w)
 	}
+	ensure_wayland_text(w)
+	ensure_wayland_clipboard(w)
 }
 
 @(private)
@@ -71,6 +81,11 @@ registry_remove :: proc "c" (data, _: rawptr, name: u32) {
 	w := cast(^Wayland_Window)data
 	context = w.odin_context
 	if name == w.seat_name && w.seat != nil {
+		wayland_text_cancel(w)
+		wl_release(w.text_input.proxy, 0)
+		w.text_input.proxy = nil
+		w.text_input.entered, w.text_input.enabled = false, false
+		destroy_wayland_clipboard_device(w)
 		wl_release(w.pointer, 1)
 		wl_release(w.keyboard_proxy, 0)
 		wl_release(w.seat, 3)
@@ -79,7 +94,9 @@ registry_remove :: proc "c" (data, _: rawptr, name: u32) {
 		clear_wayland_keyboard(w)
 		w.seat = nil
 		w.pointer_focused = false
-		w.input = {}
+		mouse_clear(&w.mouse)
+		w.input.mouse_inside = false
+		w.input.scroll_delta = {}
 		w.scroll_group = {}
 	}
 	for output, i in w.outputs {
@@ -158,7 +175,9 @@ seat_capabilities :: proc "c" (data, seat: rawptr, capabilities: u32) {
 		wl_release(w.pointer, 1)
 		w.pointer = nil
 		w.pointer_focused = false
-		w.input = {}
+		mouse_clear(&w.mouse)
+		w.input.mouse_inside = false
+		w.input.scroll_delta = {}
 		w.scroll_group = {}
 	}
 }
@@ -181,8 +200,11 @@ pointer_enter :: proc "c" (data, _: rawptr, serial: u32, surface: rawptr, x, y: 
 }
 
 @(private)
-pointer_leave :: proc "c" (data, _: rawptr, _: u32, _: rawptr) {
+pointer_leave :: proc "c" (data, _: rawptr, _: u32, surface: rawptr) {
 	w := cast(^Wayland_Window)data
+	if surface != w.surface { return }
+	context = w.odin_context
+	mouse_clear(&w.mouse)
 	w.pointer_focused = false
 	w.input.mouse_inside = false
 	w.input.mouse_buttons = {}
@@ -193,28 +215,31 @@ pointer_leave :: proc "c" (data, _: rawptr, _: u32, _: rawptr) {
 @(private)
 pointer_motion :: proc "c" (data, _: rawptr, _: u32, x, y: i32) {
 	w := cast(^Wayland_Window)data
+	if !w.pointer_focused { return }
 	w.input.mouse_position = {f32(x) / 256, f32(y) / 256}
 	w.input.mouse_inside = x >= 0 && y >= 0 && f32(x) / 256 < f32(w.width) && f32(y) / 256 < f32(w.height)
 }
 
 @(private)
-pointer_button :: proc "c" (data, _: rawptr, _: u32, _: u32, button, state: u32) {
+pointer_button :: proc "c" (data, _: rawptr, serial: u32, _: u32, button, state: u32) {
 	w := cast(^Wayland_Window)data
+	context = w.odin_context
+	if !w.pointer_focused { return }
+	w.clipboard.serial = serial
+	if button == 0x110 && state == 1 && w.record != nil {
+		region := w.record.drag_region
+		point := w.input.mouse_position
+		if region.enabled && point.x >= region.min.x && point.y >= region.min.y && point.x < region.max.x && point.y < region.max.y {
+			wl_request(w.toplevel, 5, []WL_Argument{{o = w.seat}, {u = serial}})
+			mouse_clear(&w.mouse)
+			return
+		}
+	}
 	switch button {
 	case 0x110:
-		// Linux BTN_LEFT.
-		if state == 1 {
-			w.input.mouse_buttons += {.Left}
-		} else {
-			w.input.mouse_buttons -= {.Left}
-		}
+		if state == 1 { mouse_press(&w.mouse, .Left) } else { mouse_release(&w.mouse, .Left) }
 	case 0x111:
-		// Linux BTN_RIGHT.
-		if state == 1 {
-			w.input.mouse_buttons += {.Right}
-		} else {
-			w.input.mouse_buttons -= {.Right}
-		}
+		if state == 1 { mouse_press(&w.mouse, .Right) } else { mouse_release(&w.mouse, .Right) }
 	}
 }
 
