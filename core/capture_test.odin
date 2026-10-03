@@ -7,7 +7,7 @@ import "core:image/png"
 import "core:image"
 
 // Called by rect_frame_pipeline, keeping use of the implicit UI context serial.
-// Public UI API -> real Metal -> encoded PNG -> independent Odin PNG decoder.
+// Public UI API -> production renderer -> encoded PNG -> independent Odin PNG decoder.
 @(private)
 capture_pipeline :: proc(t: ^testing.T) {
 	paths: [3]string

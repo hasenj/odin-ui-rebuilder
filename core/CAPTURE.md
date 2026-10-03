@@ -1,9 +1,9 @@
 # Render capture
 
 `ui.capture_frames` runs the normal UI builder against an offscreen GPU target
-and writes PNG files. The first backend is macOS Metal. It needs a Metal-capable
-Mac, but no native window, desktop screenshot permission, or event loop. Other
-platforms return `Unsupported` for now; their normal windows are unchanged.
+and writes PNG files. macOS uses Metal; Linux uses GLES 3.0 on Mesa's surfaceless
+EGL platform. Neither needs a native window or application event loop. Linux
+capture works without a Wayland session, including with Mesa software rendering.
 
 ## Capture an existing example
 
@@ -77,7 +77,7 @@ It captures UI content, including alpha, rather than native decorations or the
 desktop beneath transparent regions. Native presentation, compositor behavior
 and window resizing transactions still need separate window-level checks.
 
-The macOS core integration test renders a multi-frame scene, decodes the PNGs
+The core integration test renders a multi-frame scene, decodes the PNGs
 with Odin's PNG decoder, and checks dimensions, alpha/color, image orientation,
 text coverage, retained hover animation, frame clearing, and error reporting.
 Exact glyph pixels can vary with fonts and rasterizer versions; visual captures

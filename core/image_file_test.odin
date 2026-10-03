@@ -15,7 +15,7 @@ import "core:slice"
 @(private) file_image_original: Image
 
 // Sequentially invoked by the frame pipeline: worker -> main-thread GPU upload
-// -> real Metal rendering -> independently decoded captures. No user files.
+// -> production renderer rendering -> independently decoded captures. No user files.
 @(private)
 image_file_pipeline :: proc(t: ^testing.T) {
 	root, err := os.make_directory_temp("", "odin-image-cache-*", context.allocator)

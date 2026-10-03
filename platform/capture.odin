@@ -23,7 +23,7 @@ Capture_Result :: struct {
 }
 
 // Creates a private renderer, runs the sequence synchronously, then releases all
-// GPU resources. No native window or event loop. Currently implemented on Metal.
+// GPU resources. No native window or event loop. Implemented on Metal and GLES.
 // Frame callbacks have the same lifetime rules as window callbacks. Each saved
 // frame waits for GPU completion. Paths are overwritten; directories must exist.
 capture_frames :: proc(frames: []Capture_Frame, frame: Frame_Proc, user_data: rawptr = nil, input_state: ^input.State = nil) -> Capture_Result {
@@ -33,7 +33,7 @@ capture_frames :: proc(frames: []Capture_Frame, frame: Frame_Proc, user_data: ra
 		}
 	}
 	if len(frames) == 0 { return {frame_index = -1} }
-	when ODIN_OS == .Darwin {
+	when ODIN_OS == .Darwin || ODIN_OS == .Linux {
 		return capture_frames_impl(frames, frame, user_data, input_state)
 	} else {
 		return {error = .Unsupported, frame_index = -1}
