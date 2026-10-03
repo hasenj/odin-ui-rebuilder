@@ -58,8 +58,8 @@ update and atlas uploads but skips rendering/readback/file writing.
 
 The optional `clear_color` is straight RGBA and defaults to transparent. Use
 `{0.035, 0.045, 0.065, 1}` to reproduce the opaque window background. Saved PNGs
-are top-to-bottom RGBA8 with straight alpha; capture converts Metal's
-premultiplied BGRA output before encoding. Encoding uses Odin's bundled
+are top-to-bottom RGBA8 with straight alpha. Capture unpremultiplies renderer
+output and converts Metal's channel order or GLES's row order before encoding. Encoding uses Odin's bundled
 `vendor:stb/image` writer, with no additional installation step.
 
 `Capture_Result.error` reports validation, GPU rendering, or file write errors.
