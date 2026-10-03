@@ -100,12 +100,17 @@ identity_enter :: proc(key: Identity_Key, kind: Identity_Scope_Kind) -> Identity
 	parent := current_identity()
 	store := &active_state.identities
 	group := Identity_Group{parent, key}
-	counter := store.counts[group]
-	if counter.frame != store.frame { counter = Identity_Count{frame = store.frame} }
+	// Update an existing counter in place instead of hashing the group again
+	// for writeback. Do not retain this pointer across insertions into counts.
+	counter := &store.counts[group]
+	if counter == nil {
+		store.counts[group] = Identity_Count{}
+		counter = &store.counts[group]
+	}
+	if counter.frame != store.frame { counter^ = Identity_Count{frame = store.frame} }
 	path := Identity_Path{group, counter.count}
 	assert(counter.count != max(u32), "Too many occurrences of one identity key")
 	counter.count += 1
-	store.counts[group] = counter
 	id, found := store.lookup[path]
 	if !found {
 		index: u32

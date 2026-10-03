@@ -195,6 +195,7 @@ layout_solve :: proc(store: ^Layout_Store) -> Text_Error {
 			text, text_err := layout_text_measure(store, store.commands[node.text_command], (f32(max(i32)) - 256) / 64 / current_frame().scale)
 			if err == .None { err = text_err }
 			preferred = {text.width, text.height}
+			store.measure[i].text = text
 		} else {
 			axis := 0 if style.flow == .Row else 1
 			count := 0
@@ -235,9 +236,15 @@ layout_solve :: proc(store: ^Layout_Store) -> Text_Error {
 		node, style := store.nodes[i], store.styles[i]
 		height: f32
 		if node.text_command >= 0 {
-			text, text_err := layout_text_measure(store, store.commands[node.text_command], store.measure[i].size.x)
-			if err == .None { err = text_err }
-			store.measure[i].text = text
+			// The intrinsic result already has the correct lines when it fits,
+			// including explicit newlines. Only narrower bounds need rewrapping.
+			text := store.measure[i].text
+			if store.measure[i].size.x < text.width {
+				measured, text_err := layout_text_measure(store, store.commands[node.text_command], store.measure[i].size.x)
+				if err == .None { err = text_err }
+				text = measured
+				store.measure[i].text = text
+			}
 			height = text.height
 		} else {
 			count := 0

@@ -45,7 +45,8 @@ local_layout_text_scene :: proc() {
 	text_item(paragraph, font, 16)
 	for i in 0..<2 {
 		buffer: [32]u8
-		text_item(fmt.bprintf(buffer[:], "Label %d", i + 1), font, 16)
+		// These fit at both widths: intrinsic reuse must preserve hard breaks.
+		text_item(fmt.bprintf(buffer[:], "Label %d\nSecond line", i + 1), font, 16)
 		for &byte in buffer { byte = 'X' }
 	}
 	close_box()
@@ -54,7 +55,7 @@ local_layout_text_scene :: proc() {
 	width := current_frame().size.x - 20 - 32 - 8
 	expected, text_err := layout_text(paragraph, font, width, 16)
 	assert(text_err == .None)
-	label, _ := layout_text("Label 1", font, width, 16)
+	label, _ := layout_text("Label 1\nSecond line", font, width, 16)
 	assert(abs(bounds.size.y - (12 + expected.height + 2 * label.height + 10)) < 0.001)
 	assert(current_rect().position.y == bounds.size.y)
 	// Independent text-layout results agree with final leaf geometry. Copied
@@ -64,7 +65,8 @@ local_layout_text_scene :: proc() {
 	for command, i in store.commands {
 		if command.kind != .Text || i < 2 { continue }
 		value := transmute(string)store.strings[command.value_start:command.value_end]
-		assert(value == "Label 1" || value == "Label 2")
+		assert(value == "Label 1\nSecond line" || value == "Label 2\nSecond line")
+		assert(store.measure[command.node].text.line_count == 2)
 	}
 	layout_text_test_heights[layout_text_test_stage] = bounds.size.y
 	layout_text_test_stage += 1
