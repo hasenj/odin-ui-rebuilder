@@ -14,11 +14,12 @@ import app10 "../../examples/app10"
 import app11 "../../examples/app11"
 import app12 "../../examples/app12"
 import app13 "../../examples/app13"
+import app14 "../../examples/app14"
 
 // Separate executable: example globals and resource handles start fresh.
 main :: proc() {
 	if len(os.args) < 3 || len(os.args) > 9 || len(os.args) == 8 {
-		fmt.eprintln("Usage: capture app4..app13 output.png [width height scale time [mouse_x mouse_y]]")
+		fmt.eprintln("Usage: capture app4..app14 output.png [width height scale time [mouse_x mouse_y]]")
 		os.exit(1)
 	}
 	update: ui.Update
@@ -34,8 +35,9 @@ main :: proc() {
 	case "app11": update = app11.update; size = {1160, 860}
 	case "app12": update = app12.workspace; size = {660, 700}
 	case "app13": update = app13.update; size = {920, 700}
+	case "app14": update = app14.update; size = {780, 640}
 	case:
-		fmt.eprintln("Choose app4 through app13")
+		fmt.eprintln("Choose app4 through app14")
 		os.exit(1)
 	}
 	item := ui.Capture_Frame{path = os.args[2], size = size, scale = 2}

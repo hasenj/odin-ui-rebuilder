@@ -120,6 +120,18 @@ initial approach. Its omission/hiding/destruction/reopening semantics would
 need separate decisions. Also decide whether the application exits or remains
 alive when the final window closes.
 
+## Images by path
+
+First, provide an immediate-mode image helper that accepts a filename/path.
+Cache a resource record per path: queue a worker decode on first use, emit
+nothing while loading, and draw the cached image once ready. Do not read or
+decode the file every frame. Keep GPU upload/resource replacement on the
+renderer-owning thread, and define failure/retry and resource-lifetime policies.
+
+As a follow-up, watch the filesystem and reload modified images on a worker.
+Keep the last successful image visible until its replacement is ready; handle
+rapid edits and stale worker results without replacing newer content.
+
 ## External GPU content and engine integration — future direction
 
 The useful abstraction is an image resource whose pixels are produced elsewhere.

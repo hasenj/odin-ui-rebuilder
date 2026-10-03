@@ -4,14 +4,14 @@ set -eu
 cd "$(dirname "$0")/.."
 mkdir -p bin
 . ./scripts/text-link-paths.sh
-for package in core core/text core/images platform; do
+for package in core core/text core/images platform examples/app14; do
     output=$(basename "$package")
     odin test "$package" "-out:bin/$output-tests" -o:speed -vet -strict-style \
         "-extra-linker-flags:$link_paths"
 done
 odin build tools/capture -out:bin/capture -o:speed -vet -strict-style \
     "-extra-linker-flags:$link_paths"
-for app in app0 app1 app2 app3 app4 app5 app6 app7 app8 app9 app10 app11 app12 app13; do
+for app in app0 app1 app2 app3 app4 app5 app6 app7 app8 app9 app10 app11 app12 app13 app14; do
     ./scripts/build.sh "$app"
 done
 
@@ -20,6 +20,7 @@ if [ "$(uname -s)" = Darwin ]; then
     ./bin/app11 --capture
     ./bin/app12 --capture
     ./bin/app13 --capture
+    ./bin/app14 --capture
     ./scripts/check-macos-input.sh
 fi
 
