@@ -13,7 +13,7 @@ Wayland_Text_Input :: struct {
 	mirror: edit.Buffer,
 	pending, snapshot: [dynamic]input.Text_Operation,
 	handled: input.Keys,
-	entered, enabled, dirty, awaiting_done: bool,
+	entered, enabled, dirty, awaiting_done, ime_change: bool,
 	serial, enabled_serial: u32,
 	preedit, commit: string,
 	selection: input.Text_Range,
@@ -100,7 +100,7 @@ wayland_text_sync :: proc(w: ^Wayland_Window, client: input.Text_Client) {
 		if t.enabled { wl_request(t.proxy, 2); text_protocol_commit(t); t.enabled = false }
 		wayland_text_cancel(w)
 		edit.destroy(&t.mirror); edit.init(&t.mirror, client.value)
-		t.dirty = true; t.awaiting_done = false
+		t.dirty = true; t.awaiting_done = false; t.ime_change = false
 	}
 	if t.client.caret_position != client.caret_position || t.client.caret_size != client.caret_size { t.dirty = true }
 	t.client = client; t.client.value = ""
@@ -109,7 +109,7 @@ wayland_text_sync :: proc(w: ^Wayland_Window, client: input.Text_Client) {
 	for op in t.pending { if op.target == client.target { pending = true; break } }
 	if !pending {
 		if edit.value(&t.mirror) != client.value || edit.selection(&t.mirror) != client.selection || t.mirror.marked != client.marked {
-			t.dirty = true
+			t.dirty = true; t.ime_change = false
 		}
 		if t.mirror.composing && !client.has_marked { edit.finish_composition(&t.mirror) }
 		clear(&t.mirror.bytes); append(&t.mirror.bytes, ..transmute([]u8)client.value)
@@ -158,23 +158,23 @@ publish_wayland_text :: proc(w: ^Wayland_Window) {
 		text := strings.clone_to_cstring(value, context.temp_allocator)
 		wl_request(t.proxy, 3, []WL_Argument{{s = text}, {i = cursor}, {i = anchor}})
 	}
-	wl_request(t.proxy, 4, []WL_Argument{{u = 1}})
+	wl_request(t.proxy, 4, []WL_Argument{{u = 0 if t.ime_change else 1}})
 	p, size := t.client.caret_position, t.client.caret_size
 	wl_request(t.proxy, 6, []WL_Argument{{i = i32(math.floor(p.x))}, {i = i32(math.floor(p.y))}, {i = i32(max(1, math.ceil(size.x)))}, {i = i32(max(1, math.ceil(size.y)))}})
-	text_protocol_commit(t); t.dirty = false
+	text_protocol_commit(t); t.dirty = false; t.ime_change = false
 }
 
 @(private)
 text_enter :: proc "c" (data, _: rawptr, surface: rawptr) {
 	w := cast(^Wayland_Window)data; context = w.odin_context
 	if surface != w.surface { return }
-	w.text_input.entered = true; publish_wayland_text(w)
+	w.text_input.entered = true; w.text_input.awaiting_done = false; publish_wayland_text(w)
 }
 @(private)
 text_leave :: proc "c" (data, _: rawptr, surface: rawptr) {
 	w := cast(^Wayland_Window)data; context = w.odin_context
 	if surface != w.surface { return }
-	w.text_input.entered, w.text_input.enabled = false, false
+	w.text_input.entered, w.text_input.enabled, w.text_input.awaiting_done = false, false, false
 	wayland_text_cancel(w)
 }
 @(private)
@@ -221,6 +221,7 @@ text_done :: proc "c" (data, _: rawptr, serial: u32) {
 			wayland_text_enqueue(w, {kind = .Mark, text = t.preedit, selection = selection})
 		} else if t.mirror.composing { wayland_text_enqueue(w, {kind = .Cancel_Composition}) }
 	}
+	t.ime_change = true
 	// Core publishes the resulting state after applying the operations.
 }
 
@@ -265,6 +266,7 @@ wayland_text_key :: proc(w: ^Wayland_Window, code: u32) {
 	// still need XKB translation even when the optional protocol is enabled.
 	if t.mirror.composing { if known { t.handled += {key} }; return }
 	if matched && known && .Super not_in mods && .Alt not_in mods {
+		t.ime_change = false
 		wayland_text_enqueue(w, {kind = .Command, command = command, extend = .Shift in mods})
 		t.handled += {key}; return
 	}
@@ -289,6 +291,7 @@ wayland_text_key :: proc(w: ^Wayland_Window, code: u32) {
 	}
 	if length == 0 { length = xkb_state_key_get_utf8(w.xkb_state, code + 8, raw_data(buffer[:]), len(buffer)) }
 	if length > 0 && length < len(buffer) && buffer[0] >= 0x20 && buffer[0] != 0x7f {
+		t.ime_change = false
 		wayland_text_enqueue(w, {kind = .Commit, text = string(buffer[:length])})
 		if known { t.handled += {key} }
 	}

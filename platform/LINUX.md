@@ -195,6 +195,8 @@ separately from physical keys. XKB supplies layout-aware typing, dead-key/Compos
 sequences and repeat. Control shortcuts provide selection, copy/cut/paste and
 undo/redo; Shift extends navigation selections. Ordinary typing works without
 an input-method daemon or the optional `zwp_text_input_manager_v3` protocol.
+`ui.text_input_capabilities()` reports typing, composition-protocol and clipboard
+availability separately; protocol availability does not imply an installed IME.
 
 When the compositor exposes text-input-v3, the adapter enables it for the focused
 text identity and publishes surrounding text and the caret rectangle in logical

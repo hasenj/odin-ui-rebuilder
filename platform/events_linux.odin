@@ -84,7 +84,7 @@ registry_remove :: proc "c" (data, _: rawptr, name: u32) {
 		wayland_text_cancel(w)
 		wl_release(w.text_input.proxy, 0)
 		w.text_input.proxy = nil
-		w.text_input.entered, w.text_input.enabled = false, false
+		w.text_input.entered, w.text_input.enabled, w.text_input.awaiting_done = false, false, false
 		destroy_wayland_clipboard_device(w)
 		wl_release(w.pointer, 1)
 		wl_release(w.keyboard_proxy, 0)

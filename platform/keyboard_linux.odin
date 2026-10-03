@@ -176,6 +176,7 @@ keyboard_keymap :: proc "c" (data, _: rawptr, format: u32, fd: i32, size: u32) {
 	if keymap == nil { return }
 	state := xkb_state_new(keymap)
 	if state == nil { xkb_keymap_unref(keymap); return }
+	wayland_text_cancel(w)
 	keyboard_clear(&w.keyboard)
 	clear(&w.held_keys)
 	w.repeat_active = false

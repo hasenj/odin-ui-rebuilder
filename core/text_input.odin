@@ -6,6 +6,13 @@ import "../platform"
 Text_Operation :: input.Text_Operation
 Text_Command :: input.Text_Command
 Text_Range :: input.Text_Range
+Text_Input_Capabilities :: platform.Text_Input_Capabilities
+
+// Query native support for this window. Composition requires an installed IME
+// as well as protocol support; synthetic capture input works independently.
+text_input_capabilities :: proc() -> Text_Input_Capabilities {
+	return platform.text_input_capabilities(current_frame().renderer)
+}
 clipboard_read :: platform.clipboard_read // Owned UTF-8 string; caller deletes it.
 clipboard_write :: platform.clipboard_write
 

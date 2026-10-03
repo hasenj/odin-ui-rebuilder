@@ -58,9 +58,12 @@ wayland_text_pipeline :: proc(t: ^testing.T) {
 	snapshot = take_wayland_input(&w)
 	testing.expect_value(t, len(snapshot.text.operations), 1)
 	testing.expect_value(t, edit.value(&w.text_input.mirror), "hello日本")
+	testing.expect(t, w.text_input.ime_change)
 	testing.expect(t, !w.text_input.mirror.composing)
 	text_preedit(&w, nil, "x", 1, 1); text_done(&w, nil, 3)
+	w.text_input.awaiting_done = true
 	text_leave(&w, nil, nil)
+	testing.expect(t, !w.text_input.awaiting_done)
 	snapshot = take_wayland_input(&w)
 	testing.expect_value(t, snapshot.text.operations[len(snapshot.text.operations)-1].kind, input.Text_Operation_Kind.Cancel_Composition)
 	testing.expect_value(t, edit.value(&w.text_input.mirror), "hello日本")
