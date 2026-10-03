@@ -49,13 +49,14 @@ rect_frame_pipeline :: proc(t: ^testing.T) {
 	empty_rect_text(t)
 	hover_rects(t)
 	identity_animation_pipeline(t)
+	local_layout_pipeline(t)
 	clip_pipeline(t)
 	interaction_pipeline(t)
 	scroll_pipeline(t)
 	focus_pipeline(t)
 	scroll_focus_pipeline(t)
 	nested_focus_pipeline(t)
-	when ODIN_OS == .Darwin { capture_pipeline(t) }
+	when ODIN_OS == .Darwin { capture_pipeline(t); local_layout_text_pipeline(t) }
 }
 
 // Frame input -> nested/padded rect queries -> paint, including shared edges,

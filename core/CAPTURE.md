@@ -16,7 +16,7 @@ From the repository root:
 ```
 
 The script builds an optimized `bin/capture`. The runner supports app4 through
-app12, importing their existing update procedures. Arguments after the output
+app13, importing their existing update procedures. Arguments after the output
 path are optional width, height, scale, and time; supply both mouse coordinates
 to simulate a pointer inside the window. Default dimensions match each example,
 scale is 2, and time is 0. Relative paths are resolved from the repo root when

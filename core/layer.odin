@@ -11,6 +11,7 @@ Layer_Bucket :: struct {z: i32, count, cursor: int}
 // a layer. Layout and identity parenting are unchanged. Popup content may opt
 // out of ancestor clips while remaining in the same logical identity subtree.
 open_layer :: proc(z: i32, escape_clip: bool = false) {
+	assert(!active_state.layout.active, "Open clip/layer scopes outside local layout")
 	flush_surface_state()
 	append(&active_state.layers, Layer_Scope{z, len(active_state.clips), escape_clip})
 	if escape_clip { append(&active_state.clips, Clip_Scope{}) }
@@ -18,6 +19,7 @@ open_layer :: proc(z: i32, escape_clip: bool = false) {
 
 close_layer :: proc() {
 	assert(active_state != nil && len(active_state.layers) > 0, "Unbalanced close_layer")
+	assert(!active_state.layout.active, "Close the local layout before changing resolved scopes")
 	scope := active_state.layers[len(active_state.layers) - 1]
 	assert(len(active_state.clips) == scope.clip_depth + (1 if scope.escape_clip else 0), "Unclosed clip in layer")
 	flush_surface_state()

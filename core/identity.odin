@@ -56,7 +56,7 @@ Identity_Path :: struct {group: Identity_Group, occurrence: u32}
 @(private)
 Identity_Count :: struct {frame: u64, count: u32}
 @(private)
-Identity_Scope_Kind :: enum {Root, Identity, Rect, Scroll}
+Identity_Scope_Kind :: enum {Root, Identity, Rect, Scroll, Layout_Root, Layout_Box}
 @(private)
 Identity_Scope :: struct {id: Identity, kind: Identity_Scope_Kind}
 @(private)

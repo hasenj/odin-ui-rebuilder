@@ -107,3 +107,6 @@ window closes.
 The frame is implicit and valid only during the window's update callback, on
 its main thread. `examples/app4` demonstrates nested cuts, padding, HSL colors,
 rounded paint, images, and resizing.
+
+For localized content-sized rows/columns, see [LAYOUT.md](LAYOUT.md). A local
+layout resolves before consuming its strip from the current remaining rect.

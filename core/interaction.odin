@@ -113,7 +113,12 @@ destroy_interaction :: proc(store: ^Interaction_Store) {
 
 @(private)
 current_hit_entry :: proc() -> ^Hit_Entry {
-	entry := &active_state.interaction.current[current_rect_context().hit_index]
+	index: int
+	if active_state.layout.active {
+		store := &active_state.layout
+		index = store.nodes[store.stack[len(store.stack) - 1]].hit
+	} else { index = current_rect_context().hit_index }
+	entry := &active_state.interaction.current[index]
 	assert(entry.id == current_identity(), "Register rect properties while its identity is current")
 	return entry
 }

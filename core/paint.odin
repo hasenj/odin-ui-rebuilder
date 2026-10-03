@@ -3,11 +3,14 @@ package ui
 import "core:math"
 import "core:math/linalg"
 
-// Emit a surface immediately, without consuming space or creating layout state.
+// Emit a surface without consuming space or creating a layout element. Inside
+// local layout it is deferred until resolution; otherwise emission is immediate.
 // Later cuts/padding do not change it. Images stretch over this rect; white tint
 // preserves their colors. Corners affect only this surface, not child paint.
 paint :: proc(color: Color = {1, 1, 1, 1}, img: Image = {}, corners: f32 = 0) {
+	_ = current_frame()
 	assert(valid_length(corners), "Corner radius must be finite and nonnegative")
+	if active_state.layout.active { layout_paint(color, img, corners); return }
 	r := current_rect()
 	append(&active_state.frame.surfaces, Surface{
 		position = r.position, size = r.size,

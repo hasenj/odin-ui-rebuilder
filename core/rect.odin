@@ -77,6 +77,7 @@ open_rect_at_keyed :: proc(rect: Rect, key: $T) where intrinsics.type_is_integer
 
 @(private)
 open_rect_at_key :: proc(rect: Rect, key: Identity_Key) {
+	assert(!active_state.layout.active, "Close the local layout before changing resolved scopes")
 	assert(valid_length(rect.size.x) && valid_length(rect.size.y), "Invalid rect extent")
 	assert(abs(rect.position.x) <= max(f32) && abs(rect.position.y) <= max(f32), "Invalid rect position")
 	id := identity_enter(key, .Rect)
@@ -115,6 +116,7 @@ pad4 :: proc(top, right, bottom, left: f32) {
 @(private)
 current_rect_context :: proc() -> ^Rect_Context {
 	assert(active_state != nil, "Rect calls must run inside the window update")
+	assert(!active_state.layout.active, "Geometry is unresolved inside local layout; use boxes and text_item")
 	return &active_state.rects[len(active_state.rects) - 1]
 }
 

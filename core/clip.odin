@@ -15,6 +15,7 @@ open_clip_current :: proc() { open_clip_rect(current_rect()) }
 
 @(private)
 open_clip_rect :: proc(rect: Rect) {
+	assert(!active_state.layout.active, "Open clip/layer scopes outside local layout")
 	assert(valid_length(rect.size.x) && valid_length(rect.size.y), "Invalid clip extent")
 	flush_surface_state()
 	clip := primitives.Clip{true, rect.position, rect.position + rect.size}
@@ -30,6 +31,7 @@ open_clip_rect :: proc(rect: Rect) {
 
 close_clip :: proc() {
 	assert(active_state != nil && len(active_state.clips) > 0, "Unbalanced close_clip")
+	assert(!active_state.layout.active, "Close the local layout before changing resolved scopes")
 	flush_surface_state()
 	pop(&active_state.clips)
 }

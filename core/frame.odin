@@ -19,7 +19,8 @@ Locks :: input.Locks
 
 // The framework clears surfaces before each update, retaining its capacity.
 // Append low-level primitives here; do not clear/reorder/overwrite during update
-// or retain the slice across updates. The framework applies clips and layers.
+// or retain the slice across updates. Direct appends require resolved geometry
+// (outside local layout). The framework applies clips and layers.
 Frame :: struct {
 	window:     Window, // Zero for a headless capture session.
 	time:       f64, // Monotonic application time, shared by every builder in a cycle.
@@ -52,6 +53,7 @@ Frame_State :: struct {
 	layer_buckets: [dynamic]Layer_Bucket,
 	surface_scratch: [dynamic]Surface,
 	interaction: Interaction_Store,
+	layout: Layout_Store,
 }
 
 @(private)
@@ -66,6 +68,7 @@ destroy_frame_state :: proc(state: ^Frame_State) {
 	delete(state.surface_runs)
 	delete(state.layer_buckets)
 	delete(state.surface_scratch)
+	destroy_layout(&state.layout)
 	destroy_interaction(&state.interaction)
 	destroy_identities(&state.identities)
 	// The platform has already released its renderer and all GPU images.
@@ -96,6 +99,7 @@ build_frame :: proc(renderer: platform.Renderer, elapsed: f64, size: [2]f32, use
 	if state.update != nil {
 		state.update()
 	}
+	assert(!state.layout.active, "Unclosed local layout")
 	assert(len(state.rects) == 1, "Unclosed rects at end of update")
 	assert(len(state.clips) == 0, "Unclosed clips at end of update")
 	assert(len(state.layers) == 0, "Unclosed layers at end of update")
