@@ -14,7 +14,8 @@ main :: proc() {
 update :: proc() {
 	if !loaded {
 		err: ui.Image_Error
-		coast, err = ui.load_image_from_bytes(#load("../demo3/assets/coast.png", []u8))
+		// Run from the repository root; decode/upload once and retain the handle.
+		coast, err = ui.load_image("examples/demo3/assets/coast.png")
 		if err != nil {
 			fmt.eprintln("Could not load coast image", err)
 		}

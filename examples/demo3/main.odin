@@ -9,24 +9,26 @@ images: [3]ui.Image
 loaded: bool
 
 main :: proc() {
-	// Optional file paths replace the three embedded examples:
+	// Run from the repository root. Optional paths replace the default images:
 	// odin run examples/demo3 -out:bin/demo3 -o:speed -- a.png b.jpg c.png
 	// Image alpha shows the checkerboard; the window itself stays opaque.
 	ui.open_window("Odin UI Rebuilder — images", 1040, 720, update, frame_timing = .Summary, transparent = false)
 }
 
 load_images :: proc() {
-	embedded := [?][]u8{
-		#load("assets/coast.png", []u8),
-		#load("assets/oranges.png", []u8),
-		#load("assets/robot.png", []u8),
+	paths := [?]string{
+		"examples/demo3/assets/coast.png",
+		"examples/demo3/assets/oranges.png",
+		"", // The cursor robot is the only embedded image.
 	}
-	for data, i in embedded {
+	for path, i in paths {
 		err: ui.Image_Error
 		if len(os.args) > i + 1 {
 			images[i], err = ui.load_image(os.args[i + 1])
+		} else if path != "" {
+			images[i], err = ui.load_image(path)
 		} else {
-			images[i], err = ui.load_image_from_bytes(data)
+			images[i], err = ui.load_image_from_bytes(#load("assets/robot.png", []u8))
 		}
 		if err != nil {
 			fmt.eprintln("Could not load image", i + 1, err)
