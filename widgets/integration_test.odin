@@ -85,6 +85,7 @@ widget_interactions :: proc(t: ^testing.T) {
 	testing.expect_value(t, result.error, ui.Capture_Error.None)
 	testing.expect_value(t, test_step, len(frames))
 	menu_rendering(t)
+	compound_fields(t)
 }
 
 @(private)

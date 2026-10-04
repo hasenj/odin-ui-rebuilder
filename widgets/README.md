@@ -50,9 +50,11 @@ font scanning, native platform widget, callback tree, or global retained model.
   result (changed/submitted/error). Initialize/destroy the caller-owned editor
   with `ui.init_text_edit` / `ui.destroy_text_edit`. This preserves core's IME,
   selection, clipboard and configured font fallback. It is single-line.
-- `search_field(^ui.Text_Edit, placeholder)` adds a clear button; filtering is
+- `search_field(^ui.Text_Edit, placeholder)` places a search icon and clear button
+  inside a shared field border. Clearing returns focus to the editor; filtering is
   application policy. Do not share one editor between independently editable fields.
 - `number_input(^f64, low, high, step)` supports editing, plus/minus and Up/Down.
+  The centered editor and inset-focus buttons share one border with dividers.
   Valid changes update the model; invalid drafts are marked and reverted on
   submit or focus loss. Limits must be finite. There is no locale number parser.
 - `slider(^f32, low, high, step)` supports pointer dragging outside its bounds,

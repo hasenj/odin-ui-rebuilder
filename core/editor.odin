@@ -28,7 +28,7 @@ text_edit_value :: proc(editor: ^Text_Edit) -> string { return edit.value(&edito
 
 // Draw/operate within the current rect. Input is still available to all code;
 // text operations are associated with the identity that owned native input.
-edit_text :: proc(editor: ^Text_Edit, font: Font_Ref, size: f32 = 20, color: Color = {0.93, 0.95, 0.98, 1}, selection_color: Color = {0.18, 0.39, 0.68, 0.8}) -> Text_Edit_Result {
+edit_text :: proc(editor: ^Text_Edit, font: Font_Ref, size: f32 = 20, color: Color = {0.93, 0.95, 0.98, 1}, selection_color: Color = {0.18, 0.39, 0.68, 0.8}, align: Text_Align = .Start) -> Text_Edit_Result {
 	assert(!active_state.layout.active, "Text editing requires resolved geometry")
 	frame := current_frame()
 	id := current_identity()
@@ -77,16 +77,20 @@ edit_text :: proc(editor: ^Text_Edit, font: Font_Ref, size: f32 = 20, color: Col
 		return result
 	}
 	if snapshot.mouse_cancelled || direct_focus() != id { editor.dragging = false }
+	// Short lines can align within the field; overflowing lines retain the
+	// usual horizontal scrolling. Share this offset with hit testing and IME.
+	spare := max(0, r.size.x - editor.metrics.width - 2)
+	alignment_x := spare/2 if align == .Center else spare if align == .End else 0
 	if hovered() && .Left in pressed && !snapshot.mouse_cancelled {
 		edit.finish_composition(b)
-		index, x := hit_caret(editor, snapshot.mouse_position.x - r.position.x + editor.scroll)
+		index, x := hit_caret(editor, snapshot.mouse_position.x - r.position.x - alignment_x + editor.scroll)
 		b.cursor = index
 		if .Shift not_in snapshot.modifiers { b.anchor = index }
 		editor.caret_byte, editor.caret_x = index, x
 		editor.dragging = .Left in snapshot.mouse_buttons
 	}
 	if editor.dragging {
-		index, x := hit_caret(editor, snapshot.mouse_position.x - r.position.x + editor.scroll)
+		index, x := hit_caret(editor, snapshot.mouse_position.x - r.position.x - alignment_x + editor.scroll)
 		b.cursor = index; editor.caret_byte, editor.caret_x = index, x
 		if .Left in released || .Left not_in snapshot.mouse_buttons { editor.dragging = false }
 	}
@@ -98,7 +102,7 @@ edit_text :: proc(editor: ^Text_Edit, font: Font_Ref, size: f32 = 20, color: Col
 		if editor.caret_x > editor.scroll + max(0, r.size.x - 2) { editor.scroll = editor.caret_x - max(0, r.size.x - 2) }
 	}
 	editor.scroll = clamp(editor.scroll, 0, max(0, editor.metrics.width - r.size.x + 2))
-	origin := r.position + [2]f32{-editor.scroll, max(0, (r.size.y - editor.metrics.height) / 2)}
+	origin := r.position + [2]f32{alignment_x-editor.scroll, max(0, (r.size.y - editor.metrics.height) / 2)}
 	open_clip(r)
 	selection := edit.selection(b)
 	for span in editor.spans {

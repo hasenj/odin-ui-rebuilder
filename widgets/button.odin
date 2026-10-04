@@ -50,11 +50,15 @@ button :: proc(value: string, kind: Button_Kind = .Secondary, enabled: bool = tr
 	return a.clicked
 }
 
-Icon :: enum {Close, Up, Down, Left, Right, Plus, Minus, More, Check}
+Icon :: enum {Close, Up, Down, Left, Right, Plus, Minus, More, Check, Search}
 // Geometry-based icons have no font dependency or missing-glyph surprises.
 @(private)
 icon_at :: proc(icon: Icon, r: ui.Rect, color: ui.Color) {
 	p := r.position + (r.size - [2]f32{12, 12})/2
+	if icon == .Search {
+		fill({p, {9, 9}}, color, 4.5, 1.5)
+		for n in 0..<4 { fill({p + [2]f32{7+f32(n), 7+f32(n)}, {2, 2}}, color, 1) }
+	}
 	if icon == .Plus || icon == .Minus { fill({p + [2]f32{0, 5}, {12, 2}}, color) }
 	if icon == .Plus { fill({p + [2]f32{5, 0}, {2, 12}}, color) }
 	if icon == .More { for x in 0..<3 { fill({p + [2]f32{f32(x*5), 5}, {2, 2}}, color, 1) } }
@@ -79,6 +83,18 @@ icon_button :: proc(icon: Icon, enabled: bool = true, loc := #caller_location) -
 	r := ui.current_rect(); a := interact(enabled)
 	fill(r, theme.pressed if a.down else theme.hover if a.hover else theme.surface, theme.radius)
 	focus_ring(r, enabled)
+	icon_at(icon, r, theme.text if enabled else theme.muted)
+	return a.clicked
+}
+
+// A button within a shared field border. Keep both hover and keyboard focus
+// inside its segment so adjacent editors cannot cover the outline.
+@(private)
+field_button :: proc(icon: Icon, enabled: bool = true, loc := #caller_location) -> bool {
+	ui.open_rect_at(ui.current_rect(), loc = loc); defer ui.close_rect()
+	r := ui.current_rect(); a := interact(enabled)
+	if a.hover || a.down { fill(inset(r, 2), theme.pressed if a.down else theme.hover, max(0, theme.radius-1)) }
+	focus_ring(inset(r, 4), enabled)
 	icon_at(icon, r, theme.text if enabled else theme.muted)
 	return a.clicked
 }

@@ -57,11 +57,19 @@ number_input :: proc(value: ^f64, low: f64 = -1e12, high: f64 = 1e12, step: f64 
 	if !s.initialized || s.last != value^ {
 		ui.destroy_text_edit(&s.editor); ui.init_text_edit(&s.editor, fmt.tprintf("%g", value^)); s.initialized = true
 	}
-	ui.open_rect(.Left, theme.height); if icon_button(.Minus, enabled && value^ > low) { value^ = max(low, value^-step) }; ui.close_rect()
-	ui.open_rect(.Right, theme.height); if icon_button(.Plus, enabled && value^ < high) { value^ = min(high, value^+step) }; ui.close_rect()
+	bounds := ui.current_rect()
+	fill(bounds, theme.background, theme.radius)
+	ui.open_rect(.Left, theme.height); if field_button(.Minus, enabled && value^ > low) { value^ = max(low, value^-step) }; ui.close_rect()
+	ui.open_rect(.Right, theme.height); if field_button(.Plus, enabled && value^ < high) { value^ = min(high, value^+step) }; ui.close_rect()
+	center := ui.current_rect()
+	fill({center.position, {1, center.size.y}}, theme.border)
+	fill({center.position + [2]f32{max(0, center.size.x-1), 0}, {min(1, center.size.x), center.size.y}}, theme.border)
 	parsed, valid := strconv.parse_f64(ui.text_edit_value(&s.editor))
 	valid = valid && parsed >= low && parsed <= high
-	result := text_field(&s.editor, enabled = enabled, invalid = !valid)
+	ui.open_rect_at(center)
+	result := field_editor(&s.editor, "", enabled, .Center)
+	ui.close_rect()
+	fill(bounds, theme.danger if !valid else theme.accent if enabled && ui.focused() else theme.border, theme.radius, 1)
 	if result.changed { parsed, valid = strconv.parse_f64(ui.text_edit_value(&s.editor)); if valid && parsed >= low && parsed <= high { value^ = parsed } }
 	if result.submitted || value^ != before || !ui.focused() {
 		if !valid || value^ != parsed { ui.destroy_text_edit(&s.editor); ui.init_text_edit(&s.editor, fmt.tprintf("%g", value^)) }
