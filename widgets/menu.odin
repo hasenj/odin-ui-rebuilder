@@ -18,7 +18,9 @@ menu_item :: proc(value: string, shortcut: string = "", checked: bool = false, e
 	}
 	r := ui.current_rect()
 	if a.hover || ui.focused() { fill(r, theme.selection, theme.radius) }
-	focus_ring(inset(r, 1), enabled)
+	// The scroll viewport ends at the first/last row. Keep the entire outline
+	// inside the row (focus_ring expands its supplied bounds by two pixels).
+	focus_ring(inset(r, 3), enabled)
 	if checked { icon_at(.Check, {r.position, {22, r.size.y}}, theme.accent) }
 	ui.pad4(0, 6, 0, 24)
 	if shortcut != "" { ui.open_rect(.Right, 64); label(shortcut, muted = true, align = .End); ui.close_rect() }

@@ -84,6 +84,7 @@ widget_interactions :: proc(t: ^testing.T) {
 	result := ui.capture_frames(test_scene, frames[:])
 	testing.expect_value(t, result.error, ui.Capture_Error.None)
 	testing.expect_value(t, test_step, len(frames))
+	menu_rendering(t)
 }
 
 @(private)

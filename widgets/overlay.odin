@@ -51,7 +51,10 @@ open_overlay :: proc(visible: ^bool, bounds: ui.Rect, modal, menu: bool, loc: ru
 	frame_state.top = root
 	if modal { ui.paint(color = {0, 0, 0, 0.48}) }
 	ui.open_rect_at(bounds)
-	ui.shadow(blur = 9, offset = {0, 5}, corners = theme.radius)
+	// Broad ambient shadow plus a tighter contact edge: visible against dark
+	// panels too. Emit before the content clip so the shadow can extend outside.
+	ui.shadow(color = {0, 0, 0, 0.55}, blur = 12, offset = {0, 6}, corners = theme.radius)
+	ui.shadow(color = {0, 0, 0, 0.45}, blur = 2, offset = {0, 2}, corners = theme.radius)
 	ui.paint(color = theme.surface, corners = theme.radius)
 	ui.stroke(theme.border, corners = theme.radius)
 	ui.open_clip()
