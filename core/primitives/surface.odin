@@ -14,6 +14,10 @@ Surface :: struct {
 	size:          [2]f32,
 	background:    Color,
 	corner_radius: f32,
+	// Gaussian standard deviation in logical points; >0 draws a shadow mask.
+	shadow_sigma: f32,
+	// Inward outline thickness; zero draws a filled surface.
+	border_width: f32,
 	// Optional image stretched over this surface. background becomes a tint;
 	// use opaque white for the original image colors. Corners clip the image.
 	image:         Image,

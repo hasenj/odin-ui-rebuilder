@@ -37,6 +37,24 @@ metal_surface_rendering :: proc(t: ^testing.T) {
 	coverage := pixels[12 * 128 + 12][3]
 	testing.expect(t, coverage > 0 && coverage < 255, "Rounded edges must have partial pixel coverage")
 
+
+	// Analytic/fixed-sample shadows: interior, soft exterior, finite extent and
+	// hollow outlines. Pixel readback exercises actual shader execution.
+	shadows := [?]primitives.Surface{
+		{position = {24, 24}, size = {40, 40}, background = {1, 1, 1, 1}, shadow_sigma = 4, corner_radius = 6},
+		{position = {80, 24}, size = {24, 24}, background = {1, 0, 0, 1}, border_width = 2, corner_radius = 4},
+	}
+	test_render(t, &renderer, texture, shadows[:], {128, 96}, raw_data(pixels[:]))
+	testing.expect(t, pixels[44*128+44][3] >= 250, "Shadow center should be opaque")
+	testing.expect(t, pixels[44*128+23][3] > 100 && pixels[44*128+23][3] < 140, "Shadow boundary should approach half coverage")
+	testing.expect(t, pixels[44*128+19][3] > 15 && pixels[44*128+19][3] < 55, "Blur must extend beyond layout bounds")
+	testing.expect_value(t, pixels[44*128+10][3], u8(0))
+	testing.expect_value(t, pixels[35*128+92][3], u8(0)) // Hollow center.
+	testing.expect(t, pixels[35*128+80][3] > 240, "Outline edge should be visible")
+	shadows[0].clip = {true, {24, 24}, {64, 64}}
+	test_render(t, &renderer, texture, shadows[:], {128, 96}, raw_data(pixels[:]))
+	testing.expect_value(t, pixels[44*128+23][3], u8(0)) // Active clipping applies to blur too.
+
 	// Hard rectangular clips use logical coordinates, independently of rounded
 	// geometry. An enabled empty clip must not become an unbounded clip.
 	clipped := [?]primitives.Surface{

@@ -25,6 +25,7 @@ GPU_Surface :: struct {
 	position, size: [2]f32,
 	color: [4]f32,
 	radius: f32,
+	sigma, border: f32,
 	uv: [4]f32,
 	clip: [4]f32,
 }
@@ -78,8 +79,8 @@ gl_init :: proc(renderer: ^GL_Renderer) {
 	gl.GenBuffers(1, &renderer.buffer)
 	gl.BindVertexArray(renderer.vao)
 	gl.BindBuffer(gl.ARRAY_BUFFER, renderer.buffer)
-	counts := [?]i32{2, 2, 4, 1, 4, 4}
-	offsets := [?]uintptr{offset_of(GPU_Surface, position), offset_of(GPU_Surface, size), offset_of(GPU_Surface, color), offset_of(GPU_Surface, radius), offset_of(GPU_Surface, uv), offset_of(GPU_Surface, clip)}
+	counts := [?]i32{2, 2, 4, 1, 4, 4, 1, 1}
+	offsets := [?]uintptr{offset_of(GPU_Surface, position), offset_of(GPU_Surface, size), offset_of(GPU_Surface, color), offset_of(GPU_Surface, radius), offset_of(GPU_Surface, uv), offset_of(GPU_Surface, clip), offset_of(GPU_Surface, sigma), offset_of(GPU_Surface, border)}
 	for count, i in counts {
 		gl.EnableVertexAttribArray(u32(i))
 		gl.VertexAttribPointer(u32(i), count, gl.FLOAT, false, size_of(GPU_Surface), offsets[i])
@@ -164,6 +165,7 @@ encode_surfaces :: proc(renderer: ^GL_Renderer, surfaces: []primitives.Surface, 
 		}
 		batch_texture = texture
 		batch[count] = {surface.position, surface.size, surface.background, clamp(surface.corner_radius, 0, min(surface.size.x, surface.size.y) * 0.5),
+			max(0, surface.shadow_sigma), max(0, surface.border_width),
 			surface.image_region if surface.image_region != ([4]f32{}) else [4]f32{0, 0, 1, 1},
 			[4]f32{surface.clip.min.x, surface.clip.min.y, surface.clip.max.x, surface.clip.max.y} if surface.clip.enabled else [4]f32{-max(f32), -max(f32), max(f32), max(f32)}}
 		for &component in batch[count].color {

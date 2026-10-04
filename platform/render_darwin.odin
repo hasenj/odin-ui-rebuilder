@@ -40,7 +40,8 @@ GPU_Surface :: struct {
 	size:     [2]f32,
 	color:    [4]f32,
 	radius:   f32,
-	_padding: [3]f32,
+	sigma, border: f32,
+	_padding: f32,
 	uv: [4]f32,
 	clip: [4]f32,
 }
@@ -203,6 +204,7 @@ encode_surfaces :: proc(renderer: ^Metal_Renderer, encoder: ^mtl.RenderCommandEn
 			size = surface.size,
 			color = surface.background,
 			radius = clamp(surface.corner_radius, 0, min(surface.size.x, surface.size.y) * 0.5),
+			sigma = max(0, surface.shadow_sigma), border = max(0, surface.border_width),
 			uv = surface.image_region if surface.image_region != ([4]f32{}) else [4]f32{0, 0, 1, 1},
 			clip = {surface.clip.min.x, surface.clip.min.y, surface.clip.max.x, surface.clip.max.y} if surface.clip.enabled else [4]f32{-max(f32), -max(f32), max(f32), max(f32)},
 		}
