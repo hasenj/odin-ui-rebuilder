@@ -16,11 +16,16 @@ shadow :: proc(color: Color = {0, 0, 0, 0.45}, offset: [2]f32 = {0, 4}, blur: f3
 }
 
 // Stroke is entirely inside the current rect and preserves its transparent
-// interior. Like shadow, it requires a resolved rect and respects active clips.
-stroke :: proc(color: Color, width: f32 = 1, corners: f32 = 0) {
+// interior. It can also be recorded against an unresolved layout box.
+// Negative inset expands the outline without changing layout or hit geometry.
+stroke :: proc(color: Color, width: f32 = 1, corners: f32 = 0, inset: f32 = 0) {
 	assert(valid_length(width) && valid_length(corners))
+	assert(abs(inset) <= max(f32))
 	if width == 0 { return }
+	if layout_active() { layout_paint(color, {}, corners, width, inset); return }
 	r := current_rect()
+	r.position += {inset, inset}
+	r.size = {max(0, r.size.x-2*inset), max(0, r.size.y-2*inset)}
 	append(&current_frame().surfaces, Surface{position = r.position, size = r.size,
 		background = color, corner_radius = corners, border_width = width})
 }

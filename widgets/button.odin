@@ -3,6 +3,7 @@ package widgets
 import ui "../core"
 
 Button_Kind :: enum {Secondary, Primary, Destructive, Quiet}
+Button_Sizing :: enum {Fixed, Content}
 @(private) Action :: struct {armed, space: bool, previous: ui.Mouse_Buttons}
 @(private) Response :: struct {clicked, down, hover: bool}
 
@@ -32,10 +33,24 @@ interact :: proc(enabled: bool) -> Response {
 	return r
 }
 
-button :: proc(value: string, kind: Button_Kind = .Secondary, enabled: bool = true, loc := #caller_location) -> bool {
-	ui.open_rect_at(ui.current_rect(), loc = loc)
-	defer ui.close_rect()
-	r := ui.current_rect()
+button :: proc(value: string, kind: Button_Kind = .Secondary, enabled: bool = true, loc := #caller_location,
+	sizing: Button_Sizing = .Fixed, size: [2]f32 = {}) -> bool {
+	local := ui.layout_active()
+	assert(sizing != .Content || local, "Content-sized buttons require ui.open_layout")
+	assert(sizing != .Content || size == ([2]f32{}), "Content-sized buttons do not take a fixed size")
+	if sizing == .Fixed && (local || size != ([2]f32{})) {
+		assert(size.x > 0 && size.y > 0, "Fixed buttons inside local layout require a positive size")
+	}
+	if local {
+		style := ui.Layout_Style{padding = {theme.padding, theme.padding*1.5}, align = .Center}
+		if sizing == .Fixed { style.width = ui.layout_fixed(size.x); style.height = ui.layout_fixed(size.y); style.padding = {3, 3} }
+		ui.open_box(style, loc = loc)
+	} else {
+		r := ui.current_rect()
+		if size != ([2]f32{}) { r.size = {min(r.size.x, size.x), min(r.size.y, size.y)} }
+		ui.open_rect_at(r, loc = loc)
+	}
+	defer { if local { ui.close_box() } else { ui.close_rect() } }
 	a := interact(enabled)
 	base := theme.surface
 	if kind == .Primary { base = theme.selection }
@@ -43,10 +58,18 @@ button :: proc(value: string, kind: Button_Kind = .Secondary, enabled: bool = tr
 	if kind == .Quiet { base = theme.background }
 	target := theme.pressed if a.down else theme.hover
 	amount := ui.animate_f32(1 if a.hover || a.down else 0)
-	fill(r, base + (target - base)*amount, theme.radius)
-	if kind != .Quiet { fill(r, theme.border if kind == .Secondary else theme.accent if kind == .Primary else theme.danger, theme.radius, 1) }
-	focus_ring(r, enabled)
-	text_at(value, inset(r, 3), theme.text if enabled else theme.muted, .Center)
+	ui.paint(color = base + (target - base)*amount, corners = theme.radius)
+	if kind != .Quiet { ui.stroke(theme.border if kind == .Secondary else theme.accent if kind == .Primary else theme.danger, corners = theme.radius) }
+	if enabled && ui.direct_focus() == ui.current_identity() {
+		// A local layout can touch its enclosing clip or adjacent siblings.
+		ui.stroke(theme.accent, corners = theme.radius if local else theme.radius+2, inset = 1 if local else -2)
+	}
+	color := theme.text if enabled else theme.muted
+	if local {
+		style: ui.Layout_Style
+		if sizing == .Fixed { style.width = ui.layout_fixed(size.x); style.height = ui.layout_fixed(size.y) }
+		ui.text_item(value, current_font, theme.font_size, color, style = style, fit = true, align = .Center, valign = .Center)
+	} else { text_at(value, inset(ui.current_rect(), 3), color, .Center, min_scale = 0.5) }
 	return a.clicked
 }
 

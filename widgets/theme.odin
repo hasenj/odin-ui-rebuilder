@@ -41,12 +41,12 @@ inset :: proc(r: ui.Rect, amount: f32) -> ui.Rect {
 	return {r.position + [2]f32{amount, amount}, {max(0, r.size.x - 2*amount), max(0, r.size.y - 2*amount)}}
 }
 @(private)
-text_at :: proc(value: string, r: ui.Rect, color: ui.Color, align: ui.Text_Align = .Start, size: f32 = 0) {
+text_at :: proc(value: string, r: ui.Rect, color: ui.Color, align: ui.Text_Align = .Start, size: f32 = 0, min_scale: f32 = 1) {
 	if r.size.x <= 0 || r.size.y <= 0 || value == "" { return }
 	ui.open_rect_at(r)
 	ui.set_hit_test(false)
 	ui.open_clip()
-	layout, err := ui.layout_text_fit(value, current_font, r.size.x, theme.font_size if size == 0 else size, min_scale = 1)
+	layout, err := ui.layout_text_fit(value, current_font, r.size.x, theme.font_size if size == 0 else size, min_scale = min_scale, max_height = r.size.y)
 	if err == .None { _ = ui.draw_text_layout(layout, color, align = align, valign = .Center) }
 	ui.close_clip()
 	ui.close_rect()

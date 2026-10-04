@@ -39,3 +39,6 @@ the shadow beneath them; the shadow mask is not punched out behind the caster.
 nothing. It shares the rounded-rectangle distance field and derivative-based
 antialiasing used by ordinary surfaces. A focus ring can use an expanded rect
 without enlarging a widget's interaction bounds.
+`stroke` also records outlines inside a local layout. Its optional `inset`
+adjusts only painted bounds (negative values expand); measurement and hit bounds
+stay unchanged. Shadows still require resolved geometry.

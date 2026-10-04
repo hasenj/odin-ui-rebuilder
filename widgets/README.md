@@ -3,8 +3,9 @@
 Created and maintained by Codex.
 
 `widgets` imports `core`; core has no widget dependency. All geometry is in
-logical window points. These first widgets operate on **resolved rectangles**.
-Use rect cutting, or finish a local layout before calling them.
+logical window points. Widgets use **resolved rectangles** by default. Buttons
+also accept explicit content or fixed sizing inside a local layout. Other widgets
+still require rect cutting or resolved geometry.
 
 ```odin
 import ui "path/to/core"
@@ -40,7 +41,14 @@ font scanning, native platform widget, callback tree, or global retained model.
 
 ## Controls
 
-- `button(label, kind, enabled)` — Secondary, Primary, Destructive, Quiet.
+- `button(label, kind, enabled, sizing, size)` — Secondary, Primary, Destructive,
+  Quiet. Default `.Fixed` uses the current rectangle; the label shrinks to fit
+  down to half the theme font size, with any remaining overflow clipped.
+  Inside `ui.open_layout`, opt into `.Content` for label size plus padding, or
+  use `.Fixed` with an explicit positive `size`. Content sizing requires an
+  active local layout. It never silently starts one. Fixed size is bounded by
+  the enclosing area; outside a local layout an optional `size` also constrains
+  the supplied rectangle. All modes share interaction, identities and styling.
 - `icon_button(icon, enabled)` — Close, Up, Down, Left, Right, Plus, Minus, More, Check.
 - `checkbox(label, ^bool)` and `checkbox_state(label, ^Check_State)` — Off/On/Mixed.
 - `radio(label, selected)` returns activation; `radio_group(items, ^index)` adds
@@ -77,6 +85,18 @@ previous-frame hit geometry, so newly appeared/repositioned controls settle on
 the next frame. Focus rings use hollow GPU outlines.
 
 ## Containers and overlays
+
+```odin
+ui.open_layout(.Left, {flow = .Row, gap = 8})
+if w.button("Save", .Primary, sizing = .Content) { save_document() }
+if w.button("Cancel", sizing = .Fixed, size = {100, 32}) { cancel() }
+_, err := ui.close_layout()
+```
+
+The builder runs once. Layout measures and places recorded content, using the
+previous frame's geometry for hover/focus/clicks as usual. A content button's
+padding is `theme.padding` vertically and `1.5 * theme.padding` horizontally.
+Cross-axis stretching follows the enclosing layout; fixed sizes take precedence.
 
 - `disclosure_open(label, ^expanded)` returns true with its content scope open;
   pair it with `disclosure_close` only on true. `tree_open/close` and

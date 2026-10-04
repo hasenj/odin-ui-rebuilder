@@ -29,8 +29,12 @@ Layout_Style :: struct {
 	color: Color,
 	image: Image,
 	corners: f32,
+	border, inset: f32,
 	font: Font,
 	size, weight: f32,
+	fit: bool,
+	min_scale: f32,
+	align, valign: Text_Align,
 	direction: Text_Direction,
 	value_start, value_end, language_start, language_end: int,
 }
@@ -51,6 +55,8 @@ Layout_Style :: struct {
 // Start a local content-sized layout constrained by the current remaining rect.
 // close_layout consumes its resolved extent along the requested cut direction.
 // Nested boxes use open_box, not another open_layout.
+layout_active :: proc() -> bool { return active_state != nil && active_state.layout.active }
+
 open_layout :: proc{open_layout_implicit, open_layout_keyed}
 @(private)
 open_layout_implicit :: proc(direction: Direction, style: Layout_Style = {}, loc := #caller_location) {
@@ -111,12 +117,16 @@ close_box :: proc() {
 
 // Text is a measured leaf and a deferred draw operation. Copy bytes now so
 // callers can reuse a formatting buffer before the layout closes.
-text_item :: proc(value: string, font: Font_Ref, size: f32 = 16, color: Color = {1, 1, 1, 1}, weight: f32 = 0, direction: Text_Direction = .Auto, language: string = "", loc := #caller_location) {
-	open_box(loc = loc)
+text_item :: proc(value: string, font: Font_Ref, size: f32 = 16, color: Color = {1, 1, 1, 1}, weight: f32 = 0, direction: Text_Direction = .Auto, language: string = "", loc := #caller_location,
+	style: Layout_Style = {}, fit: bool = false, min_scale: f32 = 0.5, align: Text_Align = .Start, valign: Text_Align = .Start) {
+	assert(style.padding == ([2]f32{}), "Put text padding on its enclosing box")
+	assert(min_scale > 0 && min_scale <= 1)
+	open_box(style, loc = loc)
 	store := &active_state.layout
 	index := store.stack[len(store.stack) - 1]
 	command := Layout_Command{kind = .Text, node = index, color = color,
-		font = resolve_font(font), size = size, weight = weight, direction = direction}
+		font = resolve_font(font), size = size, weight = weight, direction = direction,
+		fit = fit, min_scale = min_scale, align = align, valign = valign}
 	command.value_start = len(store.strings)
 	append(&store.strings, ..transmute([]u8)value)
 	command.value_end = len(store.strings)
@@ -129,9 +139,9 @@ text_item :: proc(value: string, font: Font_Ref, size: f32 = 16, color: Color = 
 }
 
 @(private)
-layout_paint :: proc(color: Color, image: Image, corners: f32) {
+layout_paint :: proc(color: Color, image: Image, corners: f32, border: f32 = 0, inset: f32 = 0) {
 	store := &active_state.layout
-	append(&store.commands, Layout_Command{node = store.stack[len(store.stack) - 1], color = color, image = image, corners = corners})
+	append(&store.commands, Layout_Command{node = store.stack[len(store.stack) - 1], color = color, image = image, corners = corners, border = border, inset = inset})
 }
 
 // Resolves only recorded data: identities, input handlers and animations are
@@ -162,11 +172,24 @@ close_layout :: proc() -> (Rect, Text_Error) {
 	for command in store.commands {
 		r := store.bounds[command.node]
 		if command.kind == .Paint {
+			r.position += {command.inset, command.inset}
+			r.size = {max(0, r.size.x-2*command.inset), max(0, r.size.y-2*command.inset)}
 			append(&frame.surfaces, Surface{position = r.position, size = r.size,
-				background = command.color, image = command.image, corner_radius = command.corners})
+				background = command.color, image = command.image, corner_radius = command.corners, border_width = command.border})
 		} else if r.size.x > 0 && r.size.y > 0 && command.font != 0 {
-			draw_err := fonts.draw_layout(&active_state.text, frame.renderer, store.measure[command.node].text,
-				r.position, r.size, command.color, &frame.surfaces)
+			text := store.measure[command.node].text
+			if command.fit {
+				// Cross-axis stretching can change a leaf's final bounds.
+				if r.size != store.measure[command.node].size {
+					fitted, fit_err := layout_text_fit_measure(store, command, r.size)
+					text = fitted
+					if err == .None { err = fit_err }
+				}
+				open_clip(r)
+			}
+			draw_err := fonts.draw_layout(&active_state.text, frame.renderer, text,
+				r.position, r.size, command.color, &frame.surfaces, command.align, command.valign)
+			if command.fit { close_clip() }
 			if err == .None { err = draw_err }
 		}
 	}
@@ -176,10 +199,19 @@ close_layout :: proc() -> (Rect, Text_Error) {
 
 @(private)
 layout_text_measure :: proc(store: ^Layout_Store, command: Layout_Command, width: f32) -> (Text_Layout, Text_Error) {
+	if command.fit { return layout_text_fit_measure(store, command, {width, max(f32)}) }
 	value := transmute(string)store.strings[command.value_start:command.value_end]
 	language := transmute(string)store.strings[command.language_start:command.language_end]
 	return fonts.layout(&active_state.text, command.font, value, command.size, current_frame().scale,
 		command.weight, width, command.direction, language)
+}
+
+@(private)
+layout_text_fit_measure :: proc(store: ^Layout_Store, command: Layout_Command, bounds: [2]f32) -> (Text_Layout, Text_Error) {
+	value := transmute(string)store.strings[command.value_start:command.value_end]
+	language := transmute(string)store.strings[command.language_start:command.language_end]
+	return fonts.fit(&active_state.text, command.font, value, command.size, current_frame().scale,
+		command.weight, bounds.x, command.min_scale, command.direction, language, max_height = bounds.y)
 }
 
 @(private)
@@ -239,7 +271,13 @@ layout_solve :: proc(store: ^Layout_Store) -> Text_Error {
 			// The intrinsic result already has the correct lines when it fits,
 			// including explicit newlines. Only narrower bounds need rewrapping.
 			text := store.measure[i].text
-			if store.measure[i].size.x < text.width {
+			command := store.commands[node.text_command]
+			if command.fit {
+				measured, text_err := layout_text_fit_measure(store, command, {store.measure[i].size.x, store.measure[i].max_height})
+				if err == .None { err = text_err }
+				text = measured
+				store.measure[i].text = text
+			} else if store.measure[i].size.x < text.width {
 				measured, text_err := layout_text_measure(store, store.commands[node.text_command], store.measure[i].size.x)
 				if err == .None { err = text_err }
 				text = measured

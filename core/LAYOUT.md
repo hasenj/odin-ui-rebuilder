@@ -34,6 +34,17 @@ and language. It copies text/language bytes into reusable local storage, so a
 caller may immediately reuse its formatting buffer. Deferred text errors are
 returned by `close_layout`; other successfully recorded content can still paint.
 
+`stroke` records an outline against the current box as well; it does not affect
+measurement. `layout_active()` lets compound builders choose between recorded
+boxes and resolved rects without exposing the layout store.
+
+For fixed label areas, `text_item` accepts `style` with explicit width/height,
+`fit = true`, and `align` / `valign`. Fitted text stays on one line and shrinks
+down to `min_scale` (0.5 by default), then clips remaining overflow to its leaf.
+It is measured using the same constraints as other leaves, with no builder
+replay. Put padding on the enclosing box; text leaves have no padding. Ordinary
+`text_item` calls retain their existing wrapping and content-sizing behavior.
+
 ## Sizing rules
 
 Every root inherits maximum width **and** height from the current remaining rect.

@@ -108,6 +108,7 @@ widget_interactions :: proc(t: ^testing.T) {
 	}
 	menu_rendering(t)
 	compound_fields(t)
+	button_layouts(t)
 }
 
 @(private)
