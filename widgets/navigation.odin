@@ -37,10 +37,26 @@ tabs :: proc(items: []string, selected: ^int, segmented: bool = false, loc := #c
 		ui.focusable(index == selected^)
 		if move && index == selected^ { ui.request_focus() }
 		box := ui.current_rect()
-		if segmented || a.hover { fill(box, theme.selection if selected^ == index else theme.hover if a.hover else theme.surface, theme.radius) }
-		if !segmented && selected^ == index { fill({box.position + [2]f32{0, max(0, box.size.y-2)}, {box.size.x, 2}}, theme.accent) }
+		if segmented {
+			fill(box, theme.selection if selected^ == index else theme.hover if a.hover else theme.surface, theme.radius)
+			focus_ring(inset(box, 2))
+		} else {
+			// Extend the rounded surface below a clip to keep only its top
+			// corners rounded. The straight bottom edge joins the underline.
+			ui.open_clip(box)
+			radius := min(theme.radius, min(box.size.x, box.size.y)*0.5)
+			top := box; top.size.y += radius + 1
+			if a.hover { fill(top, theme.selection if selected^ == index else theme.hover, radius) }
+			focused := ui.direct_focus() == ui.current_identity()
+			if focused { fill(top, theme.accent, radius, 1) }
+			if selected^ == index || focused {
+				line := min(box.size.y, f32(2) if selected^ == index else f32(1))
+				fill({box.position + [2]f32{0, box.size.y-line}, {box.size.x, line}}, theme.accent)
+			}
+			ui.close_clip()
+		}
 		text_at(item, inset(box, 3), theme.text if selected^ == index else theme.muted, .Center)
-		focus_ring(inset(box, 2)); ui.close_rect()
+		ui.close_rect()
 	}
 	return selected^ != before
 }

@@ -39,6 +39,10 @@ main :: proc() {
 			{size = {1040, 820}, scale = 1, time = 8, path = "bin/demo16-tooltip.png", input = {mouse_inside = true, mouse_position = {420, 680}}},
 			{size = {1040, 820}, scale = 1, time = 9, path = "bin/demo16-toast.png"},
 			{size = {400, 500}, scale = 2, time = 10, path = "bin/demo16-dialog-compact.png"},
+			{size = {1040, 820}, scale = 2, time = 11},
+			{size = {1040, 820}, scale = 2, time = 12, input = {mouse_inside = true, mouse_position = {177, 499}, mouse_buttons = {.Left}, mouse_pressed = {.Left}}},
+			{size = {1040, 820}, scale = 2, time = 13, input = {mouse_inside = true, mouse_position = {177, 499}, mouse_released = {.Left}}},
+			{size = {1040, 820}, scale = 2, time = 14, path = "bin/demo16-tabs.png", input = {mouse_inside = true, mouse_position = {177, 499}}},
 		}
 		result := ui.capture_frames(update, frames[:]); assert(result.error == .None)
 		fmt.println("Captured widget gallery, menu, dialog, popover and compact layout")
