@@ -38,6 +38,7 @@ main :: proc() {
 			{size = {1040, 820}, scale = 1, time = 7, input = {mouse_inside = true, mouse_position = {420, 680}}},
 			{size = {1040, 820}, scale = 1, time = 8, path = "bin/demo16-tooltip.png", input = {mouse_inside = true, mouse_position = {420, 680}}},
 			{size = {1040, 820}, scale = 1, time = 9, path = "bin/demo16-toast.png"},
+			{size = {400, 500}, scale = 2, time = 10, path = "bin/demo16-dialog-compact.png"},
 		}
 		result := ui.capture_frames(update, frames[:]); assert(result.error == .None)
 		fmt.println("Captured widget gallery, menu, dialog, popover and compact layout")
@@ -56,7 +57,8 @@ update :: proc() {
 	}
 	w.begin(font)
 	if capture_mode {
-		menu = step == 2; modal = step == 3; popover = step == 4
+		menu = step == 2; modal = step == 3 || step == 10; popover = step == 4
+		if step == 10 { notice.visible = false }
 		if step == 9 { w.show_toast(&notice) }
 	}
 	ui.paint(color = w.theme.background)
@@ -140,11 +142,13 @@ update :: proc() {
 		w.menu_separator(); _ = w.menu_item("Delete", destructive = true)
 		w.menu_close()
 	}
-	if w.dialog_open("Replace file?", &modal, {360, 180}) {
-		row(); w.label("A file named notes.txt already exists."); end_row()
-		row(); w.label("The existing file will be replaced.", muted = true); end_row()
-		row(); ui.open_rect(.Right, 100); if w.button("Replace", .Destructive) { modal = false; w.show_toast(&notice) }; ui.close_rect()
-		ui.pad4(0, 6, 0, 0); ui.open_rect(.Right, 100); if w.button("Cancel") { modal = false }; ui.close_rect(); end_row()
+	if w.dialog_open("Replace file?", &modal, actions_height = 36) {
+		row(24); w.label("A file named notes.txt already exists."); end_row()
+		row(24); w.label("The existing file will be replaced.", muted = true); end_row()
+		w.dialog_actions_open()
+		ui.open_rect(.Right, 112); if w.button("Replace", .Destructive) { modal = false; w.show_toast(&notice) }; ui.close_rect()
+		ui.pad4(0, 12, 0, 0); ui.open_rect(.Right, 112); if w.button("Cancel") { modal = false }; ui.close_rect()
+		w.dialog_actions_close()
 		w.dialog_close()
 	}
 	if w.popover_open(&popover, pop_anchor, {250, 154}) {

@@ -5,7 +5,14 @@ import "base:runtime"
 @(private) Widget_Frame :: struct {top, previous_top: ui.Identity}
 @(private) frame_state: ^Widget_Frame
 @(private) Popup_State :: struct {seen: bool, items: [dynamic]ui.Identity}
-@(private) Overlay :: struct {visible: ^bool, state: ^Popup_State, menu, fresh: bool, bounds: ui.Rect}
+@(private) Overlay :: struct {
+	visible: ^bool,
+	state: ^Popup_State,
+	menu, fresh: bool,
+	bounds: ui.Rect,
+	actions: ui.Rect,
+	body_open, actions_reserved, actions_open, actions_built: bool,
+}
 @(private) overlays: [32]Overlay
 @(private) overlay_depth: int
 
@@ -59,7 +66,7 @@ open_overlay :: proc(visible: ^bool, bounds: ui.Rect, modal, menu: bool, loc: ru
 	ui.stroke(theme.border, corners = theme.radius)
 	ui.open_clip()
 	ui.pad(theme.padding)
-	overlays[overlay_depth] = {visible, s, menu, fresh, bounds}; overlay_depth += 1
+	overlays[overlay_depth] = {visible = visible, state = s, menu = menu, fresh = fresh, bounds = bounds}; overlay_depth += 1
 	return true
 }
 
@@ -68,20 +75,50 @@ popover_open :: proc(visible: ^bool, anchor: ui.Rect, size: [2]f32, loc := #call
 }
 popover_close :: proc() { close_overlay() }
 
-// The caller supplies content and action rows; this helper provides the modal
-// barrier, focus fence, shadow, viewport clamping and an integrated close button.
-dialog_open :: proc(title: string, visible: ^bool, size: [2]f32 = {340, 180}, loc := #caller_location) -> bool {
+// Reserve an optional bottom action area before exposing the clipped body.
+// Build its buttons later using dialog_actions_open/close, after body content.
+dialog_open :: proc(title: string, visible: ^bool, size: [2]f32 = {400, 238}, actions_height: f32 = 0, loc := #caller_location) -> bool {
 	window := ui.current_frame().size
 	actual := [2]f32{min(size.x, max(0, window.x-16)), min(size.y, max(0, window.y-16))}
 	if !open_overlay(visible, {(window-actual)/2, actual}, true, false, loc) { return false }
+	ui.pad(max(0, theme.dialog_padding-theme.padding))
+	o := &overlays[overlay_depth-1]
+	if actions_height > 0 {
+		o.actions_reserved = true
+		ui.open_rect(.Bottom, actions_height+theme.padding*2+1)
+		o.actions = ui.current_rect()
+		ui.close_rect()
+	}
 	ui.open_rect(.Top, theme.height)
 	ui.open_rect(.Right, theme.height)
 	if icon_button(.Close) { visible^ = false }
-	ui.close_rect(); label(title); ui.close_rect()
-	ui.pad4(theme.gap, 0, 0, 0)
+	ui.close_rect(); text_at(title, ui.current_rect(), theme.text, size = theme.font_size+3); ui.close_rect()
+	ui.pad4(theme.padding*2, 0, theme.padding*2, 0)
+	ui.open_rect_at(ui.current_rect()); ui.open_clip()
+	o.body_open = true
 	return true
 }
-dialog_close :: proc() { close_overlay() }
+dialog_actions_open :: proc() {
+	assert(overlay_depth > 0)
+	o := &overlays[overlay_depth-1]
+	assert(o.body_open && o.actions_reserved && !o.actions_built, "Reserve actions_height in dialog_open; build actions once after the body")
+	ui.close_clip(); ui.close_rect(); o.body_open = false
+	ui.open_rect_at(o.actions)
+	separator()
+	ui.pad4(theme.padding*2+1, 0, 0, 0)
+	o.actions_open = true; o.actions_built = true
+}
+dialog_actions_close :: proc() {
+	assert(overlay_depth > 0 && overlays[overlay_depth-1].actions_open)
+	ui.close_rect(); overlays[overlay_depth-1].actions_open = false
+}
+dialog_close :: proc() {
+	assert(overlay_depth > 0)
+	o := &overlays[overlay_depth-1]
+	assert(!o.actions_open, "Close the dialog action scope first")
+	if o.body_open { ui.close_clip(); ui.close_rect() }
+	close_overlay()
+}
 
 @(private)
 close_overlay :: proc() {

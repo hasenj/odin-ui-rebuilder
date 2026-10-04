@@ -131,8 +131,13 @@ test_scene :: proc() {
 		_ = menu_item("Other")
 		menu_close()
 	}
-	if dialog_open("Modal", &test_modal, {230, 130}) {
-		ui.open_rect(.Top, 30); if button("Done") { test_modal = false }; ui.close_rect()
+	if dialog_open("Modal", &test_modal, {300, 220}, actions_height = 30) {
+		// Even an overfull body cannot displace the reserved footer.
+		ui.open_rect(.Top, 500); label("Modal body"); ui.close_rect()
+		dialog_actions_open()
+		testing.expect_value(test_t, ui.current_rect(), ui.Rect{{54, 226}, {252, 30}})
+		if button("Done") { test_modal = false }
+		dialog_actions_close()
 		dialog_close()
 	}
 	switch test_step {

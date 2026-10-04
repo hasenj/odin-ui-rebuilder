@@ -96,9 +96,14 @@ the next frame. Focus rings use hollow GPU outlines.
 - `dropdown(items, ^selected)` combines a trigger and a scrolling selection menu.
 - `popover_open(^visible, anchor, size)` / `popover_close()` provide arbitrary
   content with outside-click and Escape dismissal.
-- `dialog_open(title, ^visible, size)` / `dialog_close()` add a centered modal
-  barrier, title and Close button. The application builds content/actions inside.
-  Outside clicks don't dismiss dialogs. Escape and Close do.
+- `dialog_open(title, ^visible, size, actions_height)` / `dialog_close()` add a
+  centered modal barrier, title and Close button, with `theme.dialog_padding`
+  around the interior (24 px by default). An optional positive `actions_height`
+  reserves a bottom action area before laying out the clipped body. After the
+  body, call `dialog_actions_open()` / `dialog_actions_close()` to build buttons
+  beneath its divider; this scope stays anchored to the bottom even if the body
+  is overfull. Without actions, leave `actions_height` at zero. Outside clicks
+  don't dismiss dialogs. Escape and Close do.
 - `tooltip(text, delay)` attaches to the current identity's hover; it doesn't
   intercept input or take focus.
 - `show_toast(^Toast, duration)` then `toast(text, ^Toast, action)` provide a timed
