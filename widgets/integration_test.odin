@@ -3,6 +3,8 @@ package widgets
 import ui "../core"
 import "core:testing"
 import "core:path/filepath"
+import "core:image/png"
+import "core:image"
 
 @(private) test_step, test_clicks, test_selected, test_tab: int
 @(private) test_check, test_modal, test_menu, test_submenu: bool
@@ -24,7 +26,7 @@ widget_interactions :: proc(t: ^testing.T) {
 	test_step, test_clicks, test_selected, test_tab = 0, 0, 0, 0
 	test_check, test_modal = false, false; test_amount = 0; test_font = 0
 	ui.init_text_edit(&test_editor); defer ui.destroy_text_edit(&test_editor)
-	frames: [73]ui.Capture_Frame
+	frames: [78]ui.Capture_Frame
 	for &frame, i in frames { frame = {size = {360, 340}, scale = 1, time = f64(i)*0.1} }
 	frames[1].input = {mouse_inside = true, mouse_position = {20, 20}, mouse_buttons = {.Left}, mouse_pressed = {.Left}}
 	frames[2].input = {mouse_inside = true, mouse_position = {300, 300}, mouse_released = {.Left}}
@@ -81,9 +83,29 @@ widget_interactions :: proc(t: ^testing.T) {
 	frames[69].input = {mouse_inside = true, mouse_position = {345, 100}, mouse_buttons = {.Left}, mouse_pressed = {.Left}}
 	frames[70].input = {mouse_inside = false, mouse_position = {345, 400}, mouse_buttons = {.Left}}
 	frames[71].input = {mouse_inside = false, mouse_position = {345, 400}, mouse_released = {.Left}}
+	// Clicking the arrow uses the same trigger as the label. Its focus outline
+	// spans the whole control before the release opens the menu.
+	path, _ := filepath.join({filepath.dir(#location().file_path), "../bin/widget-dropdown-focus.png"})
+	defer delete(path)
+	frames[73].input = {mouse_inside = true, mouse_position = {115, 225}, mouse_buttons = {.Left}, mouse_pressed = {.Left}}
+	frames[73].path = path
+	frames[74].input = {mouse_inside = true, mouse_position = {115, 225}, mouse_released = {.Left}}
+	frames[75].input.keys_pressed = {.End}
+	frames[76].input.keys_pressed = {.Enter}
 	result := ui.capture_frames(test_scene, frames[:])
 	testing.expect_value(t, result.error, ui.Capture_Error.None)
 	testing.expect_value(t, test_step, len(frames))
+	testing.expect_value(t, test_selected, 2)
+	decoded, err := png.load(path)
+	if testing.expect(t, err == nil) {
+		defer image.destroy(decoded)
+		for x in ([2]int{20, 115}) {
+			for y in ([2]int{211, 238}) {
+				p := (y*decoded.width + x)*4
+				testing.expect(t, decoded.pixels.buf[p+1] > 120 && decoded.pixels.buf[p] < 80, "Dropdown focus must surround both label and arrow")
+			}
+		}
+	}
 	menu_rendering(t)
 	compound_fields(t)
 }

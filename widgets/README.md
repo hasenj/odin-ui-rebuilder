@@ -96,6 +96,7 @@ the next frame. Focus rings use hollow GPU outlines.
 - `context_menu_open(^visible, size)` attaches right-click opening to the current
   rect. On true pair with `context_menu_close` after declaring its items.
 - `dropdown(items, ^selected)` combines a trigger and a scrolling selection menu.
+  Its label and arrow form one button with a shared focus outline and Tab stop.
 - `popover_open(^visible, anchor, size)` / `popover_close()` provide arbitrary
   content with outside-click and Escape dismissal.
 - `dialog_open(title, ^visible, size, actions_height)` / `dialog_close()` add a

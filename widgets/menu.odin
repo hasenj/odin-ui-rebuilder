@@ -46,15 +46,30 @@ submenu_close :: proc() {
 }
 
 @(private) Dropdown_State :: struct {open: bool}
+// Label and arrow share one hit target and one keyboard focus stop.
+@(private)
+dropdown_trigger :: proc(value: string, enabled: bool) -> bool {
+	ui.open_rect_at(ui.current_rect()); defer ui.close_rect()
+	r := ui.current_rect(); a := interact(enabled)
+	amount := ui.animate_f32(1 if a.hover || a.down else 0)
+	target := theme.pressed if a.down else theme.hover
+	fill(r, theme.surface + (target-theme.surface)*amount, theme.radius)
+	fill(r, theme.border, theme.radius, 1)
+	focus_ring(inset(r, 3), enabled)
+	arrow_width := min(28, r.size.x)
+	icon_at(.Down, {r.position + [2]f32{r.size.x-arrow_width, 0}, {arrow_width, r.size.y}}, theme.text if enabled else theme.muted)
+	text_at(value, inset({r.position, {r.size.x-arrow_width, r.size.y}}, 3), theme.text if enabled else theme.muted, .Center)
+	return a.clicked
+}
+
 dropdown :: proc(items: []string, selected: ^int, enabled: bool = true, loc := #caller_location) -> bool {
 	ui.open_rect_at(ui.current_rect(), loc = loc); defer ui.close_rect()
 	s := ui.state(Dropdown_State)
 	before := selected^
-	if len(items) == 0 { s.open = false; _ = button("—", enabled = false); return false }
+	if len(items) == 0 { s.open = false; _ = dropdown_trigger("—", false); return false }
 	selected^ = clamp(selected^, 0, len(items)-1)
 	anchor := ui.current_rect()
-	ui.open_rect(.Right, 28); if icon_button(.Down, enabled) { s.open = !s.open }; ui.close_rect()
-	if button(items[selected^], enabled = enabled) { s.open = !s.open }
+	if dropdown_trigger(items[selected^], enabled) { s.open = !s.open }
 	if !enabled { s.open = false }
 	if menu_open(&s.open, anchor, {max(120, anchor.size.x), theme.height*f32(len(items))+theme.padding*2}) {
 		for item, index in items {
