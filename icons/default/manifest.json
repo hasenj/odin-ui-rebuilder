@@ -1,0 +1,12 @@
+{
+  "close": "E000",
+  "up": "E001",
+  "down": "E002",
+  "left": "E003",
+  "right": "E004",
+  "plus": "E005",
+  "minus": "E006",
+  "more": "E007",
+  "check": "E008",
+  "search": "E009"
+}

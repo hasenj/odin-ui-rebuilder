@@ -22,12 +22,14 @@ Layout_Style :: struct {
 
 @(private) Layout_Node :: struct {parent, end, hit, text_command: int}
 @(private) Layout_Measure :: struct {preferred, size: [2]f32, max_height: f32, text: Text_Layout}
-@(private) Layout_Command_Kind :: enum {Paint, Text}
+@(private) Layout_Command_Kind :: enum {Paint, Text, Icon}
 @(private) Layout_Command :: struct {
 	kind: Layout_Command_Kind,
 	node: int,
 	color: Color,
 	image: Image,
+	icon: Icon_Glyph,
+	icon_size, icon_gap: f32,
 	corners: f32,
 	border, inset: f32,
 	font: Font,
@@ -118,15 +120,17 @@ close_box :: proc() {
 // Text is a measured leaf and a deferred draw operation. Copy bytes now so
 // callers can reuse a formatting buffer before the layout closes.
 text_item :: proc(value: string, font: Font_Ref, size: f32 = 16, color: Color = {1, 1, 1, 1}, weight: f32 = 0, direction: Text_Direction = .Auto, language: string = "", loc := #caller_location,
-	style: Layout_Style = {}, fit: bool = false, min_scale: f32 = 0.5, align: Text_Align = .Start, valign: Text_Align = .Start) {
+	style: Layout_Style = {}, fit: bool = false, min_scale: f32 = 0.5, align: Text_Align = .Start, valign: Text_Align = .Start,
+	icon: Icon_Glyph = {}, icon_size: f32 = 16, icon_gap: f32 = 6) {
 	assert(style.padding == ([2]f32{}), "Put text padding on its enclosing box")
 	assert(min_scale > 0 && min_scale <= 1)
+	assert(valid_length(icon_size) && valid_length(icon_gap))
 	open_box(style, loc = loc)
 	store := &active_state.layout
 	index := store.stack[len(store.stack) - 1]
 	command := Layout_Command{kind = .Text, node = index, color = color,
 		font = resolve_font(font), size = size, weight = weight, direction = direction,
-		fit = fit, min_scale = min_scale, align = align, valign = valign}
+		fit = fit, min_scale = min_scale, align = align, valign = valign, icon = icon, icon_size = icon_size, icon_gap = icon_gap}
 	command.value_start = len(store.strings)
 	append(&store.strings, ..transmute([]u8)value)
 	command.value_end = len(store.strings)
@@ -176,7 +180,10 @@ close_layout :: proc() -> (Rect, Text_Error) {
 			r.size = {max(0, r.size.x-2*command.inset), max(0, r.size.y-2*command.inset)}
 			append(&frame.surfaces, Surface{position = r.position, size = r.size,
 				background = command.color, image = command.image, corner_radius = command.corners, border_width = command.border})
-		} else if r.size.x > 0 && r.size.y > 0 && command.font != 0 {
+		} else if command.kind == .Icon {
+			draw_err := draw_icon(command.icon, r, command.color)
+			if err == .None { err = draw_err }
+		} else if r.size.x > 0 && r.size.y > 0 && (command.font != 0 || command.icon.font != 0) {
 			text := store.measure[command.node].text
 			if command.fit {
 				// Cross-axis stretching can change a leaf's final bounds.
@@ -187,8 +194,8 @@ close_layout :: proc() -> (Rect, Text_Error) {
 				}
 				open_clip(r)
 			}
-			draw_err := fonts.draw_layout(&active_state.text, frame.renderer, text,
-				r.position, r.size, command.color, &frame.surfaces, command.align, command.valign)
+			draw_err := draw_label_layout(text, command.value_start != command.value_end, r, command.color,
+				command.icon, command.icon_size, command.icon_gap, command.align, command.valign)
 			if command.fit { close_clip() }
 			if err == .None { err = draw_err }
 		}
@@ -199,19 +206,27 @@ close_layout :: proc() -> (Rect, Text_Error) {
 
 @(private)
 layout_text_measure :: proc(store: ^Layout_Store, command: Layout_Command, width: f32) -> (Text_Layout, Text_Error) {
+	if command.value_start == command.value_end && command.icon.font != 0 { return {}, .None }
 	if command.fit { return layout_text_fit_measure(store, command, {width, max(f32)}) }
 	value := transmute(string)store.strings[command.value_start:command.value_end]
 	language := transmute(string)store.strings[command.language_start:command.language_end]
 	return fonts.layout(&active_state.text, command.font, value, command.size, current_frame().scale,
-		command.weight, width, command.direction, language)
+		command.weight, max(0, width-layout_icon_width(command)), command.direction, language)
+}
+
+@(private)
+layout_icon_width :: proc(command: Layout_Command) -> f32 {
+	if command.icon.font == 0 { return 0 }
+	return command.icon_size + (command.icon_gap if command.value_start != command.value_end else 0)
 }
 
 @(private)
 layout_text_fit_measure :: proc(store: ^Layout_Store, command: Layout_Command, bounds: [2]f32) -> (Text_Layout, Text_Error) {
+	if command.value_start == command.value_end && command.icon.font != 0 { return {}, .None }
 	value := transmute(string)store.strings[command.value_start:command.value_end]
 	language := transmute(string)store.strings[command.language_start:command.language_end]
 	return fonts.fit(&active_state.text, command.font, value, command.size, current_frame().scale,
-		command.weight, bounds.x, command.min_scale, command.direction, language, max_height = bounds.y)
+		command.weight, max(0, bounds.x-layout_icon_width(command)), command.min_scale, command.direction, language, max_height = bounds.y)
 }
 
 @(private)
@@ -226,7 +241,8 @@ layout_solve :: proc(store: ^Layout_Store) -> Text_Error {
 		if node.text_command >= 0 {
 			text, text_err := layout_text_measure(store, store.commands[node.text_command], (f32(max(i32)) - 256) / 64 / current_frame().scale)
 			if err == .None { err = text_err }
-			preferred = {text.width, text.height}
+			command := store.commands[node.text_command]
+			preferred = {text.width+layout_icon_width(command), max(text.height, command.icon_size if command.icon.font != 0 else 0)}
 			store.measure[i].text = text
 		} else {
 			axis := 0 if style.flow == .Row else 1
@@ -277,13 +293,13 @@ layout_solve :: proc(store: ^Layout_Store) -> Text_Error {
 				if err == .None { err = text_err }
 				text = measured
 				store.measure[i].text = text
-			} else if store.measure[i].size.x < text.width {
+			} else if store.measure[i].size.x < text.width+layout_icon_width(command) {
 				measured, text_err := layout_text_measure(store, store.commands[node.text_command], store.measure[i].size.x)
 				if err == .None { err = text_err }
 				text = measured
 				store.measure[i].text = text
 			}
-			height = text.height
+			height = max(text.height, command.icon_size if command.icon.font != 0 else 0)
 		} else {
 			count := 0
 			for c := i + 1; c < node.end; c = store.nodes[c].end {

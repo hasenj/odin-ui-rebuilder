@@ -15,6 +15,12 @@ load_font :: proc(path: string, name: string = "", face_index: int = 0) -> (Font
 	return fonts.load(&active_state.text, path, name, face_index)
 }
 
+// Window-owned copy; supports small embedded resources such as an icon font.
+load_font_bytes :: proc(data: []u8, name: string = "", face_index: int = 0) -> (Font, Text_Error) {
+	_ = current_frame()
+	return fonts.load_bytes(&active_state.text, data, name, face_index)
+}
+
 find_font :: proc(name: string) -> (Font, bool) {
 	_ = current_frame()
 	return fonts.find(&active_state.text, name)

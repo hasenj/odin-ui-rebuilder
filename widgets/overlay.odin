@@ -2,7 +2,7 @@ package widgets
 import ui "../core"
 import "base:runtime"
 
-@(private) Widget_Frame :: struct {top, previous_top: ui.Identity}
+@(private) Widget_Frame :: struct {top, previous_top: ui.Identity, icons: Icon_Set}
 @(private) frame_state: ^Widget_Frame
 @(private) Popup_State :: struct {seen: bool, items: [dynamic]ui.Identity}
 @(private) Overlay :: struct {

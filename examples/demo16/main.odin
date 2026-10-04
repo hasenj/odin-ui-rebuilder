@@ -80,17 +80,17 @@ update :: proc() {
 		if closed { inspector_hidden = true }
 		switch index {
 		case 0:
-			row(); if w.button("Save", .Primary) { clicks += 1 }; end_row()
+			row(); if w.button("Save", .Primary, icon = w.icon(.Check)) { clicks += 1 }; end_row()
 			row(36)
 			ui.open_layout(.Left, {flow = .Row, gap = 8})
-			if w.button("Cancel", sizing = .Content) { clicks += 1 }
+			if w.button("Cancel", sizing = .Content, icon = w.icon(.Close)) { clicks += 1 }
 			if w.button("Delete selected", .Destructive, sizing = .Content) { clicks += 1 }
 			_, content_err := ui.close_layout(); assert(content_err == .None)
 			end_row()
 			row()
 			ui.open_layout(.Left, {flow = .Row, gap = 8})
-			if w.button("Fixed size button", sizing = .Fixed, size = {80, 30}) { clicks += 1 }
-			if w.button("Fixed size button", sizing = .Fixed, size = {140, 30}) { clicks += 1 }
+			if w.button("Fixed size button", sizing = .Fixed, size = {80, 30}, icon = w.icon(.Plus)) { clicks += 1 }
+			if w.button("Fixed size button", sizing = .Fixed, size = {140, 30}, icon = w.icon(.Plus)) { clicks += 1 }
 			_, fixed_err := ui.close_layout(); assert(fixed_err == .None)
 			end_row()
 			row(); _ = w.button("Disabled", enabled = false); end_row()

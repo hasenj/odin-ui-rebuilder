@@ -45,6 +45,12 @@ It is measured using the same constraints as other leaves, with no builder
 replay. Put padding on the enclosing box; text leaves have no padding. Ordinary
 `text_item` calls retain their existing wrapping and content-sizing behavior.
 
+`icon_item(glyph, size, color)` adds a square icon leaf. `text_item` can also
+accept `icon`, `icon_size`, and `icon_gap` for a combined label: its intrinsic
+width includes the icon and optional gap, and fitted text uses only the remaining
+width. An icon-only label has no gap. The same glyph primitive can be drawn in
+resolved geometry with `draw_icon`, or combined with fitted text using `draw_label`.
+
 ## Sizing rules
 
 Every root inherits maximum width **and** height from the current remaining rect.

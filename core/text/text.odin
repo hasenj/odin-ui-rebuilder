@@ -65,6 +65,8 @@ Font_Record :: struct {
 	pixel_size: i32,
 	weight: c.long,
 	glyphs: map[Glyph_Key]Glyph,
+	data: []u8, // Owned backing storage for memory-loaded faces.
+	icon_metrics: map[u32][2]f32, // Unscaled ink extent in font units.
 }
 @(private)
 Glyph_Key :: struct {id: u32, pixel_size: i32, weight: c.long}
@@ -83,19 +85,45 @@ ATLAS_SIZE :: 1024
 @(private)
 MAX_PAGES :: 16 // Bounded at 64 MiB CPU + 64 MiB GPU; no eviction yet.
 
-load :: proc(store: ^Store, path: string, name: string = "", face_index: int = 0) -> (Font, Error) {
+@(private)
+init_library :: proc(store: ^Store) -> Error {
 	if store.library == nil {
 		if native.FT_Init_FreeType(&store.library) != 0 {
-			return 0, .Font_Load_Failed
+			return .Font_Load_Failed
 		}
 		store.buffer = native.hb_buffer_create()
 	}
+	return .None
+}
+
+load :: proc(store: ^Store, path: string, name: string = "", face_index: int = 0) -> (Font, Error) {
+	if err := init_library(store); err != .None { return 0, err }
 	face: ^native.FT_Face
 	path_z := strings.clone_to_cstring(path)
 	defer delete(path_z)
 	if face_index < 0 || native.FT_New_Face(store.library, path_z, c.long(face_index), &face) != 0 {
 		return 0, .Font_Load_Failed
 	}
+	return register_face(store, face, name, path)
+}
+
+// Copies bytes once; callers can release or reuse their input after loading.
+load_bytes :: proc(store: ^Store, bytes: []u8, name: string = "", face_index: int = 0) -> (Font, Error) {
+	if err := init_library(store); err != .None { return 0, err }
+	if len(bytes) == 0 || face_index < 0 { return 0, .Font_Load_Failed }
+	data := make([]u8, len(bytes)); copy(data, bytes)
+	face: ^native.FT_Face
+	if native.FT_New_Memory_Face(store.library, raw_data(data), c.long(len(data)), c.long(face_index), &face) != 0 {
+		delete(data); return 0, .Font_Load_Failed
+	}
+	font, err := register_face(store, face, name, "Memory font")
+	if err != .None { delete(data); return 0, err }
+	store.fonts[int(font)-1].data = data
+	return font, .None
+}
+
+@(private)
+register_face :: proc(store: ^Store, face: ^native.FT_Face, name, fallback_name: string) -> (Font, Error) {
 	keep := false
 	defer { if !keep { native.FT_Done_Face(face) } }
 	// Scalable outlines and Unicode charmap are required by this initial path.
@@ -107,7 +135,7 @@ load :: proc(store: ^Store, path: string, name: string = "", face_index: int = 0
 		alias = string(face.family_name)
 	}
 	if alias == "" {
-		alias = path
+		alias = fallback_name
 	}
 	if _, exists := store.names[alias]; exists {
 		return 0, .Name_Exists
@@ -158,8 +186,10 @@ destroy :: proc(store: ^Store, renderer: platform.Renderer) {
 		}
 		delete(font.coords)
 		delete(font.glyphs)
+		delete(font.icon_metrics)
 		delete(font.name)
 		native.FT_Done_Face(font.face)
+		delete(font.data)
 	}
 	for page in store.pages {
 		platform.destroy_image(renderer, page.image)

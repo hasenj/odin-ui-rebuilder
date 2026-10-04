@@ -34,7 +34,7 @@ interact :: proc(enabled: bool) -> Response {
 }
 
 button :: proc(value: string, kind: Button_Kind = .Secondary, enabled: bool = true, loc := #caller_location,
-	sizing: Button_Sizing = .Fixed, size: [2]f32 = {}) -> bool {
+	sizing: Button_Sizing = .Fixed, size: [2]f32 = {}, icon: ui.Icon_Glyph = {}) -> bool {
 	local := ui.layout_active()
 	assert(sizing != .Content || local, "Content-sized buttons require ui.open_layout")
 	assert(sizing != .Content || size == ([2]f32{}), "Content-sized buttons do not take a fixed size")
@@ -55,10 +55,11 @@ button :: proc(value: string, kind: Button_Kind = .Secondary, enabled: bool = tr
 	base := theme.surface
 	if kind == .Primary { base = theme.selection }
 	if kind == .Destructive { base = theme.danger }
-	if kind == .Quiet { base = theme.background }
 	target := theme.pressed if a.down else theme.hover
 	amount := ui.animate_f32(1 if a.hover || a.down else 0)
-	ui.paint(color = base + (target - base)*amount, corners = theme.radius)
+	fill_color := base + (target - base)*amount
+	if kind == .Quiet { fill_color = target; fill_color.a *= amount }
+	if fill_color.a > 0 { ui.paint(color = fill_color, corners = theme.radius) }
 	if kind != .Quiet { ui.stroke(theme.border if kind == .Secondary else theme.accent if kind == .Primary else theme.danger, corners = theme.radius) }
 	if enabled && ui.direct_focus() == ui.current_identity() {
 		// A local layout can touch its enclosing clip or adjacent siblings.
@@ -68,46 +69,22 @@ button :: proc(value: string, kind: Button_Kind = .Secondary, enabled: bool = tr
 	if local {
 		style: ui.Layout_Style
 		if sizing == .Fixed { style.width = ui.layout_fixed(size.x); style.height = ui.layout_fixed(size.y) }
-		ui.text_item(value, current_font, theme.font_size, color, style = style, fit = true, align = .Center, valign = .Center)
-	} else { text_at(value, inset(ui.current_rect(), 3), color, .Center, min_scale = 0.5) }
+		ui.text_item(value, current_font, theme.font_size, color, style = style, fit = true, align = .Center, valign = .Center,
+			icon = icon, icon_size = theme.icon_size, icon_gap = theme.gap)
+	} else {
+		_ = ui.draw_label(value, current_font, inset(ui.current_rect(), 3), theme.font_size, color, icon, theme.icon_size, theme.gap)
+	}
 	return a.clicked
 }
 
-Icon :: enum {Close, Up, Down, Left, Right, Plus, Minus, More, Check, Search}
-// Geometry-based icons have no font dependency or missing-glyph surprises.
+// Built-in names are mapped to the same glyph primitive applications can supply.
 @(private)
-icon_at :: proc(icon: Icon, r: ui.Rect, color: ui.Color) {
-	p := r.position + (r.size - [2]f32{12, 12})/2
-	if icon == .Search {
-		fill({p, {9, 9}}, color, 4.5, 1.5)
-		for n in 0..<4 { fill({p + [2]f32{7+f32(n), 7+f32(n)}, {2, 2}}, color, 1) }
-	}
-	if icon == .Plus || icon == .Minus { fill({p + [2]f32{0, 5}, {12, 2}}, color) }
-	if icon == .Plus { fill({p + [2]f32{5, 0}, {2, 12}}, color) }
-	if icon == .More { for x in 0..<3 { fill({p + [2]f32{f32(x*5), 5}, {2, 2}}, color, 1) } }
-	for n in 0..<6 {
-		x := f32(n)
-		#partial switch icon {
-		case .Close:
-			fill({p + [2]f32{x*2, x*2}, {2, 2}}, color)
-			fill({p + [2]f32{10-x*2, x*2}, {2, 2}}, color)
-		case .Up: fill({p + [2]f32{5-x, x+2}, {2, 2}}, color); fill({p + [2]f32{5+x, x+2}, {2, 2}}, color)
-		case .Down: fill({p + [2]f32{x, x+2}, {2, 2}}, color); fill({p + [2]f32{10-x, x+2}, {2, 2}}, color)
-		case .Left: fill({p + [2]f32{x+2, 5-x}, {2, 2}}, color); fill({p + [2]f32{x+2, 5+x}, {2, 2}}, color)
-		case .Right: fill({p + [2]f32{7-x, 5-x}, {2, 2}}, color); fill({p + [2]f32{7-x, 5+x}, {2, 2}}, color)
-		case .Check:
-			fill({p + [2]f32{5+x, 8-x}, {2, 2}}, color)
-			if n < 3 { fill({p + [2]f32{2+x, 5+x}, {2, 2}}, color) }
-		}
-	}
+icon_at :: proc(name: Icon, r: ui.Rect, color: ui.Color) {
+	size := min(theme.icon_size, min(r.size.x, r.size.y))
+	_ = ui.draw_icon(icon(name), {r.position+(r.size-[2]f32{size, size})/2, {size, size}}, color)
 }
 icon_button :: proc(icon: Icon, enabled: bool = true, loc := #caller_location) -> bool {
-	ui.open_rect_at(ui.current_rect(), loc = loc); defer ui.close_rect()
-	r := ui.current_rect(); a := interact(enabled)
-	fill(r, theme.pressed if a.down else theme.hover if a.hover else theme.surface, theme.radius)
-	focus_ring(r, enabled)
-	icon_at(icon, r, theme.text if enabled else theme.muted)
-	return a.clicked
+	return button("", .Quiet, enabled, loc, icon = current_icons[icon])
 }
 
 // A button within a shared field border. Keep both hover and keyboard focus

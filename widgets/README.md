@@ -41,7 +41,7 @@ font scanning, native platform widget, callback tree, or global retained model.
 
 ## Controls
 
-- `button(label, kind, enabled, sizing, size)` — Secondary, Primary, Destructive,
+- `button(label, kind, enabled, sizing, size, icon)` — Secondary, Primary, Destructive,
   Quiet. Default `.Fixed` uses the current rectangle; the label shrinks to fit
   down to half the theme font size, with any remaining overflow clipped.
   Inside `ui.open_layout`, opt into `.Content` for label size plus padding, or
@@ -49,7 +49,9 @@ font scanning, native platform widget, callback tree, or global retained model.
   active local layout. It never silently starts one. Fixed size is bounded by
   the enclosing area; outside a local layout an optional `size` also constrains
   the supplied rectangle. All modes share interaction, identities and styling.
-- `icon_button(icon, enabled)` — Close, Up, Down, Left, Right, Plus, Minus, More, Check.
+- `icon_button(name, enabled)` is a convenience wrapper for an icon-only Quiet
+  button using the configured set: Close, Up, Down, Left, Right, Plus, Minus,
+  More, Check, Search. Quiet buttons paint their background only during hover/press.
 - `checkbox(label, ^bool)` and `checkbox_state(label, ^Check_State)` — Off/On/Mixed.
 - `radio(label, selected)` returns activation; `radio_group(items, ^index)` adds
   one Tab stop and arrow navigation to a static vertical group.
@@ -85,6 +87,24 @@ previous-frame hit geometry, so newly appeared/repositioned controls settle on
 the next frame. Focus rings use hollow GPU outlines.
 
 ## Containers and overlays
+
+Icons are ordinary `ui.Icon_Glyph` values, independent of any particular set:
+
+```odin
+if w.button("Save", .Primary, icon = w.icon(.Check)) { save_document() }
+if w.button("", icon = another_package.close) { close_panel() }
+```
+
+The default set is an original ten-glyph font, embedded by `icons/default`.
+`w.begin` loads it once per window and retains its resolved glyphs. Applications
+can pass a complete replacement as `w.begin(font, icons = my_icon_set)`, or
+pass individual glyphs to buttons. Font handles/glyph values belong to the window
+that loaded them; do not reuse them across windows. `theme.icon_size` controls the
+ink's maximum extent, and `theme.gap` separates it from a nonempty label.
+Fixed buttons keep the icon's size while text fits the remaining width. Content
+buttons include icon, gap, text and padding in measurement. Icon-only buttons
+have no label gap. See [the icon package](../icons/default/README.md) for sources
+and the optional regeneration command.
 
 ```odin
 ui.open_layout(.Left, {flow = .Row, gap = 8})
@@ -162,6 +182,7 @@ key-based reorder/removal, nested Escape and outside dismissal
 without click-through. Renderer readback tests check actual shadow/outline pixels.
 
 The design references are in `design/widgets/`. They are visual targets, not
-promises of pixel-identical generated artwork. Icons here use simple geometry.
+promises of pixel-identical generated artwork. Icons use FreeType's antialiased
+coverage through the shared glyph atlas; no staircase geometry or icon shaping.
 Shadows and borders are implemented in both Metal and GLES; the new GLES path
 still needs native execution on Linux (the development Mac lacks Linux STB libs).
