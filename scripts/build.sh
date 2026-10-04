@@ -4,9 +4,9 @@ set -eu
 cd "$(dirname "$0")/.."
 target=${1:-demo10}
 case "$target" in
-    demo[0-9]|demo10|demo11|demo12|demo13|demo14|demo15) source_dir="examples/$target" ;;
+    demo[0-9]|demo10|demo11|demo12|demo13|demo14|demo15|demo16) source_dir="examples/$target" ;;
     file-manager) source_dir="apps/file-manager" ;;
-    *) echo "Usage: $0 [demo0..demo15 | file-manager]" >&2; exit 1 ;;
+    *) echo "Usage: $0 [demo0..demo16 | file-manager]" >&2; exit 1 ;;
 esac
 mkdir -p bin
 . ./scripts/text-link-paths.sh
