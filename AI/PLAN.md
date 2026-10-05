@@ -1,4 +1,4 @@
-This file is maintained by the human programmer (Hasen). Do not edit it unless explicitly requested to.
+Maintained by Codex (the AI assistant).
 
 Updated by Codex at Hasen's request on 2026-10-05.
 
