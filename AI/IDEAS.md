@@ -1,139 +1,113 @@
 # Future work
 
 Created and maintained by Codex (the AI assistant).
+Updated 2026-10-05.
 
-Ideas and design directions for upcoming work, not a milestone plan.
+Open design directions only. Completed work and implementation status belong in
+[PLAN.md](PLAN.md) and the package documentation. Milestone numbers below refer
+to that roadmap; they do not prescribe an execution order.
 
-## Input, focus, and hover
+## System fonts and automatic fallback (23)
 
-Treat input as shared data that any code can read. Do not require dispatched
-events, callbacks, or exclusive consumption. Components normally check focus
-or hover before reacting, but raw input remains accessible regardless.
+Discover configurable platform font directories and index minimal face/style
+metadata and Unicode cmap coverage. Script labels alone are insufficient.
+Avoid eagerly loading or rasterizing every face. Use the index to narrow
+candidates on a cache miss, then load suitable faces lazily and validate shaping
+for complete clusters/script spans.
 
-Extend the input snapshot with per-frame pressed/released flags, key state,
-modifiers, accumulated text input, and scroll deltas. The platform can accumulate
-transitions between updates without imposing an event-dispatch model on the UI.
-Text input is distinct from physical key input.
+Keep explicit font stacks as the first preference, with system fallback available
+even when application code provides no fallback list. Retain positive and negative
+fallback decisions and resolved glyph runs. Give catalog changes a generation so
+old misses can be retried; unchanged frames must never scan installed fonts.
+Color emoji and variation-sequence preferences need separate treatment rather
+than assuming cmap coverage establishes correct rendering.
 
-Use the identity tree for focus and resolved hover:
+## Redraw scheduling (25)
 
-- One node is directly focused; its ancestors are indirectly focused.
-- Focus can be acquired through clicking or Tab traversal.
-- A focus fence limits Tab traversal to descendants of its holder. Nested
-  fences, focus restoration, and disappearance of the focused node need explicit
-  policies when implemented.
-- One node is directly hovered: the eligible node under the pointer with the
-  highest effective z-order and then greatest depth.
-- Ancestors are indirectly hovered if their own hit regions also contain the
-  pointer. Overlays may extend outside their logical parent's geometry.
-- Direct versus inherited focus/hover should be distinguishable in the API.
-- Hit regions must refer to assigned or explicitly registered geometry, not the
-  parent's exhausted remainder after all child cuts.
-- Hit-test participation and keyboard focusability are separate properties.
+Replace continuous idle updates with invalidation from input, resizing,
+application changes and external producers. An invalidation from any window or
+panel schedules one shared application update: snapshot all participants, then
+run all builders with the same time. Native presentation can remain independently
+paced by visibility and compositor readiness.
 
-A component can implement dragging by recording that a press started a drag and
-continuing to read pointer state until release, even after hover is lost. Do not
-require framework-exclusive pointer capture for this. Obtaining movement/release
-outside the native window still requires appropriate platform behavior.
+Animations, caret blinking, tooltip delays and toast expiry need explicit next
+update deadlines. Worker file/image completions must wake the application rather
+than depend on a periodic UI poll. Allow application code and external GPU
+producers to request an update safely, including from another thread.
 
-### Previous-frame interaction geometry
+Account for previous-frame interaction geometry: a newly appearing or moved
+region may require a settling update even without another input event. Define
+when to request that update without creating an endless redraw loop. Verify
+idle work and input latency as well as individual frame execution time.
 
-Use the previous completed frame's tree/geometry to resolve immediate-mode
-interaction. This is the chosen way to handle later-declared overlays without
-requiring a separate UI declaration pass before reading hover.
+## Reusable virtual lists (24)
 
-The initial proposal resolves the hovered node at frame end for the next update.
-A suggested refinement is to resolve the latest input at frame start against
-the previous completed geometry, avoiding an extra frame of stale pointer
-coordinates. Exact timing remains to be pinned down during implementation.
+Extract the fixed-height list mechanism into a shared API. Keep work proportional
+to the visible range, with bounded extra work for keyboard navigation and reveal.
+Use stable application item keys across insertion and reordering.
 
-Latest declaration order is the proposed final tie-breaker for nodes with equal
-z-order and depth. Focus traversal eligibility and which focusable ancestor to
-choose when clicking a non-focusable descendant also need definition.
+Define what happens to focus, active editing and retained component state when a
+row leaves the declared range. Options include retaining selected interaction
+participants or keeping durable state in application data; do not silently promise
+that omitted identity nodes persist. Accessibility must be able to represent and
+reveal offscreen items without building every row each frame.
 
-## Clipping, scrolling, layers, and remaining foundations
+Variable-height lists can follow with cached measurements, estimated extents and
+scroll anchoring. Preserve the visible item and its relative offset when earlier
+rows change height or are inserted, rather than letting the viewport jump.
 
-Rectangular clip scopes and coordinate offsets are the first foundations for
-scrolling. Scrolling adds retained offsets, content/viewport extents, clamping,
-wheel/trackpad input, and nested-scroll behavior. Ordinary hit testing must
-respect effective clipping as well as rendering. Scrollbars can come later.
+## Editing extensions (38)
 
-Fixed-height virtual lists can follow scrolling: calculate visible rows and
-build that range. Variable-height virtualization requires cached measurements
-and scroll-position preservation. Neither is required for the first usable UI.
+Improve Unicode word boundaries, typing undo coalescence and ligature caret
+positions. Evaluate OpenType caret information where available; keep sensible
+fallbacks when fonts omit it.
 
-For overlays, keep logical parentage separate from visual layers. A popup may
-remain a descendant for focus purposes while drawing outside its parent's clip
-and above unrelated content. Layer/clip escape rules still need an API.
+For multiline editing, use the same wrapped layout for rendering, hit testing,
+selection and caret movement. Vertical movement should retain a preferred X
+position across short lines. Define visual versus logical movement at bidi and
+wrap boundaries, scrolling/reveal, composition across lines and large-document
+limits. Keep single-line field behavior independent of multiline policy.
 
-Ordered layer buckets are the preferred initial rendering direction: append
-surfaces within each layer in declaration order, then visit layers in order.
-Avoid sorting every surface if sorting a small set of layers suffices. A depth
-buffer does not replace ordering for translucent UI, nor does it solve input
-targeting. Layer buckets remain a proposal to evaluate.
+Richer native character-range geometry and selective macOS panel keyboard focus
+can follow concrete editing needs. A mouse-only palette could leave the main
+window key while a panel text field requests keyboard focus; this is an optional
+refinement, not a reason to fake the main window's active decoration state.
 
-Drawing order does not automatically determine keyboard focus. Tooltips, menus,
-and modals have different interaction policies. A Tab fence alone does not make
-a modal; pointer blocking outside it and focus restoration also matter.
+## Accessibility (31)
 
-Other building blocks to revisit:
+Let components declare roles, names, values, actions and bounds under stable
+identities. Connect semantic focus to keyboard focus, clipping, scrolling and
+virtualized content. Bridge this data to native accessibility APIs with separate
+verification per platform. Start with the standard controls and a screen-reader
+example before expanding the widget API substantially.
 
-- General typed component-state storage, guided by scroll offsets, selection,
-  and other concrete needs.
-- Localized content-sizing layout that measures a component and feeds its
-  resolved dimensions into rect cutting, without turning the identity tree
-  into a layout tree.
-- System-font discovery, metadata indexing, and automatic font fallback.
-  Index Unicode cmap coverage (script labels alone are insufficient), plus face
-  names/styles, without eagerly loading/rasterizing every face. Use that index
-  to narrow candidates on a cache miss, load suitable faces lazily, and validate
-  shaping for complete clusters/script spans. Retain positive and negative
-  fallback decisions and resolved glyph runs. Catalog changes need a generation
-  so old misses can be retried; unchanged frames must never scan installed fonts.
-  Explicit font stacks should remain the first preference, with system fallback
-  available even when application code provides no fallback list.
-- Application-defined native window drag regions.
-- Text editing: grapheme-aware movement/deletion, caret hit testing, selection
-  geometry, clipboard, and IME composition/candidate positioning.
-- Redraw-on-demand and animation scheduling instead of continuous idle redraw.
-- Accessibility integration.
+## Native window controls and placement (39)
 
-## Multiple windows — next intended implementation
+Add minimize/restore/show/hide controls and screen/work-area information, with
+explicit backend capabilities. Preserve main-window ownership of application
+lifetime and the shared update cycle, even when a participant is minimized.
 
-Prefer explicit native-window lifetime, with one update procedure per window.
-The UI inside each window remains immediate-mode. Creating a window must not
-start a nested event loop; one application event loop manages all windows.
+One motivating flow is to minimize the main window, show a transparent
+undecorated auxiliary surface for an area-selection HUD, then close it and
+restore the workspace. Desktop capture and OCR are separate application features.
+Respect Wayland restrictions on placement and activation; avoid promising an
+identical global-coordinate model on every platform.
 
-Conceptual API, not an existing interface:
+A declarative begin/end-window convenience API remains a possible later layer.
+Define omission, hiding, destruction and reopening semantics before adding it;
+it must preserve explicit native lifetimes and the main-window/panel model.
 
-```odin
-ui.init()
-defer ui.shutdown()
-window := ui.create_window("Workspace", 960, 640, draw_workspace)
-ui.run()
-// Later: ui.request_close(window)
-```
+## File watching and image loading extensions (32)
 
-Creation specifies the initial size. Subsequent OS/user resizing should not be
-overwritten every frame. Window handles should be generational, and destruction
-requested during an update should wait until the callback is finished.
+Use native filesystem notifications if metadata polling becomes a bottleneck,
+and connect worker completions to redraw scheduling. Consider refreshing directory
+entry metadata when an existing child's contents change, without requiring an
+addition/removal in the directory.
 
-Each window owns its frame, rect stack, identity tree, state and rendering
-context. The implicit current context switches for its update callback. Windows
-may redraw at different times. Define resource ownership and cross-window
-sharing for images and fonts.
-
-A declarative begin/end-window layer remains possible later, but is not the
-initial approach. Its omission/hiding/destruction/reopening semantics would
-need separate decisions. Also decide whether the application exits or remains
-alive when the final window closes.
-
-## Images by path
-
-Extend the path image loader with native filesystem notifications if polling
-becomes a bottleneck, and integrate worker completions with redraw-on-demand.
-Consider byte-based cache budgets, additional image formats, full-size previews,
-and explicit resource pinning for application-controlled retention.
+Consider byte-based image cache budgets, additional formats, full-size previews
+and explicit resource pinning for application-controlled retention. Keep decoding
+and reduction off-thread, GPU resource changes on the owning renderer thread,
+and resource lifetime explicit through reload, eviction and window teardown.
 
 ## External GPU content and engine integration — future direction
 
