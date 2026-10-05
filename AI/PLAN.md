@@ -1,13 +1,16 @@
-This file is maintained by the human programmer (Hasen). Do not edit it unles explicitly requested to.
+This file is maintained by the human programmer (Hasen). Do not edit it unless explicitly requested to.
 
 Milestone expansion below written by Codex at Hasen's explicit request on
 2026-09-30. [IDEAS.md](IDEAS.md) contains the supporting future-work discussion.
 Milestone numbers identify work packages, not example app numbers. Completed
 work after milestone 3 is grouped retrospectively; future ordering is proposed.
-Updated by Codex at Hasen's request on 2026-10-02 to reflect implementation
-through demo12 and the agreed panel behavior. Numbers remain stable even where
-work was completed out of order. DONE describes implemented scope; platform
-verification limits are called out separately.
+Updated by Codex at Hasen's request on 2026-10-05 to reflect implementation
+through demo16, the file-manager app, and the Omarchy backend updates. Numbers
+remain stable even where work was completed out of order; new work packages are
+appended below. DONE describes the implemented scope, not every possible
+extension. Platform verification limits are called out separately. This update
+reviews implementation, tests and recorded validation; it is not a fresh run of
+the full macOS or Linux check suite.
 
 ## Project Description:
 
@@ -35,7 +38,7 @@ and continuously rebuilt frames, using Metal on macOS.
 ## [ DONE ] Milestone 2: Input as data
 
 Pointer position, pointer-inside state, and held left/right button flags exposed
-as a readable frame snapshot. Keyboard, transitions, and scrolling are later work.
+as a readable frame snapshot. Keyboard, transitions, and scrolling were added in milestone 13.
 
 ## [ DONE ] Milestone 3: Images
 
@@ -66,7 +69,7 @@ geometry avoid repeating work during unchanged frames. Demo5 demonstrates text.
 
 SheenBidi paragraph analysis integrated with script shaping, visual ordering,
 Arabic joining/diacritics, and mixed Arabic/Latin/numeric text. Demo6 demonstrates
-both base directions. This does not yet include editable text or font fallback.
+both base directions. Editing and explicit font fallback were added separately in 21 and 23.
 
 ## [ DONE ] Milestone 8: Wrapped and fitted text
 
@@ -80,8 +83,7 @@ and bidi analysis. Demo7 demonstrates wrapping, fitting, and centered labels.
 Rect-level hover queries; a retained identity tree using parent, explicit integer
 or caller-location key, and per-key occurrence; generational node handles; and
 retained float animation. Distinct integer types remain distinct keys. Demo8
-demonstrates independently animated hover colors. Overlap-aware hover and focus
-are not part of this completed milestone.
+demonstrates independently animated hover colors. Overlap-aware hover and focus were added separately in 15 and 16.
 
 ## [ DONE ] Milestone 10: Transparent windows and decoration options
 
@@ -102,49 +104,74 @@ not as a separate chronological phase.
 
 ## [ DONE ] Supporting scaffold: Render capture and scripted input
 
-Deterministic offscreen Metal rendering to PNG, using the production renderer
-with explicit sizes, display scales, times, and input snapshots. Multi-frame
-scenarios exercise hover, focus, scrolling, modals, and window-owned resources.
-Demo10–12 provide capture scenarios; native macOS checks cover input delivery and
-window lifecycle. `scripts/check.sh` runs tests and optimized example builds.
+Deterministic offscreen rendering to PNG through the production Metal and GLES
+renderers, with explicit sizes, display scales, times, and input snapshots.
+Multi-frame scenarios exercise hover, focus, scrolling, modals, editing, local
+layout, widgets and window-owned resources. Linux capture uses surfaceless EGL.
+Demo10–16 and the file manager provide capture scenarios; native checks cover
+input delivery and window lifecycle separately. `scripts/check.sh` runs shared
+tests, captures and optimized builds; `check-linux.sh` delegates to it.
 
 This captures UI content, not native title bars or desktop composition. Native
 window behavior needs separate checks; main/key status alone does not prove a
-title bar's visual appearance. Capture currently requires macOS Metal; other
-capture backends return Unsupported. See [core/CAPTURE.md](../core/CAPTURE.md).
+title bar's visual appearance. See [core/CAPTURE.md](../core/CAPTURE.md).
 
 ## Implementation sequence and current priorities
 
-Implemented since the original roadmap: the main-window/panel lifecycle (12),
-keyboard and scroll snapshots (part of 13), layers/hover (15), focus (16), clipping
-(17), scrolling (18), and the overlay/modal portion of 19. Demo10 demonstrates the
-interaction foundations, demo11 physical keys, and demo12 multiple native surfaces.
+The interactive foundation in 12–22 is implemented. Since the previous roadmap
+update, this includes typed retained state, accumulated mouse transitions,
+native text/clipboard/IME adapters, single-line editing, custom drag regions,
+and localized content-sized layout. Explicit font stacks complete part of 23;
+the file manager demonstrates the fixed-height portion of 24. New completed
+work in 32–37 covers worker-backed assets, the file manager, GPU shadows,
+standard widgets, composed overlays and the original icon font.
 
-Remaining near-term work:
+Proposed next order:
 
-- Complete native panel semantics on Wayland and verify them in Omarchy (12).
-- Finish native mouse-transition accumulation and drag/focus-loss coverage (13).
-- Add general typed retained state (14), then custom native drag regions (19).
-- Proceed to text input/composition (20) and text editing (21).
+1. **23 — System font discovery and automatic fallback.** Explicit stacks and
+   local tofu already work; find suitable installed faces without application
+   configuration or per-frame catalog scans.
+2. **25 — Redraw scheduling.** Stop continuous idle updates, including explicit
+   wakeups for worker completions, animations, caret blink and timed overlays.
+   Any invalidation still updates the main window and all panels together.
+3. **31 — Accessibility.** Establish semantics for the now-existing standard
+   controls before extending the widget collection substantially.
+4. **24 — Reusable virtual lists.** Extract the proven file-manager approach,
+   with an explicit offscreen focus/state policy. Variable heights can follow.
+5. **38 — Editing refinements and multiline editing**, driven by a concrete app.
 
-Selective macOS panel keyboard focus is deferred until text-input work provides
-a concrete need. Ordinary panel clicks currently take keyboard focus. This is
-acceptable: a key panel can leave the workspace main while its title-bar buttons
-turn gray. Do not force an active appearance or prevent panels from becoming key.
+Window controls (39), host rendering (26), video (27), and additional platforms
+(28–30) can move earlier when an application needs them. Native filesystem
+notifications, richer image formats and cache budgets are extensions of 32,
+not unfinished requirements of its first implementation.
 
-Cross-platform validation remains explicit: macOS native and Metal checks run
-here; Linux keyboard work was also implemented by the Omarchy agent. New shared
-interaction/rendering and multi-window behavior still needs targeted Wayland
-runtime verification; compile coverage alone is not that verification.
+Selective macOS panel keyboard focus remains optional. Ordinary panel clicks
+currently take keyboard focus. This is acceptable: a key panel can leave the
+workspace main while its title-bar buttons turn gray. Do not force an active
+appearance or prevent panels from becoming key.
 
-Milestones 12–21 establish a minimum interactive UI foundation, rather than a
-widget collection. Keep macOS and Wayland working through each shared API change.
-Use focused integration tests and a runnable example for the new behavior; build
-examples with `-o:speed`. Record platform checks that have not actually been run.
-For interaction/state work, check allocation reuse after warm-up and compare
-timings against a relevant baseline rather than setting a machine-specific limit.
+### Validation boundaries
 
-## [ PARTIAL ] Milestone 12: Main window and auxiliary panels
+- macOS captures/native checks and user feedback establish the existing layout,
+  scrolling, panels, editing/IME and widget behavior. Recent widget tests cover
+  compound controls, keyboard navigation, overlay dismissal, icon rendering and
+  local button sizing; the tab-corner change also has a rendered capture.
+- The Omarchy agent recorded passing GLES capture, shared core/editor tests,
+  native main/panel lifecycle, keyboard delivery and clipboard checks. This
+  supersedes earlier roadmap statements that Linux capture, native panel
+  parenting, text input and drag regions were unimplemented.
+- Live Wayland IME candidate placement and multi-output scaling still need
+  manual verification. Protocol callback tests do not establish live IME UX.
+- The subsequent GPU shadow/outline and widget/icon work has Metal evidence;
+  its GLES implementation and shared tests still need an Omarchy runtime pass.
+  Linux implementation and verification remain delegated to the Omarchy agent.
+
+For new shared API changes, preserve both backend contracts and record checks
+that have not actually run. Use focused integration tests and runnable examples,
+build with `-o:speed`, check warm allocation reuse, and compare timings against
+relevant baselines rather than setting machine-specific limits.
+
+## [ DONE ] Milestone 12: Main window and auxiliary panels
 
 Implemented in demo12:
 
@@ -164,62 +191,42 @@ Implemented in demo12:
   hides them when the app deactivates, and preserves the workspace's main role.
   Main status and keyboard/key status are distinct; colored title-bar buttons
   follow key status. Floating behavior has been confirmed manually.
+- Wayland uses one application connection/poll loop and independent per-window
+  EGL contexts. Panels set their main toplevel as native parent; compositor
+  policy controls decoration, stacking, placement and activation.
 
-Remaining:
+Native lifecycle/resource checks have been run on both hosts; macOS additionally
+checks floating stacking and main/key roles. Omarchy checks cover synchronized
+builders and input isolation. See [core/WINDOWS.md](../core/WINDOWS.md).
+Minimization/restoration and screen placement remain separate work in 39.
 
-- Wayland currently creates independent xdg-toplevels on separate connections.
-  Move to a shared application connection and establish panel parenting with
-  `xdg_toplevel.set_parent`. Respect compositor control over activation and
-  appearance instead of promising identical AppKit behavior.
-- Run lifecycle, resize, input isolation and stacking checks in Omarchy.
-- Minimization/restoration, screen placement and related native window controls
-  remain separate follow-up work, not prerequisites for basic panel lifetime.
+## [ DONE ] Milestone 13: Rich input snapshots
 
-**Done when:** the implemented lifecycle and resource-isolation checks also pass
-on Wayland, and panels have native parent/auxiliary behavior there. macOS checks
-already cover callback-time closure, stale handles, reopening, synchronized
-updates, native key routing, floating stacking and main/key roles. See
-[core/WINDOWS.md](../core/WINDOWS.md).
+Both backends expose physical keys, pressed/released/held sets, modifiers,
+locks, repeat, press-time modifiers and accumulated wheel/trackpad deltas.
+Native mouse transitions now accumulate between updates, including a press and
+release within one interval. Bits indicate that a transition occurred; they are
+not a lossless ordered list of every repeated mouse/key transition.
 
-## [ PARTIAL ] Milestone 13: Rich input snapshots
+Reads remain non-consuming and independent of UI focus/hover. Focus/device loss
+cancels held interactions without producing an activation. Pointer movement and
+release can continue outside bounds during native drag delivery. Text remains
+separate from physical keys. Demo11 inspects snapshots; demo12 checks isolation;
+demo14 uses them for dragging. Native macOS and Omarchy checks exercise these
+paths. Text operations requiring order are covered by 20.
 
-Physical keys, pressed/released/held sets, modifiers, locks, repeat, press-time
-modifiers and accumulated wheel/trackpad deltas are implemented on both hosts.
-Demo11 inspects this data; demo12 exercises per-window isolation. macOS native
-checks cover keyboard routing and focus loss; Linux has evdev/XKB input tests.
+## [ DONE ] Milestone 14: General retained component state
 
-Remaining: native mouse transitions are currently inferred from sampled held
-state, so a press and release between updates can be missed. Accumulate those
-transitions explicitly and finish multi-window drag/device-loss checks. The
-following requirements still define the complete milestone:
+`ui.state(T, init, cleanup, id)` associates a typed payload with the current or
+explicit live identity. Payload addresses remain stable when identity storage
+grows. Initialization runs on first access; cleanup runs once on disappearance
+or window teardown. Type and callbacks stay fixed for the record's lifetime.
+Warm access reuses allocations; UI-independent durable data stays application-owned.
 
-- Add per-window mouse/key pressed, released and held state, keyboard modifiers,
-  repeat information, and wheel/trackpad deltas with documented units.
-- Accumulate transitions between updates; define how multiple transitions in
-  one update interval are represented. Keep reads non-consuming and available
-  regardless of UI focus or hover.
-- Handle native focus loss and pointer/keyboard device loss without stuck keys
-  or drags. Preserve the distinction between physical keys and text input.
-
-**Done when:** an input-inspection example shows quick press/release, held keys,
-modifiers, scrolling, and focus loss correctly in each window on both backends.
-Text commitment, composition and clipboard integration are deferred to 20.
-
-## [ TODO ] Milestone 14: General retained component state
-
-Depends on the identity system; place after 13 to exercise real input use cases.
-
-- Add typed state associated with identities, with explicit initialization,
-  access lifetime, type checking, and cleanup rules.
-- Avoid exposing pointers that silently become invalid when storage grows.
-  Define cleanup for state that owns allocations or other resources.
-- Demonstrate retained values for selection and dragging. Raw pointer state
-  remains readable during a drag even when hover is lost; do not require an
-  exclusive framework event-dispatch/capture model.
-
-**Done when:** two instances of a component retain independent values through
-reordering and animation; removing an identity or closing its window cleans up
-its state. Warm stable frames reuse storage without repeated allocation.
+Demo14 retains independent drag offsets under explicit keys. Cards share a
+coordinate space: reversing declaration order changes overlap order without
+moving them. Removal discards identity-owned state. Tests cover growth,
+reordering, cleanup and warm reuse. See [core/IDENTITY.md](../core/IDENTITY.md).
 
 ## [ DONE ] Milestone 15: Ordered layers and resolved hover
 
@@ -266,7 +273,8 @@ removing the focused node produces a valid, documented fallback.
 ## [ DONE ] Milestone 17: Rectangular clipping and content offsets
 
 Implemented in core and both renderer paths, with Metal readback checks at 1x
-and 2x. GLES runtime verification remains an explicit Linux-host check.
+and 2x and shared GLES capture checks recorded by the Omarchy agent. Multi-output
+native scaling remains a separate hardware check.
 
 - Add nested rectangular clip scopes and translation scopes for content.
 - Apply intersected clips consistently to solid surfaces, images, text, and hit
@@ -297,103 +305,122 @@ has also been confirmed by Hasen; native Wayland delivery is implemented.
 scrolled item is hit at its displayed position; content/viewport resizing keeps
 offsets valid; scrolling one window does not change another.
 
-## [ PARTIAL ] Milestone 19: Overlays, modal scopes, and custom drag regions
+## [ DONE ] Milestone 19: Overlays, modal scopes, and custom drag regions
 
 Layer scopes can escape ancestor clips while retaining logical identity ancestry.
-Demo10 opens/closes a modal through buttons, combines a full-window hit barrier
-with a focus fence, and restores focus on dismissal. Capture scenarios cover
-pointer/scroll blocking, Tab traversal, cancelled clicks and restoration.
+Modal scopes combine a pointer/scroll barrier with a focus fence and restore
+focus on dismissal. Core and widget scenarios cover nested focus restoration,
+Escape/outside dismissal and preventing click-through. Removing scopes removes
+their interaction registration. Demo10 exercises the foundations; demo16 adds
+menus, nested submenus, popovers and dialogs (36).
 
-Remaining: application-defined native drag regions, plus focused coverage for
-nested modal dismissal and owner disappearance. Borderless macOS windows still
-use native background dragging; there is no custom drag-region API yet.
+`set_window_drag_region` publishes a resolved content-local region for native
+window movement on macOS and Wayland. Interactive controls can remain outside
+that region. Wayland uses the press serial for `xdg_toplevel.move`, subject to
+compositor policy. This replaces whole-background dragging where an app needs
+custom chrome; the file manager uses a designated address area.
 
-- Let an overlay retain logical parentage while drawing in another layer and
-  escaping the parent's clip through an explicit API.
-- Distinguish passive overlays, focus-taking overlays, and modal input barriers.
-  A Tab fence alone does not prevent pointer interaction outside a modal.
-- Define dismissal, nested-modal ordering, owner disappearance, and focus
-  restoration. Z-order alone must not grant keyboard focus.
-- Add application-defined native window drag regions so interactive controls
-  can coexist with borderless-window movement. Respect platform restrictions.
+## [ DONE ] Milestone 20: Text input, clipboard, and composition
 
-**Done when:** a popup from a scrolled region draws and interacts outside its
-parent clip; passive overlays do not steal focus; a modal blocks normal outside
-interaction and restores focus when closed; a designated title region can move
-the window without making every control draggable.
+Ordered committed-text/composition/edit-command operations are separate from
+physical keys and targeted at a window-local identity. Core publishes surrounding
+text, UTF-8 selection/marked ranges and caret bounds through shared data. Native
+adapters copy what they need; callbacks never run the UI builder. Handled-key
+flags prevent duplicate interpretation of IME-owned keys.
 
-## [ TODO ] Milestone 20: Text input, clipboard, and composition
+macOS implements NSTextInputClient, native range conversion, candidate placement
+and clipboard services. Wayland implements XKB typing/dead keys/repeat,
+text-input-v3 composition when available, and native data-device clipboard.
+Capability queries distinguish typing, composition protocol and clipboard;
+protocol support alone does not supply an installed input method.
 
-Depends on 13 and 16–17.
+Native/capture checks cover commit ordering, stale targets, focus changes,
+composition cancellation and clipboard routing. Hasen confirmed live macOS IME.
+Omarchy native typing and clipboard checks passed; live Wayland candidate
+placement remains unverified. Selective panel keyboard focus and richer native
+character-range geometry remain optional follow-ups. See
+[core/TEXT_EDITING.md](../core/TEXT_EDITING.md).
 
-- Expose committed text, composition/preedit state, and clipboard operations as
-  data/services separate from physical key input.
-- Associate text-input activation and candidate positioning with the focused
-  identity and its window; translate caret geometry into native coordinates.
-- Revisit selective panel keyboard focus here: mouse-only palette controls may
-  leave the workspace key, while text fields request keyboard focus for their
-  panel. Keep mouse ownership independent of key-window status if adopting this.
-  This refinement was deliberately deferred after checking Acorn's behavior.
-- Implement the relevant macOS and Wayland integrations, including explicit
-  capability handling where a compositor lacks an optional protocol.
+## [ DONE ] Milestone 21: Single-line text-editing primitives
 
-**Done when:** an input probe accepts accented text and IME composition without
-duplicate commits, supports paste/copy, positions candidates by the caret, and
-handles focus changes between windows and components.
+`core/edit` owns platform-independent buffer operations, grapheme movement and
+deletion, selection, composition and undo/redo. Core supplies shaped caret spans,
+visual bidi movement, hit testing, selection geometry, drawing and clipped caret
+reveal. `edit_text` assembles these for a resolved rectangle; appearance and
+buffer ownership remain caller-controlled. Explicit font stacks work throughout
+rendering and editing, and unsupported characters produce local tofu.
 
-## [ TODO ] Milestone 21: Text-editing primitives
+Demo15 and integration tests exercise combining marks, Arabic/Latin text,
+pointer/keyboard selection, composition, clipboard and focus changes. The
+standard text/search/number fields now build on these primitives (35).
+Current limits: single-line only, whitespace-delimited word commands, bounded
+whole-buffer undo snapshots, no typing coalescence, and approximate ligature
+caret subdivision. Pasted line breaks/tabs become spaces. Extensions are in 38.
 
-Depends on 14, 16–18, and 20.
+## Extensions and later milestones
 
-- Provide grapheme-aware movement/deletion, selection ranges, caret placement,
-  point-to-text hit testing, and selection-to-geometry queries.
-- Handle shaped clusters and bidi ordering; define logical versus visual
-  movement rather than assuming one character equals one glyph or one rect.
-- Integrate clipboard/composition and caret reveal in a clipped scroll region.
-  Start with single-line editing; multiline editing can follow separately.
+Numbers below are retained from the original roadmap; they are not a required
+execution order. Some extensions are already complete. The priority list above
+identifies proposed next work, subject to application needs.
 
-**Done when:** a small editor assembled from these primitives supports keyboard
-and pointer selection, combining marks, mixed Arabic/Latin text, composition,
-clipboard operations, and focus changes. A general text-field widget API is not
-required to demonstrate the building blocks.
+## [ DONE ] Milestone 22: Local content-sized layout
 
-## Later milestones — provisional order
+`open_layout`/`close_layout` resolve a bounded local row/column tree, then consume
+a strip from rect cutting. Application code runs once; subsequent passes visit
+linear recorded data for measurement and placement. Boxes enter the same
+identity tree immediately, retaining state and access to previous-frame
+hover/focus/clicks. Deferred paint/text/icon commands use the final geometry.
 
-These extend the foundation; they are not prerequisites for completing 12–21.
-Reorder them around actual application needs. In particular, a new platform or
-GPU integration may be brought forward without waiting for every entry above.
+Roots inherit maximum width and height. Children determine natural size; fixed
+sizes, padding, gaps, cross-axis alignment and stretching are supported. There
+is deliberately no main-axis Fill, growth weight, proportional shrink or automatic
+row wrapping. Overflow uses explicit clipping/scrolling. Demo13 demonstrates a
+menu with stretched rows and independently cut toolbar groups. Tests cover
+constraints, interaction bounds, single builder execution and storage reuse.
+See [core/LAYOUT.md](../core/LAYOUT.md).
 
-## [ LATER ] Milestone 22: Local content-sized layout
+## [ PARTIAL ] Milestone 23: System fonts and fallback
 
-Measure a localized row/column component whose children determine its size, then
-feed the resolved result into rect cutting. Keep the algorithm self-contained
-and separate from the identity tree; avoid replacing the whole layout model.
+Implemented: immutable named explicit font stacks, cached per-face cmap coverage,
+script-run/grapheme-aware face selection, consistent baselines and physical face
+references throughout shaping, wrapping, measurement, caret geometry and editing.
+Uncovered characters render local `.notdef`/tofu instead of replacing the whole
+text block with an error. Unchanged frames reuse resolved results.
 
-**Done when:** a component combines text and fixed-size children, resolves its
-outer size, and embeds in a cut/scroll region without caller-written duplicate
-measurement or a second whole-window layout system.
+Remaining:
 
-## [ LATER ] Milestone 23: System fonts and fallback
+- Discover configured platform font directories and index minimal face/style
+  metadata and Unicode coverage without loading/rasterizing every face eagerly.
+- Resolve names and choose fallback outside the explicit stack, loading candidate
+  faces lazily. Preserve whole shaping contexts where possible; coverage alone
+  is not proof that a font shapes a script or emoji sequence correctly.
+- Cache successful and failed choices; version the catalog so changes invalidate
+  stale misses. Never scan installed fonts each frame.
 
-Discover platform font locations, index minimal metadata/coverage information,
-resolve names, and load faces on demand. Add fallback that respects shaping
-clusters and scripts rather than substituting isolated missing glyphs blindly.
+**Done when:** an app specifying its preferred font can display mixed-script text
+and edit it using suitable installed fallbacks, with correct measurement and
+bounded warm-frame work. Color emoji and advanced variation-sequence preferences
+are separate extensions. See [core/text/README.md](../core/text/README.md).
 
-**Done when:** mixed-script text can use several font files automatically, with
-correct measurement, cache invalidation and resource lifetime, without loading
-or rasterizing every installed font upfront.
+## [ PARTIAL ] Milestone 24: Virtual lists
 
-## [ LATER ] Milestone 24: Virtual lists
+Implemented in the file manager: fixed-height visible-range construction plus
+at most five offscreen keyboard targets, full content extents, reveal, and
+Tab/Shift-Tab navigation. Capture checks exercise 20,000 entries; warm per-frame
+row work is bounded by the viewport rather than directory size. Refresh clears
+focus to prevent a reused index from activating another file. Durable selection
+and data live outside disappearing row state.
 
-Start with fixed-height rows: derive the visible range from viewport and scroll
-offset, retain the full content extent, and key rows by stable item IDs. Define
-how focus/editing survives an offscreen row no longer being declared; do not
-silently lose state or apply an old row's state to another item. Variable-height
-measurement caches and scroll anchoring are a follow-up extension.
+Remaining: expose a reusable core/widget mechanism with explicit stable item
+keys, insertion/reorder behavior, and a documented offscreen focus/editing/state
+policy. Identity-owned state currently disappears with an omitted row; a generic
+list must not silently imply persistence. The file-manager policy is a working
+example, not yet a general solution for editable virtualized content.
 
-**Done when:** a large list builds work proportional to the visible range, keeps
-correct scrolling and row identities through insertion/reordering, and has an
-explicit offscreen focus/state policy. Depends on 14, 16, and 18.
+**Done when:** a second application can use the shared API without duplicating
+range/navigation logic, and tests cover focus and durable item state across
+scrolling, insertion and reordering. Variable-height caches and scroll anchoring
+can follow the fixed-height API as a separate extension.
 
 ## [ LATER ] Milestone 25: Redraw scheduling
 
@@ -403,6 +430,8 @@ schedules one application update cycle for the main window and all panels,
 matching the current synchronized builder model. Native presentation may still
 be paced independently according to visibility and compositor readiness. Give
 external producers a way to request presentation when a new frame is available.
+Worker file/image completions, animation deadlines, caret blink and tooltip/toast
+timers must wake the application without retaining a periodic idle polling loop.
 
 **Done when:** idle windows stop generating regular frames while hover fades,
 resizing, scrolling, and explicit invalidation remain responsive. Measure idle
@@ -482,3 +511,130 @@ treating it as something to retrofit after a widget API is fixed.
 **Done when:** a screen reader can navigate a small example, announce and edit
 values, invoke actions, and follow focus/scroll changes through a native adapter.
 Add and verify adapters per platform rather than claiming one covers all targets.
+
+## [ DONE ] Milestone 32: Asynchronous files, watched directories and images
+
+`core/files` provides worker-owned I/O with None / Reading / Done state,
+revisioned results, cancellation and explicit ownership transfer. Directory
+reading/sorting and PNG/JPEG reading/decoding/thumbnail reduction run off-thread.
+Watching uses portable metadata polling at roughly 250 ms, not native file events.
+
+`image_file`/`paint_image` accept a path and reuse a per-window bounded cache.
+Completed pixels upload on the renderer thread; the last successful image stays
+visible during reload or failure. Generational handles protect replaced resources.
+Tests cover loading, watch/reload, failure/recovery, cleanup and cache behavior.
+Demos use file paths for images except demo3's embedded cursor robot.
+
+Follow-ups: native change notifications if needed, child-metadata refresh for
+directory listings, byte-based cache budgets, more image formats and explicit
+pinning. Worker wakeups belong to 25. See [core/IMAGES.md](../core/IMAGES.md) and
+[core/files/README.md](../core/files/README.md).
+
+## [ DONE ] Milestone 33: File-manager application, first version
+
+`apps/file-manager` is a read-only browser with directory navigation, virtualized
+rows, asynchronous watched listings and image thumbnails. Type-to-select accepts
+native committed text/IME, selects a matching filename prefix and reveals it;
+timeout, repeated-letter cycling, Backspace and Escape have defined behavior.
+Searching happens when the prefix changes, not on unchanged frames.
+
+The compact dark design uses custom address-bar chrome with an integrated Close
+button and responsive metadata columns; captures cover small tiled window sizes.
+Navigation, 20,000-row virtualization, watched updates and type-to-select have
+integration coverage. Hasen confirmed the compact design in Omarchy. Examples
+were renamed demoN; the application lives separately under apps/.
+
+Opening files, mutations, full-size previews and richer search are future app
+features, not requirements of this completed first version. See
+[apps/file-manager/README.md](../apps/file-manager/README.md).
+
+## [ DONE ] Milestone 34: GPU shadows and hollow outlines
+
+Metal and GLES shaders render rounded-rectangle outer shadows and inward
+antialiased outlines. Shadows use analytic integration plus fixed sampling for
+rounded corners; no CPU rasterization, cached blur image or extra blur pass is
+needed. They are paint surfaces, independent of layout and hit bounds, and obey
+clips/layers. Outlines also work in local layout; shadows need resolved geometry.
+
+Metal readback checks cover visible pixels, alpha, clipping and scaling. The
+new GLES path still needs an Omarchy runtime check. Arbitrary silhouettes, inset
+shadows and subtree/backdrop blur are outside this milestone. See
+[core/SHADOWS.md](../core/SHADOWS.md).
+
+## [ DONE ] Milestone 35: Standard controls and dark theme
+
+A `widgets` package imports core; core does not import widgets. Plain theme data
+configures appearance, caller data owns application values, and identities retain
+transient interaction state. Demo16 is the responsive control gallery.
+
+Implemented: buttons, checkbox/mixed state, radio groups, animated toggles,
+text/search/number fields, sliders, progress, badges, labels, separators, tabs,
+segmented controls, list items and a draggable scrollbar. Disabled, hover,
+pressed, selected and keyboard-focus states remain distinct. Compound controls
+use continuous borders and focus geometry; ordinary tabs have rounded top and
+square bottom corners where their outline meets the selected underline.
+
+Buttons default to supplied fixed geometry and fitted labels. The same button
+API supports explicit content sizing or fixed dimensions within local layout,
+plus icons or icon-only content; no separate content-button widget is needed.
+Other controls currently require resolved geometry. Integration tests cover
+pointer cancellation, keyboard activation/navigation, editing and local sizing.
+See [widgets/README.md](../widgets/README.md).
+
+## [ DONE ] Milestone 36: Panels, menus and overlay widgets
+
+Composed widgets provide in-window panels/inspectors, disclosures/trees/accordions,
+menus and submenus, context menus, dropdowns, popovers, dialogs, tooltips and
+toasts. These panels are UI containers, distinct from native auxiliary windows.
+
+Menus clamp/flip, scroll, support keyboard navigation and use shadowed layers
+outside ancestor clips. Modal barriers, focus fences, restoration and topmost
+Escape/outside dismissal prevent click-through. Dialogs have explicit interior
+padding and an optional bottom action area with divider. Tooltip delay and toast
+lifetime use frame time. Submenus currently open explicitly, not on hover delay.
+
+Demo16 captures and scripted interactions cover these behaviors, including
+nested dismissal, compound triggers and unclipped focus outlines. Hasen confirmed
+the menu, dialog and field spacing fixes. New widget/GLES validation remains a
+Linux-host follow-up; native panel lifetimes belong to 12.
+
+## [ DONE ] Milestone 37: Icon glyphs and a compact default font
+
+`Icon_Glyph` identifies a physical font and resolved glyph. Generic draw and
+local-layout APIs share the glyph atlas, fit ink within the requested box and
+emit one textured surface on a warm draw without text shaping. Buttons can mix
+icons and text or show an icon alone.
+
+The original ten-icon default font is 2,332 bytes, with editable SVG sources,
+stable private-use code points and a reproducible generator. Codes resolve to
+glyph IDs at load time; indices are not public constants. Normal builds use the
+checked-in font and need no generator dependencies. Alternative packages can
+supply the same primitive or replace the widget semantic set. Resources remain
+window-owned. Capture/readback checks cover antialiasing, scale and button use.
+See [icons/default/README.md](../icons/default/README.md).
+
+## [ LATER ] Milestone 38: Editing refinements and multiline text
+
+Extend 21 around an actual editor use case. First improve Unicode word boundaries,
+typing undo coalescence and ligature caret positioning without regressing bidi,
+font fallback or composition. Then add multiline/wrapped editing, vertical caret
+movement with a remembered horizontal goal, line-aware selection/hit geometry,
+and scrolling/reveal using the same text layout results as drawing.
+
+**Done when:** a multiline example supports wrapped mixed-script text, selection,
+clipboard, undo/redo and IME through resizing and scrolling, with cached unchanged
+geometry and explicit large-document limits. Keep single-line field semantics
+and APIs intact; do not turn this into a document engine by default.
+
+## [ LATER ] Milestone 39: Native window controls and placement
+
+Add minimize/restore/show/hide and screen/work-area information with explicit
+backend capabilities. Support an application temporarily minimizing its main
+window, showing a transparent undecorated auxiliary surface, then restoring the
+workspace. Do not conflate OS minimization with skipping UI construction.
+
+**Done when:** a focused example exercises that lifecycle and restoration without
+breaking the main-window ownership or synchronized-update rules. Respect Wayland
+restrictions on global positioning/activation rather than promising identical
+behavior across desktops. Screen capture/OCR is a possible application, not part
+of this window-control milestone.
