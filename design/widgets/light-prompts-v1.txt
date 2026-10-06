@@ -1,0 +1,28 @@
+Created by Codex using the built-in image generation tool, 2026-10-07.
+
+Light-theme visual proposals corresponding to the dark v1 sheets. Colors and dimensions in prompts are targets, not measured pixel guarantees. No widget implementation changes.
+
+Sheet 1: light-controls-v1.png
+Edit target: dark-controls-v1.png
+
+Use case: precise-object-edit / ui-mockup.
+Create a LIGHT THEME counterpart of the supplied dark widget specimen sheet. This image is the EDIT TARGET, not merely inspiration. Preserve the exact canvas aspect ratio, six-section grid, widget positions, widths, heights, margins, padding, row spacing, typography size and weight, corner shapes, icons, all control states and all labels. This is overwhelmingly a COLOR CHANGE, not a redesign. Do not add or remove widgets, enlarge spacing, round the controls more, or rearrange any element.
+Replace dark charcoal canvas with very pale cool neutral #F3F5F6, surfaces and fields with white #FFFFFF, secondary controls with #E8EDEF, borders/dividers with #C4CDD2, primary text with #202B30, muted text with #596970, disabled text with #929DA3 and disabled fill #EDF0F2. Preserve the teal identity using deeper teal #087F7A for primary actions, focus indicators, selected underlines and checked controls; white foreground on filled teal controls. Hover neutral #E2E8EA, pressed neutral #D5DFE2, selected backgrounds pale teal #DDF1EE with dark teal text. Error/destructive uses legible red #C43F46 with white text on solid destructive buttons; semantic badges use pale tinted surfaces with suitably dark text. Avoid luminous cyan on white. Focus rings must remain distinct from hover and selection. Keep fine subtle shadows only for raised overlays. Flat crisp UI, no glossy effects, no paper texture, no gradient backdrop, no perspective or device.
+Keep all text exactly as in the target except changing the sheet title suffix from '/ Dark' to '/ Light' and any displayed theme value 'Dark' to 'Light'. Match the target dimensions, 1536x1024.
+Sheet: Controls / Light. Preserve all button state columns, field/search/stepper arrangements, selection controls, slider/progress placements, tabs/segments/icon buttons, list rows and badges.
+
+Follow-up edit on the first generated light controls sheet:
+
+Use case: precise-object-edit.
+Edit ONLY three button fills and their label colors in this light-theme UI specimen sheet. In the upper-left Buttons section, Primary row, change Hover "Save" to solid teal #07958E with white text; Pressed "Save" to solid darker teal #066A65 with white text; Focus "Save" to solid teal #087F7A with white text, keeping its visible external teal focus ring and small gap. Keep Default teal Save and Disabled gray Save unchanged. All primary active-state buttons should clearly be members of the same filled teal family.
+Preserve EVERYTHING ELSE exactly: 1536x1024 canvas, all widget dimensions, positions, spacing, typography, text, icons, background palette, other button rows, the other five sections. No redesign, no extra objects, no shifts. Use flat solid fills without shine.
+
+Sheet 2: light-menus-panels-v1.png
+Edit target: dark-menus-panels-v1.png
+
+Use case: precise-object-edit / ui-mockup.
+Create a LIGHT THEME counterpart of the supplied dark widget specimen sheet. This image is the EDIT TARGET, not merely inspiration. Preserve the exact canvas aspect ratio, six-section grid, widget positions, widths, heights, margins, padding, row spacing, typography size and weight, corner shapes, icons, all control states and all labels. This is overwhelmingly a COLOR CHANGE, not a redesign. Do not add or remove widgets, enlarge spacing, round the controls more, or rearrange any element.
+Replace dark charcoal canvas with very pale cool neutral #F3F5F6, surfaces and fields with white #FFFFFF, secondary controls with #E8EDEF, borders/dividers with #C4CDD2, primary text with #202B30, muted text with #596970, disabled text with #929DA3 and disabled fill #EDF0F2. Preserve the teal identity using deeper teal #087F7A for primary actions, focus indicators, selected underlines and checked controls; white foreground on filled teal controls. Hover neutral #E2E8EA, pressed neutral #D5DFE2, selected backgrounds pale teal #DDF1EE with dark teal text. Error/destructive uses legible red #C43F46 with white text on solid destructive buttons; semantic badges use pale tinted surfaces with suitably dark text. Avoid luminous cyan on white. Focus rings must remain distinct from hover and selection. Keep fine subtle shadows only for raised overlays. Flat crisp UI, no glossy effects, no paper texture, no gradient backdrop, no perspective or device.
+Keep all text exactly as in the target except changing the sheet title suffix from '/ Dark' to '/ Light' and any displayed theme value 'Dark' to 'Light'. Match the target dimensions, 1536x1024.
+Sheet: Menus & panels / Light. Keep the exact parent/submenu positions, dropdown and tooltip positions, tree indentation, dialog size and internal padding, bottom divider/action area, popover, toast and inspector spacing. Preserve the dimmed app backdrop only within the Dialog specimen, recolored as a dimmed light application. Raised white menu/dialog/popover surfaces have soft restrained gray shadows. Primary Apply and selected checkboxes keep a solid deep teal fill with white foreground.
+
