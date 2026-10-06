@@ -28,7 +28,7 @@ scrollbar :: proc(loc := #caller_location) {
 		y = clamp(input.mouse_position.y-track.position.y-s.grab, 0, travel)
 		if .Left in released || .Left not_in input.mouse_buttons { s.dragging = false }
 	}
-	fill({track.position + [2]f32{3, y}, {4, height}}, theme.muted if s.dragging || ui.hovered() else theme.border, 2)
+	fill({track.position + [2]f32{3, y}, {4, height}}, colors.scrollbar_hover if s.dragging || ui.hovered() else colors.scrollbar, 2)
 	ui.close_rect()
 	if changed && travel > 0 { ui.scroll_to({scroll.offset.x, y/travel*scroll.max_offset.y}) }
 }

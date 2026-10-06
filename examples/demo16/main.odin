@@ -18,6 +18,8 @@ notice: w.Toast
 clicks: int
 step: int
 capture_mode: bool
+light_mode: bool = true
+compare_schemes: bool
 
 main :: proc() {
 	ui.init_text_edit(&editors[0], "Project notes")
@@ -25,8 +27,10 @@ main :: proc() {
 	ui.init_text_edit(&editors[2], "notes.txt")
 	ui.init_text_edit(&editors[3])
 	defer for &editor in editors { ui.destroy_text_edit(&editor) }
-	if len(os.args) > 1 && os.args[1] == "--capture" {
+	if len(os.args) > 1 && (os.args[1] == "--capture" || os.args[1] == "--capture-light") {
 		capture_mode = true
+		light_mode = os.args[1] == "--capture-light"
+		capture_light := light_mode
 		frames := [?]ui.Capture_Frame{
 			{size = {1040, 820}, scale = 1},
 			{size = {1040, 820}, scale = 1, path = "bin/demo16-controls.png", time = 1},
@@ -43,12 +47,22 @@ main :: proc() {
 			{size = {1040, 820}, scale = 2, time = 12, input = {mouse_inside = true, mouse_position = {177, 499}, mouse_buttons = {.Left}, mouse_pressed = {.Left}}},
 			{size = {1040, 820}, scale = 2, time = 13, input = {mouse_inside = true, mouse_position = {177, 499}, mouse_released = {.Left}}},
 			{size = {1040, 820}, scale = 2, time = 14, path = "bin/demo16-tabs.png", input = {mouse_inside = true, mouse_position = {177, 499}}},
+			{size = {1040, 820}, scale = 1, time = 15, path = "bin/demo16-mixed.png"},
+			{size = {1040, 820}, scale = 1, time = 16, input = {mouse_inside = true, mouse_position = {950, 29}, mouse_buttons = {.Left}, mouse_pressed = {.Left}}},
+			{size = {1040, 820}, scale = 1, time = 17, input = {mouse_inside = true, mouse_position = {950, 29}, mouse_released = {.Left}}},
+			{size = {1040, 820}, scale = 1, time = 18, path = "bin/demo16-switched.png"},
 		}
+		if capture_light {
+			for &frame in frames {
+				if frame.path != "" { frame.path = fmt.aprintf("bin/demo16-light%s", frame.path[len("bin/demo16"):]) }
+			}
+		}
+		defer if capture_light { for frame in frames { if frame.path != "" { delete(frame.path) } } }
 		result := ui.capture_frames(update, frames[:]); assert(result.error == .None)
 		fmt.println("Captured widget gallery, menu, dialog, popover and compact layout")
 		return
 	}
-	ui.open_window("Widgets — dark", 1040, 820, update, transparent = false, frame_timing = .Summary)
+	ui.open_window("Widgets — color schemes", 1040, 820, update, transparent = false, frame_timing = .Summary)
 }
 
 row :: proc(height: f32 = 30, loc := #caller_location) { ui.open_rect(.Top, height, loc = loc) }
@@ -59,15 +73,21 @@ update :: proc() {
 		err: ui.Text_Error
 		font, err = ui.load_font("examples/assets/fonts/NotoSansDisplay-VariableFont.ttf"); assert(err == .None)
 	}
-	w.begin(font)
+	w.begin(font, scheme = w.light if light_mode else w.dark)
 	if capture_mode {
+		compare_schemes = step == 15
 		menu = step == 2; modal = step == 3 || step == 10; popover = step == 4
 		if step == 10 { notice.visible = false }
 		if step == 9 { w.show_toast(&notice) }
 	}
-	ui.paint(color = w.theme.background)
+	ui.paint(color = w.colors.background)
 	ui.pad(14)
-	row(30); w.label("Widget gallery / Dark"); end_row()
+	row(30)
+	ui.open_rect(.Right, 140); _ = w.toggle("Light theme", &light_mode); ui.close_rect()
+	if ui.current_frame().size.x >= 600 {
+		ui.open_rect(.Right, 150); _ = w.checkbox("Mixed preview", &compare_schemes); ui.close_rect()
+	}
+	w.label("Widget gallery"); end_row()
 	row(24); w.label(fmt.tprintf("%d button activations · Tab / Shift-Tab to focus · Arrow keys in menus, tabs and sliders", clicks), muted = true); end_row()
 	columns := 3 if ui.current_rect().size.x >= 900 else 2 if ui.current_rect().size.x >= 600 else 1
 	width := (max(0, ui.current_rect().size.x-12)-f32(columns-1)*12)/f32(columns)
@@ -79,6 +99,8 @@ update :: proc() {
 	menu_anchor, pop_anchor: ui.Rect
 	for index in 0..<6 {
 		ui.open_rect_at({canvas.position + [2]f32{f32(index%columns)*(width+12), f32(index/columns)*(height+12)}, {width, height}}, key = index)
+		saved_colors := w.colors
+		if compare_schemes && index == 5 { w.colors = w.dark if saved_colors == w.light else w.light }
 		titles := [?]string{"Buttons & status", "Text fields", "Selection & values", "Navigation & lists", "Menus & overlays", "Properties"}
 		closed := w.panel_open(titles[index], closable = index == 5)
 		if closed { inspector_hidden = true }
@@ -140,11 +162,12 @@ update :: proc() {
 				row(); w.label("Location     ~/Documents", muted = true); end_row()
 				row(); w.label("Size             12 KB", muted = true); end_row()
 				row(); _ = w.checkbox("Read only", &read_only); end_row()
-				row(76); if w.accordion_open("Appearance", &expanded) { row(); w.label("Theme: Dark"); end_row(); w.accordion_close() }; end_row()
+				row(76); if w.accordion_open("Appearance", &expanded) { row(); w.label("Theme: Light" if w.colors == w.light else "Theme: Dark"); end_row(); w.accordion_close() }; end_row()
 				row(); if w.button("Apply", .Primary) { w.show_toast(&notice) }; end_row()
 			}
 		}
 		w.panel_close(); ui.close_rect()
+		w.colors = saved_colors
 	}
 	ui.close_scroll()
 	if w.menu_open(&menu, menu_anchor, {236, 208}) {

@@ -56,14 +56,14 @@ open_overlay :: proc(visible: ^bool, bounds: ui.Rect, modal, menu: bool, loc: ru
 	// never activate the controls underneath the popup.
 	if !visible^ { ui.close_rect(); ui.close_layer(); return false }
 	frame_state.top = root
-	if modal { ui.paint(color = {0, 0, 0, 0.48}) }
+	if modal { ui.paint(color = colors.modal_scrim) }
 	ui.open_rect_at(bounds)
 	// Broad ambient shadow plus a tighter contact edge: visible against dark
 	// panels too. Emit before the content clip so the shadow can extend outside.
-	ui.shadow(color = {0, 0, 0, 0.55}, blur = 12, offset = {0, 6}, corners = theme.radius)
-	ui.shadow(color = {0, 0, 0, 0.45}, blur = 2, offset = {0, 2}, corners = theme.radius)
-	ui.paint(color = theme.surface, corners = theme.radius)
-	ui.stroke(theme.border, corners = theme.radius)
+	ui.shadow(color = colors.shadow_ambient, blur = 12, offset = {0, 6}, corners = theme.radius)
+	ui.shadow(color = colors.shadow_contact, blur = 2, offset = {0, 2}, corners = theme.radius)
+	ui.paint(color = colors.overlay, corners = theme.radius)
+	ui.stroke(colors.overlay_border, corners = theme.radius)
 	ui.open_clip()
 	ui.pad(theme.padding)
 	overlays[overlay_depth] = {visible = visible, state = s, menu = menu, fresh = fresh, bounds = bounds}; overlay_depth += 1
@@ -92,7 +92,7 @@ dialog_open :: proc(title: string, visible: ^bool, size: [2]f32 = {400, 238}, ac
 	ui.open_rect(.Top, theme.height)
 	ui.open_rect(.Right, theme.height)
 	if icon_button(.Close) { visible^ = false }
-	ui.close_rect(); text_at(title, ui.current_rect(), theme.text, size = theme.font_size+3); ui.close_rect()
+	ui.close_rect(); text_at(title, ui.current_rect(), colors.text, size = theme.font_size+3); ui.close_rect()
 	ui.pad4(theme.padding*2, 0, theme.padding*2, 0)
 	ui.open_rect_at(ui.current_rect()); ui.open_clip()
 	o.body_open = true
@@ -154,8 +154,8 @@ tooltip :: proc(value: string, delay: f64 = 0.5, loc := #caller_location) {
 		metrics, _ := ui.measure_text(value, current_font, theme.font_size)
 		r := popup_bounds(anchor, {metrics.width+16, theme.height})
 		ui.open_layer(500, escape_clip = true); ui.open_rect_at(r); ui.set_hit_test(false)
-		ui.shadow(blur = 5); ui.paint(color = theme.surface, corners = theme.radius); ui.stroke(theme.border, corners = theme.radius)
-		text_at(value, inset(r, 5), theme.text)
+		ui.shadow(color = colors.shadow_ambient, blur = 5); ui.paint(color = colors.overlay, corners = theme.radius); ui.stroke(colors.overlay_border, corners = theme.radius)
+		text_at(value, inset(r, 5), colors.text)
 		ui.close_rect(); ui.close_layer()
 	}
 	ui.close_identity()
@@ -173,7 +173,7 @@ toast :: proc(value: string, state: ^Toast, action: string = "", loc := #caller_
 	ui.open_layer(450, escape_clip = true)
 	ui.open_rect_at({{(window.x-size.x)/2, max(0, window.y-size.y-12)}, size}, loc = loc)
 	defer { ui.close_rect(); ui.close_layer() }
-	ui.shadow(); ui.paint(color = theme.surface, corners = theme.radius); ui.stroke(theme.border, corners = theme.radius); ui.pad(6)
+	ui.shadow(color = colors.shadow_ambient); ui.paint(color = colors.overlay, corners = theme.radius); ui.stroke(colors.overlay_border, corners = theme.radius); ui.pad(6)
 	ui.open_rect(.Right, 28); if icon_button(.Close) { state.visible = false }; ui.close_rect()
 	clicked := false
 	if action != "" { ui.open_rect(.Right, 60); clicked = button(action, .Quiet); ui.close_rect() }
@@ -186,8 +186,8 @@ toast :: proc(value: string, state: ^Toast, action: string = "", loc := #caller_
 // opens and must be paired with panel_close. Native windows are not created.
 panel_open :: proc(title: string, closable: bool = true, loc := #caller_location) -> bool {
 	ui.open_rect_at(ui.current_rect(), loc = loc)
-	ui.paint(color = theme.surface, corners = theme.radius)
-	ui.stroke(theme.border, corners = theme.radius)
+	ui.paint(color = colors.surface, corners = theme.radius)
+	ui.stroke(colors.border, corners = theme.radius)
 	ui.open_clip(); ui.pad(theme.padding)
 	ui.open_rect(.Top, theme.height)
 	close := false

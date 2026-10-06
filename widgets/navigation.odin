@@ -5,9 +5,9 @@ import ui "../core"
 list_item :: proc(value: string, selected: bool = false, enabled: bool = true, loc := #caller_location) -> bool {
 	ui.open_rect_at(ui.current_rect(), loc = loc); defer ui.close_rect()
 	a := interact(enabled); r := ui.current_rect()
-	if selected || a.hover || a.down { fill(r, theme.pressed if a.down else theme.selection if selected else theme.hover, theme.radius) }
+	if selected || a.hover || a.down { fill(r, colors.control_pressed if a.down else colors.selection if selected else colors.control_hover, theme.radius) }
 	focus_ring(inset(r, 2), enabled)
-	text_at(value, inset(r, 5), theme.text if enabled else theme.muted)
+	text_at(value, inset(r, 5), colors.text_disabled if !enabled else colors.on_selection if selected && !a.down else colors.text)
 	return a.clicked
 }
 
@@ -38,7 +38,7 @@ tabs :: proc(items: []string, selected: ^int, segmented: bool = false, loc := #c
 		if move && index == selected^ { ui.request_focus() }
 		box := ui.current_rect()
 		if segmented {
-			fill(box, theme.selection if selected^ == index else theme.hover if a.hover else theme.surface, theme.radius)
+			fill(box, colors.selection if selected^ == index else colors.control_hover if a.hover else colors.control, theme.radius)
 			focus_ring(inset(box, 2))
 		} else {
 			// Extend the rounded surface below a clip to keep only its top
@@ -46,16 +46,16 @@ tabs :: proc(items: []string, selected: ^int, segmented: bool = false, loc := #c
 			ui.open_clip(box)
 			radius := min(theme.radius, min(box.size.x, box.size.y)*0.5)
 			top := box; top.size.y += radius + 1
-			if a.hover { fill(top, theme.selection if selected^ == index else theme.hover, radius) }
+			if a.hover { fill(top, colors.selection if selected^ == index else colors.control_hover, radius) }
 			focused := ui.direct_focus() == ui.current_identity()
-			if focused { fill(top, theme.accent, radius, 1) }
+			if focused { fill(top, colors.focus, radius, 1) }
 			if selected^ == index || focused {
 				line := min(box.size.y, f32(2) if selected^ == index else f32(1))
-				fill({box.position + [2]f32{0, box.size.y-line}, {box.size.x, line}}, theme.accent)
+				fill({box.position + [2]f32{0, box.size.y-line}, {box.size.x, line}}, colors.tab_indicator if selected^ == index else colors.focus)
 			}
 			ui.close_clip()
 		}
-		text_at(item, inset(box, 3), theme.text if selected^ == index else theme.muted, .Center)
+		text_at(item, inset(box, 3), (colors.on_selection if segmented || a.hover else colors.text) if selected^ == index else colors.text_muted, .Center)
 		ui.close_rect()
 	}
 	return selected^ != before
@@ -73,9 +73,9 @@ disclosure_open :: proc(value: string, expanded: ^bool, loc := #caller_location)
 		if .Right in input.keys_pressed { expanded^ = true }
 		if .Left in input.keys_pressed { expanded^ = false }
 	}
-	r := ui.current_rect(); fill(r, theme.hover if a.hover else theme.surface, theme.radius); focus_ring(inset(r, 2))
-	icon_at(.Down if expanded^ else .Right, {r.position, {24, r.size.y}}, theme.muted)
-	text_at(value, {r.position + [2]f32{28, 0}, {max(0, r.size.x-28), r.size.y}}, theme.text)
+	r := ui.current_rect(); fill(r, colors.control_hover if a.hover else colors.control, theme.radius); focus_ring(inset(r, 2))
+	icon_at(.Down if expanded^ else .Right, {r.position, {24, r.size.y}}, colors.text_muted)
+	text_at(value, {r.position + [2]f32{28, 0}, {max(0, r.size.x-28), r.size.y}}, colors.text)
 	ui.close_rect()
 	if !expanded^ { ui.close_rect(); return false }
 	ui.pad4(4, 4, 0, 16)

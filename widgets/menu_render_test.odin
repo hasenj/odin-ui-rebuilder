@@ -54,7 +54,7 @@ menu_render_scene :: proc() {
 		err: ui.Text_Error; test_font, err = ui.load_font(path); assert(err == .None)
 	}
 	begin(test_font)
-	ui.paint(color = theme.surface)
+	ui.paint(color = colors.surface)
 	ui.open_rect_at({{40, 40}, {160, 106}})
 	ui.open_clip()
 	visible := true

@@ -7,11 +7,11 @@ checkbox_state :: proc(value: string, checked: ^Check_State, enabled: bool = tru
 	a := interact(enabled)
 	if a.clicked { checked^ = .Off if checked^ == .On else .On }
 	r := ui.current_rect(); box := ui.Rect{r.position + [2]f32{2, (r.size.y-16)/2}, {16, 16}}
-	fill(box, theme.accent if checked^ != .Off && enabled else theme.surface, 3)
-	fill(box, theme.border, 3, 1)
-	if checked^ == .On { icon_at(.Check, box, theme.text if enabled else theme.muted) }
-	if checked^ == .Mixed { icon_at(.Minus, inset(box, 3), theme.text if enabled else theme.muted) }
-	text_at(value, {r.position + [2]f32{26, 0}, {max(0, r.size.x-26), r.size.y}}, theme.text if enabled else theme.muted)
+	fill(box, colors.control_disabled if !enabled else colors.checked if checked^ != .Off else colors.control, 3)
+	fill(box, colors.checked if checked^ != .Off && enabled else colors.control_border, 3, 1)
+	if checked^ == .On { icon_at(.Check, box, colors.on_checked if enabled else colors.text_disabled) }
+	if checked^ == .Mixed { icon_at(.Minus, inset(box, 3), colors.on_checked if enabled else colors.text_disabled) }
+	text_at(value, {r.position + [2]f32{26, 0}, {max(0, r.size.x-26), r.size.y}}, colors.text if enabled else colors.text_disabled)
 	focus_ring(r, enabled)
 	return a.clicked
 }
@@ -27,9 +27,9 @@ radio :: proc(value: string, selected: bool, enabled: bool = true, tab_stop: boo
 	ui.focusable(enabled && (tab_stop || a.clicked))
 	if enabled && (take_focus || a.clicked) { ui.request_focus() }
 	box := ui.Rect{r.position + [2]f32{2, (r.size.y-16)/2}, {16, 16}}
-	fill(box, theme.accent if selected && enabled else theme.border, 8, 1.5)
-	if selected { fill(inset(box, 4), theme.accent if enabled else theme.muted, 4) }
-	text_at(value, {r.position + [2]f32{26, 0}, {max(0, r.size.x-26), r.size.y}}, theme.text if enabled else theme.muted)
+	fill(box, colors.checked if selected && enabled else colors.control_border, 8, 1.5)
+	if selected { fill(inset(box, 4), colors.checked if enabled else colors.text_disabled, 4) }
+	text_at(value, {r.position + [2]f32{26, 0}, {max(0, r.size.x-26), r.size.y}}, colors.text if enabled else colors.text_disabled)
 	focus_ring(r, enabled)
 	return a.clicked
 }
@@ -38,9 +38,11 @@ toggle :: proc(value: string, checked: ^bool, enabled: bool = true, loc := #call
 	a := interact(enabled); if a.clicked { checked^ = !checked^ }
 	r := ui.current_rect(); box := ui.Rect{r.position + [2]f32{0, (r.size.y-18)/2}, {32, 18}}
 	amount := ui.animate_f32(1 if checked^ else 0)
-	fill(box, theme.border + ((theme.accent if enabled else theme.muted) - theme.border)*amount, 9)
-	fill({box.position + [2]f32{2+14*amount, 2}, {14, 14}}, theme.text if enabled else theme.muted, 7)
-	text_at(value, {r.position + [2]f32{40, 0}, {max(0, r.size.x-40), r.size.y}}, theme.text if enabled else theme.muted)
+	fill(box, colors.track + ((colors.checked if enabled else colors.control_disabled) - colors.track)*amount, 9)
+	thumb := ui.Rect{box.position + [2]f32{2+14*amount, 2}, {14, 14}}
+	fill(thumb, colors.thumb if enabled else colors.thumb_disabled, 7)
+	fill(thumb, colors.thumb_border, 7, 0.5)
+	text_at(value, {r.position + [2]f32{40, 0}, {max(0, r.size.x-40), r.size.y}}, colors.text if enabled else colors.text_disabled)
 	focus_ring(r, enabled); return a.clicked
 }
 

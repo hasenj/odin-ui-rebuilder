@@ -13,7 +13,7 @@ import w "path/to/widgets"
 
 update :: proc() {
     // Load/cache a window-owned font once, then configure every window update.
-    w.begin(font) // Optional second argument overrides the dark Theme.
+    w.begin(font, scheme = w.light) // Omit scheme for dark.
     ui.open_rect(.Top, w.theme.height)
     if w.button("Save", .Primary) { save_document() }
     ui.close_rect()
@@ -33,11 +33,76 @@ public wrapper. For reordered/dynamic content wrap calls in
 `ui.open_identity(key = your_distinct_integer)` / `ui.close_identity()`; position
 and text are not keys. Removing a widget removes its retained state.
 
+## Color schemes and geometry
+
 Call `begin` once at the start of **each window update** with that window's font
-(or registered font-stack name). It sets transient theme/font configuration and
-checks that the previous update left no overlay scopes open. Theme is plain
-data: colors, control height, font size, radius, padding, and gap. There is no
-font scanning, native platform widget, callback tree, or global retained model.
+(or registered font-stack name). It resets the active colors and geometry and
+checks that the previous update left no overlay scopes open:
+
+```odin
+w.begin(font, scheme = w.light) // w.dark remains the default.
+// Optional: style = my_metrics, icons = my_icon_set.
+```
+
+`Color_Scheme` is a plain struct containing all widget paint colors. `w.dark` and
+`w.light` are complete palettes; `w.colors` is the active mutable value. `Theme`
+now holds only sizes/spacing (`w.default_theme` / active `w.theme`). Switching
+colors does not change measurements, hit bounds, fonts, identities or editor state.
+Existing callers reading `w.theme.text`, etc. should use `w.colors.text`; custom
+old Themes should split colors into a Color_Scheme and metrics into a Theme.
+
+Change the scheme directly at any point in the builder:
+
+```odin
+saved := w.colors
+w.colors = w.dark
+// Build a dark inspector inside the otherwise light window.
+_ = w.panel_open("Properties")
+w.label("Independent colors, shared geometry")
+w.panel_close()
+w.colors = saved
+```
+
+Assignments affect subsequent calls only. Surfaces and recorded local-layout
+commands copy their paint colors, so restoring the scheme before `close_layout`
+is safe. Deferred overlays use the scheme active when their builder runs: apply
+an override again there if needed. No automatic scope stack or inheritance is
+implied. Do not call `begin` again midway through a tree; it also starts the
+widget frame's overlay bookkeeping. Font/icon resources stay window-owned.
+
+Configuration is global to the currently running builder, which is serialized
+across windows; it is not a process-wide preference or thread-safe worker API.
+Each window must call `begin` with its chosen scheme on every update. Persist
+the user's preference in application data, not in `w.colors`.
+
+### Semantic color roles
+
+The complete fields and palette values are in [colors.odin](colors.odin).
+Colors are shared by meaning, not merely because they happen to have equal values:
+
+| Roles | Used for |
+| --- | --- |
+| `background`, `surface`, `border`, `divider` | Window canvas, panels and separating rules. |
+| `text`, `text_muted`, `text_disabled` | Shared content hierarchy and unavailable controls. |
+| `control*` | Neutral controls, hover/press, borders and disabled fills. |
+| `primary*`, `on_primary` | Primary actions and their state-specific fills/foreground. |
+| `destructive*`, `on_destructive` | Destructive actions, independent of error indicators. |
+| `focus`, `tab_indicator` | Keyboard focus and selected-tab underline, independently adjustable. |
+| `selection`, `on_selection` | Selected list/menu/segment backgrounds and foregrounds. |
+| `field`, `field_disabled`, `placeholder`, `text_selection`, `error` | Editor backgrounds, placeholders, selected text backdrop and validation. |
+| `checked`, `on_checked` | Checked marks, radios and active switches. |
+| `track`, `track_fill`, `thumb*` | Value tracks and movable thumbs; thumbs do not inherit text color. |
+| `scrollbar*` | Scroll thumb and hover/drag feedback. |
+| `badge_neutral*`, `badge_success*`, `badge_warning*`, `badge_error*` | Independent background/border/text triplets for status badges. |
+| `overlay`, `overlay_border`, `modal_scrim`, `shadow_*` | Raised surfaces, modal dimming and ambient/contact shadows. |
+
+Primary and destructive hover/pressed colors stay in their respective color
+families. Scheme changes recolor current hover animations immediately; the
+retained animation fraction continues, not an interpolation from the old palette.
+To customize, copy a built-in scheme and override the desired fields. Selected
+editor text keeps the normal text foreground, so choose `text_selection` with
+that foreground in mind. The color schemes do not scan fonts or create native
+platform widgets.
 
 ## Controls
 
@@ -168,21 +233,34 @@ Long menus scroll and focused children are revealed by core.
 ```sh
 ./scripts/build.sh demo16
 ./bin/demo16
-./bin/demo16 --capture
+./bin/demo16 --capture        # Dark reference captures
+./bin/demo16 --capture-light  # Light reference captures
 ./scripts/check.sh
 ```
 
-The gallery adapts from three columns to one at narrow widths. Capture writes
+The gallery starts light and has a **Light theme** switch. **Mixed preview**
+(visible at wider widths) paints the Properties inspector using the opposite
+scheme. Both controls use ordinary widgets. The gallery adapts from three columns
+to one at narrow widths. Capture writes
 `bin/demo16-controls.png`, `-menu.png`, `-dialog.png`, `-popover.png`, and
 `-compact.png`, `-tooltip.png`, and `-toast.png`. The widgets integration test drives synthetic input through the
 actual builder and renderer: cancelled clicks, press/release, dragging outside,
 text delivery, disabled controls, keyboard dropdown selection, tab navigation,
 modal dismissal, radio navigation, numeric draft validation, scrollbar dragging,
 key-based reorder/removal, nested Escape and outside dismissal
-without click-through. Renderer readback tests check actual shadow/outline pixels.
+without click-through. Renderer readback tests check actual shadow/outline pixels. Scheme tests switch
+colors while an editor retains focus and text, compare local-layout geometry,
+and check GPU pixels for dark/light/custom schemes in one layout at 1x/2x.
+Light captures have a `demo16-light` prefix; `-mixed` and `-switched` captures
+exercise a subtree override and the live theme switch.
 
 The design references are in `design/widgets/`. They are visual targets, not
 promises of pixel-identical generated artwork. Icons use FreeType's antialiased
 coverage through the shared glyph atlas; no staircase geometry or icon shaping.
 Shadows and borders are implemented in both Metal and GLES; the new GLES path
 still needs native execution on Linux (the development Mac lacks Linux STB libs).
+
+On macOS, Odin `dev-2026-10-nightly:84bc3fc` currently asserts in the compiler
+(`missing procedure objc_lookUpClass`) when compiling the widget test target.
+Normal optimized demo builds/captures work. The scheme integration tests were
+verified with `dev-2026-09-nightly:a2fb372`; the October compiler remains active.

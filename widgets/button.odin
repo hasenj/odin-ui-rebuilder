@@ -52,20 +52,26 @@ button :: proc(value: string, kind: Button_Kind = .Secondary, enabled: bool = tr
 	}
 	defer { if local { ui.close_box() } else { ui.close_rect() } }
 	a := interact(enabled)
-	base := theme.surface
-	if kind == .Primary { base = theme.selection }
-	if kind == .Destructive { base = theme.danger }
-	target := theme.pressed if a.down else theme.hover
+	base, hover, pressed, edge, color := colors.control, colors.control_hover, colors.control_pressed, colors.control_border, colors.text
+	switch kind {
+	case .Primary: base, hover, pressed, edge, color = colors.primary, colors.primary_hover, colors.primary_pressed, colors.primary_border, colors.on_primary
+	case .Destructive: base, hover, pressed, edge, color = colors.destructive, colors.destructive_hover, colors.destructive_pressed, colors.destructive_border, colors.on_destructive
+	case .Secondary, .Quiet:
+	}
+	target := pressed if a.down else hover
 	amount := ui.animate_f32(1 if a.hover || a.down else 0)
 	fill_color := base + (target - base)*amount
 	if kind == .Quiet { fill_color = target; fill_color.a *= amount }
+	if !enabled {
+		fill_color = colors.control_disabled; edge = colors.control_border; color = colors.text_disabled
+		if kind == .Quiet { fill_color.a = 0 }
+	}
 	if fill_color.a > 0 { ui.paint(color = fill_color, corners = theme.radius) }
-	if kind != .Quiet { ui.stroke(theme.border if kind == .Secondary else theme.accent if kind == .Primary else theme.danger, corners = theme.radius) }
+	if kind != .Quiet { ui.stroke(edge, corners = theme.radius) }
 	if enabled && ui.direct_focus() == ui.current_identity() {
 		// A local layout can touch its enclosing clip or adjacent siblings.
-		ui.stroke(theme.accent, corners = theme.radius if local else theme.radius+2, inset = 1 if local else -2)
+		ui.stroke(colors.focus, corners = theme.radius if local else theme.radius+2, inset = 1 if local else -2)
 	}
-	color := theme.text if enabled else theme.muted
 	if local {
 		style: ui.Layout_Style
 		if sizing == .Fixed { style.width = ui.layout_fixed(size.x); style.height = ui.layout_fixed(size.y) }
@@ -93,8 +99,8 @@ icon_button :: proc(icon: Icon, enabled: bool = true, loc := #caller_location) -
 field_button :: proc(icon: Icon, enabled: bool = true, loc := #caller_location) -> bool {
 	ui.open_rect_at(ui.current_rect(), loc = loc); defer ui.close_rect()
 	r := ui.current_rect(); a := interact(enabled)
-	if a.hover || a.down { fill(inset(r, 2), theme.pressed if a.down else theme.hover, max(0, theme.radius-1)) }
+	if a.hover || a.down { fill(inset(r, 2), colors.control_pressed if a.down else colors.control_hover, max(0, theme.radius-1)) }
 	focus_ring(inset(r, 4), enabled)
-	icon_at(icon, r, theme.text if enabled else theme.muted)
+	icon_at(icon, r, colors.text if enabled else colors.text_disabled)
 	return a.clicked
 }

@@ -32,15 +32,17 @@ slider :: proc(value: ^f32, low: f32 = 0, high: f32 = 1, step: f32 = 0, enabled:
 	value^ = clamp(value^, low, high)
 	fraction := (value^-low)/(high-low) if high > low else 0
 	track := ui.Rect{r.position + [2]f32{7, r.size.y/2-2}, {max(0, r.size.x-14), 4}}
-	fill(track, theme.border, 2)
-	fill({track.position, {track.size.x*fraction, 4}}, theme.accent if enabled else theme.muted, 2)
-	fill({track.position + [2]f32{track.size.x*fraction-7, -5}, {14, 14}}, theme.text if enabled else theme.muted, 7)
+	fill(track, colors.track, 2)
+	fill({track.position, {track.size.x*fraction, 4}}, colors.track_fill if enabled else colors.thumb_disabled, 2)
+	thumb := ui.Rect{track.position + [2]f32{track.size.x*fraction-7, -5}, {14, 14}}
+	fill(thumb, colors.thumb if enabled else colors.thumb_disabled, 7)
+	fill(thumb, colors.thumb_border, 7, 1)
 	focus_ring(r, enabled)
 	return value^ != before
 }
 progress :: proc(value: f32) {
 	r := ui.current_rect(); r.position.y += max(0, (r.size.y-6)/2); r.size.y = min(r.size.y, 6)
-	fill(r, theme.border, 3); r.size.x *= clamp(value, 0, 1); fill(r, theme.accent, 3)
+	fill(r, colors.track, 3); r.size.x *= clamp(value, 0, 1); fill(r, colors.track_fill, 3)
 }
 @(private) Number_State :: struct {editor: ui.Text_Edit, initialized: bool, last: f64}
 @(private) destroy_number :: proc(s: ^Number_State) { ui.destroy_text_edit(&s.editor) }
@@ -58,18 +60,18 @@ number_input :: proc(value: ^f64, low: f64 = -1e12, high: f64 = 1e12, step: f64 
 		ui.destroy_text_edit(&s.editor); ui.init_text_edit(&s.editor, fmt.tprintf("%g", value^)); s.initialized = true
 	}
 	bounds := ui.current_rect()
-	fill(bounds, theme.background, theme.radius)
+	fill(bounds, colors.field if enabled else colors.field_disabled, theme.radius)
 	ui.open_rect(.Left, theme.height); if field_button(.Minus, enabled && value^ > low) { value^ = max(low, value^-step) }; ui.close_rect()
 	ui.open_rect(.Right, theme.height); if field_button(.Plus, enabled && value^ < high) { value^ = min(high, value^+step) }; ui.close_rect()
 	center := ui.current_rect()
-	fill({center.position, {1, center.size.y}}, theme.border)
-	fill({center.position + [2]f32{max(0, center.size.x-1), 0}, {min(1, center.size.x), center.size.y}}, theme.border)
+	fill({center.position, {1, center.size.y}}, colors.control_border)
+	fill({center.position + [2]f32{max(0, center.size.x-1), 0}, {min(1, center.size.x), center.size.y}}, colors.control_border)
 	parsed, valid := strconv.parse_f64(ui.text_edit_value(&s.editor))
 	valid = valid && parsed >= low && parsed <= high
 	ui.open_rect_at(center)
 	result := field_editor(&s.editor, "", enabled, .Center)
 	ui.close_rect()
-	fill(bounds, theme.danger if !valid else theme.accent if enabled && ui.focused() else theme.border, theme.radius, 1)
+	fill(bounds, colors.error if !valid else colors.focus if enabled && ui.focused() else colors.control_border, theme.radius, 1)
 	if result.changed { parsed, valid = strconv.parse_f64(ui.text_edit_value(&s.editor)); if valid && parsed >= low && parsed <= high { value^ = parsed } }
 	if result.submitted || value^ != before || !ui.focused() {
 		if !valid || value^ != parsed { ui.destroy_text_edit(&s.editor); ui.init_text_edit(&s.editor, fmt.tprintf("%g", value^)) }
@@ -79,14 +81,14 @@ number_input :: proc(value: ^f64, low: f64 = -1e12, high: f64 = 1e12, step: f64 
 }
 Badge_Kind :: enum {Neutral, Success, Warning, Error}
 badge :: proc(value: string, kind: Badge_Kind = .Neutral) {
-	color := theme.muted
+	background, border, text := colors.badge_neutral, colors.badge_neutral_border, colors.badge_neutral_text
 	switch kind {
-	case .Success: color = theme.accent
-	case .Warning: color = {0.90, 0.68, 0.25, 1}
-	case .Error: color = theme.danger
+	case .Success: background, border, text = colors.badge_success, colors.badge_success_border, colors.badge_success_text
+	case .Warning: background, border, text = colors.badge_warning, colors.badge_warning_border, colors.badge_warning_text
+	case .Error: background, border, text = colors.badge_error, colors.badge_error_border, colors.badge_error_text
 	case .Neutral:
 	}
-	fill(ui.current_rect(), theme.surface, theme.radius)
-	fill(ui.current_rect(), color, theme.radius, 1)
-	text_at(value, inset(ui.current_rect(), 3), color, .Center)
+	fill(ui.current_rect(), background, theme.radius)
+	fill(ui.current_rect(), border, theme.radius, 1)
+	text_at(value, inset(ui.current_rect(), 3), text, .Center)
 }

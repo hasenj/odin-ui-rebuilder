@@ -22,6 +22,7 @@ done
 ./bin/demo14 --capture
 ./bin/demo15 --capture
 ./bin/demo16 --capture
+./bin/demo16 --capture-light
 ./bin/file-manager --capture
 
 if [ "$(uname -s)" = Darwin ]; then

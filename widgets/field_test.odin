@@ -55,7 +55,7 @@ field_test_scene :: proc() {
 	if field_test_step == 9 || field_test_step == 12 {
 		ui.current_frame().input.text = {target = ui.text_target(ui.direct_focus()), operations = {{kind = .Commit, text = "new" if field_test_step == 9 else "1"}}}
 	}
-	ui.paint(color = theme.surface)
+	ui.paint(color = colors.surface)
 	ui.open_rect_at({{20, 20}, {280, 30}}); _ = search_field(&field_test_editor, "Find files"); ui.close_rect()
 	ui.open_rect_at({{20, 80}, {180, 30}}); _ = number_input(&field_test_number, 0, 1000); ui.close_rect()
 	field_test_step += 1

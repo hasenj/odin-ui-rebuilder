@@ -39,7 +39,7 @@ layout_button_scene :: proc() {
 		err: ui.Text_Error; test_font, err = ui.load_font(path); assert(err == .None)
 	}
 	begin(test_font)
-	ui.paint(color = theme.background); ui.pad(20); ui.open_clip()
+	ui.paint(color = colors.background); ui.pad(20); ui.open_clip()
 	start := len(ui.current_frame().surfaces)
 	ui.open_layout(.Top, {flow = .Row, gap = 10})
 	labels := [2]string{"Go", "Save all changes"}
@@ -52,7 +52,7 @@ layout_button_scene :: proc() {
 	_, err := ui.close_layout(); assert(err == .None)
 	count := 0
 	for surface in ui.current_frame().surfaces[start:] {
-		if surface.border_width != 1 || surface.background != theme.border { continue }
+		if surface.border_width != 1 || surface.background != colors.control_border { continue }
 		i := 1-count if layout_button_step >= 3 else count
 		metrics, measure_err := ui.measure_text(labels[i], current_font, theme.font_size); assert(measure_err == .None)
 		expected_width := min(metrics.width+theme.padding*3, ui.current_frame().size.x-40)
@@ -75,7 +75,7 @@ layout_button_scene :: proc() {
 	index := -1
 	heights: [2]f32
 	for surface in ui.current_frame().surfaces[start:] {
-		if surface.border_width == 1 && surface.background == theme.border {
+		if surface.border_width == 1 && surface.background == colors.control_border {
 			index += 1
 			expected := [2]f32{min(80 if index == 0 else 160, ui.current_frame().size.x-40), 32}
 			testing.expect_value(test_t, surface.size, expected)

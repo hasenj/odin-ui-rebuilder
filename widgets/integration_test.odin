@@ -110,6 +110,7 @@ widget_interactions :: proc(t: ^testing.T) {
 	compound_fields(t)
 	button_layouts(t)
 	icon_widgets(t)
+	color_schemes(t)
 }
 
 @(private)
@@ -126,7 +127,7 @@ test_scene :: proc() {
 	if test_step == 66 || test_step == 67 {
 		ui.current_frame().input.text = {target = ui.text_target(ui.direct_focus()), operations = {{kind = .Commit, text = "42" if test_step == 66 else "bad", replacement = {0, 2}, has_replacement = true}}}
 	}
-	ui.paint(color = theme.background)
+	ui.paint(color = colors.background)
 	ui.open_rect_at({{10, 10}, {120, 30}}); if button("Run") { test_clicks += 1 }; ui.close_rect()
 	ui.open_rect_at({{10, 50}, {120, 30}}); _ = checkbox("Enabled", &test_check); ui.close_rect()
 	ui.open_rect_at({{10, 90}, {120, 30}}); _ = slider(&test_amount); ui.close_rect()

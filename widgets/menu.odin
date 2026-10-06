@@ -17,14 +17,14 @@ menu_item :: proc(value: string, shortcut: string = "", checked: bool = false, e
 		append(&o.state.items, ui.current_identity())
 	}
 	r := ui.current_rect()
-	if a.hover || ui.focused() { fill(r, theme.selection, theme.radius) }
+	if a.hover || ui.focused() { fill(r, colors.selection, theme.radius) }
 	// The scroll viewport ends at the first/last row. Keep the entire outline
 	// inside the row (focus_ring expands its supplied bounds by two pixels).
 	focus_ring(inset(r, 3), enabled)
-	if checked { icon_at(.Check, {r.position, {22, r.size.y}}, theme.accent) }
+	if checked { icon_at(.Check, {r.position, {22, r.size.y}}, colors.text_disabled if !enabled else colors.on_selection if a.hover || ui.focused() else colors.checked) }
 	ui.pad4(0, 6, 0, 24)
 	if shortcut != "" { ui.open_rect(.Right, 64); label(shortcut, muted = true, align = .End); ui.close_rect() }
-	text_at(value, ui.current_rect(), theme.muted if !enabled else theme.danger if destructive else theme.text)
+	text_at(value, ui.current_rect(), colors.text_disabled if !enabled else colors.error if destructive else colors.on_selection if a.hover || ui.focused() else colors.text)
 	if a.clicked && dismiss { for i in 0..<overlay_depth { overlays[i].visible^ = false } }
 	return a.clicked
 }
@@ -52,13 +52,13 @@ dropdown_trigger :: proc(value: string, enabled: bool) -> bool {
 	ui.open_rect_at(ui.current_rect()); defer ui.close_rect()
 	r := ui.current_rect(); a := interact(enabled)
 	amount := ui.animate_f32(1 if a.hover || a.down else 0)
-	target := theme.pressed if a.down else theme.hover
-	fill(r, theme.surface + (target-theme.surface)*amount, theme.radius)
-	fill(r, theme.border, theme.radius, 1)
+	target := colors.control_pressed if a.down else colors.control_hover
+	fill(r, colors.control + (target-colors.control)*amount if enabled else colors.control_disabled, theme.radius)
+	fill(r, colors.control_border, theme.radius, 1)
 	focus_ring(inset(r, 3), enabled)
 	arrow_width := min(28, r.size.x)
-	icon_at(.Down, {r.position + [2]f32{r.size.x-arrow_width, 0}, {arrow_width, r.size.y}}, theme.text if enabled else theme.muted)
-	text_at(value, inset({r.position, {r.size.x-arrow_width, r.size.y}}, 3), theme.text if enabled else theme.muted, .Center)
+	icon_at(.Down, {r.position + [2]f32{r.size.x-arrow_width, 0}, {arrow_width, r.size.y}}, colors.text if enabled else colors.text_disabled)
+	text_at(value, inset({r.position, {r.size.x-arrow_width, r.size.y}}, 3), colors.text if enabled else colors.text_disabled, .Center)
 	return a.clicked
 }
 
