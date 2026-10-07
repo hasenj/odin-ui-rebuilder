@@ -124,3 +124,18 @@ text_hit_test :: proc(spans: []Text_Caret_Span, x: f32) -> (byte: int, position:
 	}
 	return
 }
+
+// Scan once at startup (or explicitly refresh after installing fonts). Fonts
+// not in an explicit stack become automatic fallbacks; string refs also resolve
+// catalog family names or "Family Style". No scanning occurs in text()/layout.
+discover_fonts :: proc(paths: []string = nil) -> (int, Text_Error) {
+	current_frame()
+	return fonts.discover_fonts(&active_state.text, paths)
+}
+Font_Info :: fonts.Font_Info
+font_catalog_count :: proc() -> int { current_frame(); return fonts.font_catalog_count(&active_state.text) }
+font_catalog_info :: proc(index: int) -> Font_Info { current_frame(); return fonts.font_catalog_info(&active_state.text, index) }
+load_catalog_font :: proc(index: int) -> (Font, Text_Error) {
+	current_frame()
+	return fonts.load_catalog_font(&active_state.text, index)
+}

@@ -1,6 +1,6 @@
 Maintained by Codex (the AI assistant).
 
-Updated by Codex on 2026-10-07.
+Updated by Codex on 2026-10-08.
 
 # Roadmap
 
@@ -18,8 +18,8 @@ DONE means the stated scope is implemented, subject to the verification notes be
 
 ## Proposed next order
 
-23 (system fonts) → 25 (redraw scheduling) → 31 (accessibility) →
-24 (reusable virtual lists) → 38 (editing extensions).
+24 (reusable virtual lists) → 25 (redraw scheduling) → 31 (accessibility) →
+38 (editing extensions).
 
 Other work can move forward when an application needs it.
 
@@ -50,7 +50,7 @@ Other work can move forward when an application needs it.
 | 20 | DONE | [Native text input](../core/TEXT_EDITING.md) | Text operations, clipboard and composition adapters. |
 | 21 | DONE | Single-line editing | Graphemes, bidi caret/selection, IME and undo/redo. |
 | 22 | DONE | [Local content-sized layout](../core/LAYOUT.md) | Bounded rows/columns and cross-axis stretch; no main-axis flex growth. |
-| 23 | PARTIAL | [System fonts and fallback](IDEAS.md#system-fonts-and-automatic-fallback-23) | Explicit stacks/tofu done; discovery and automatic system fallback remain. |
+| 23 | DONE | [System fonts and fallback](../core/TEXT.md#system-font-catalog) | Directory/cmap catalog, lazy named faces and cached automatic fallback; explicit startup scan. |
 | 24 | PARTIAL | [Virtual lists](IDEAS.md#reusable-virtual-lists-24) | File-manager virtualization done; reusable API and item-state policy remain. |
 | 25 | LATER | [Redraw scheduling](IDEAS.md#redraw-scheduling-25) | Idle without regular frames; wake for changes and timed work. |
 | 26 | LATER | [Host rendering and external GPU images](IDEAS.md#external-gpu-content-and-engine-integration-26) | External textures, UI textures and direct host-target HUD rendering. |

@@ -60,6 +60,7 @@ update :: proc() {
 		err: ui.Text_Error
 		font, err = ui.load_font("examples/assets/fonts/NotoSansDisplay-VariableFont.ttf")
 		assert(err == .None)
+		_, err = ui.discover_fonts(); assert(err == .None)
 	}
 	input := ui.current_frame().input
 	pressed = input.mouse_pressed | (input.mouse_buttons & ~previous)

@@ -33,8 +33,10 @@ shape_line :: proc(store: ^Store, font: ^Font_Record, value: string, direction: 
 	// Other Unicode paragraph separators must not silently truncate the string.
 	if native.SBParagraphGetLength(paragraph) != sequence.length { return .Unsupported_Text }
 	if err := load_scripts(store, &sequence); err != .None { return err }
+	primary := font.handle
 	select_font_runs(store, value)
-	return shape_bidi_line(store, font, value, paragraph, 0, len(value), language)
+	resolved := &store.fonts[int(primary) - 1]
+	return shape_bidi_line(store, resolved, value, paragraph, 0, len(value), language)
 }
 
 @(private)

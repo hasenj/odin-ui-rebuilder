@@ -22,6 +22,8 @@ Metrics :: struct {width, height, ascent, descent: f32}
 Direction :: enum u8 {Auto, LTR, RTL}
 
 Store :: struct {
+	catalog: Font_Catalog,
+	catalog_generation: u64,
 	library: native.FT_Library,
 	buffer: native.HB_Buffer,
 	fonts: [dynamic]Font_Record,
@@ -169,11 +171,13 @@ register_face :: proc(store: ^Store, face: ^native.FT_Face, name, fallback_name:
 
 find :: proc(store: ^Store, name: string) -> (Font, bool) {
 	font, ok := store.names[name]
-	return font, ok
+	if ok { return font, true }
+	return catalog_find(store, name)
 }
 
 // All fonts, glyph caches, atlas pages, and native objects belong to the window.
 destroy :: proc(store: ^Store, renderer: platform.Renderer) {
+	destroy_catalog(&store.catalog)
 	destroy_run_cache(&store.runs)
 	destroy_paragraph_cache(&store.paragraphs)
 	for &font in store.fonts {
@@ -260,7 +264,10 @@ shape :: proc(store: ^Store, handle: Font, value: string, pixel_size, weight: f3
 		store.shape_cache_hits += 1
 		return cached, .None
 	}
+	single := [1]Font{font.handle}
 	store.shaping_sources, store.shaping_size, store.shaping_weight = family.sources, px, w
+	if len(store.shaping_sources) == 0 && len(store.catalog.faces) > 0 { store.shaping_sources = single[:] }
+	primary := font.handle
 	if !utf8.valid_string(value) { return {}, .Unsupported_Text }
 	for ch in value {
 		if wrapped && (ch == '\n' || ch == '\r' || ch == '\u2028' || ch == '\u2029' || ch == '\u0085') { continue }
@@ -279,6 +286,7 @@ shape :: proc(store: ^Store, handle: Font, value: string, pixel_size, weight: f3
 			run.metrics.width += f32(run.positions[i].x_advance) / 64
 		}
 	}
+	run.font = &store.fonts[int(primary) - 1] // Lazy fallback loading can relocate font records.
 	// A common baseline and enough ascent/descent for every participating face.
 	last_source: Font
 	for source in run.sources {

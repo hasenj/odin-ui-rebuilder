@@ -13,6 +13,7 @@ Word_Bounds :: struct {start, end: int}
 // This is deliberately not a full Unicode line-breaking/hyphenation engine.
 @(private)
 shape_wrapped :: proc(store: ^Store, run: ^Shape, value: string, width: f32, direction: Direction, language: string, handle: Font) -> Error {
+	primary := run.font.handle
 	clear(&store.wrap_infos)
 	clear(&store.wrap_positions)
 	clear(&store.wrap_sources)
@@ -33,6 +34,7 @@ shape_wrapped :: proc(store: ^Store, run: ^Shape, value: string, width: f32, dir
 		} else {
 			key := Run_Key{font = handle, pixel_size = run.pixel_size, weight = run.weight, value = value[start:end], direction = direction, language = language}
 			entry, err := get_paragraph(store, run.font, key)
+			run.font = &store.fonts[int(primary) - 1]
 			if err != .None { return err }
 			defer { if entry == &store.paragraphs.scratch { delete_paragraph(entry) } }
 			if e := wrap_prepared(store, run.font, entry, start, width); e != .None { return e }

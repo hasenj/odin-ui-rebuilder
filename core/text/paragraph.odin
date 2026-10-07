@@ -24,7 +24,9 @@ prepare_paragraph :: proc(store: ^Store, font: ^Font_Record, entry: ^Paragraph_E
 	if entry.paragraph == nil { return .Shaping_Failed }
 	if native.SBParagraphGetLength(entry.paragraph) != sequence.length { return .Unsupported_Text }
 	if err := load_scripts(store, &sequence); err != .None { return err }
+	primary := font.handle
 	select_font_runs(store, value)
+	resolved := &store.fonts[int(primary) - 1]
 	entry.font_runs = make([]Font_Run, len(store.font_runs))
 	copy(entry.font_runs, store.font_runs[:])
 	entry.scripts = make([]Script_Run, len(store.script_runs))
@@ -62,7 +64,7 @@ prepare_paragraph :: proc(store: ^Store, font: ^Font_Record, entry: ^Paragraph_E
 					clear(&store.info_scratch)
 					clear(&store.position_scratch)
 					clear(&store.source_scratch)
-					if err := shape_segment(store, font, value, a, b, script.script, bidi.level & 1 != 0, entry.key.language, start, end); err != .None { return err }
+					if err := shape_segment(store, resolved, value, a, b, script.script, bidi.level & 1 != 0, entry.key.language, start, end); err != .None { return err }
 					// Prefix widths belong to logical clusters even in RTL runs.
 					for info, j in store.info_scratch {
 						entry.prefix[int(info.cluster) + 1] += i64(store.position_scratch[j].x_advance)

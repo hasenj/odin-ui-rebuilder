@@ -153,3 +153,16 @@ no longer abort rendering, measurement, wrapping or editing of the entire string
 
 There is no system-font scan yet. `demo15` explicitly registers bundled Latin and
 Arabic fonts plus macOS's Hiragino file; every field uses the same stack.
+
+`catalog.odin` scans explicit/default directories into compressed cmap ranges,
+name lookup and a Unicode-page candidate index. Discovery is explicit and
+synchronous; face loading is lazy on the store's owning thread. A catalog refresh
+clears run/paragraph/fallback caches and increments `catalog_generation` for
+editor geometry. Lazy face loading may relocate `Store.fonts`; shaping keeps
+handles across font selection and reacquires pointers afterward. Metadata and
+lookup strings are owned by the store and freed on refresh/destruction.
+
+`catalog_test.odin` exercises discovery without eager face loads, named styles,
+automatic fallback, explicit-stack precedence, cached misses, wrapping reuse,
+warm zero-allocation reuse, refresh and complete resource cleanup. Demo15 also
+exercises installed-font Japanese fallback through native-editor capture.

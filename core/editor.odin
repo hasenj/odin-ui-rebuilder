@@ -14,6 +14,7 @@ Text_Edit :: struct {
 	prepared: bool,
 	prepared_revision: u64,
 	font: Font,
+	catalog_generation: u64,
 	size, scale, scroll: f32,
 	dragging: bool,
 	previous: Mouse_Buttons,
@@ -135,10 +136,11 @@ edit_text :: proc(editor: ^Text_Edit, font: Font_Ref, size: f32 = 20, color: Col
 
 @(private) prepare_editor :: proc(editor: ^Text_Edit, font: Font, size: f32) -> Text_Error {
 	scale := current_frame().scale
-	if editor.prepared && editor.prepared_revision == editor.buffer.revision && editor.font == font && editor.size == size && editor.scale == scale { return .None }
+	if editor.catalog_generation == active_state.text.catalog_generation && editor.prepared && editor.prepared_revision == editor.buffer.revision && editor.font == font && editor.size == size && editor.scale == scale { return .None }
 	metrics, err := fonts.caret_spans(&active_state.text, font, edit.value(&editor.buffer), size, scale, 0, &editor.spans)
 	if err != .None { return err }
 	editor.metrics = metrics
+	editor.catalog_generation = active_state.text.catalog_generation
 	editor.font, editor.size, editor.scale = font, size, scale
 	editor.prepared_revision, editor.prepared = editor.buffer.revision, true
 	editor.caret_x = caret_position(editor, editor.buffer.cursor)

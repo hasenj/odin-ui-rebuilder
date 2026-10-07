@@ -18,15 +18,8 @@ update :: proc() {
 	if _, ok := ui.find_font("UI"); !ok {
 		_, err := ui.load_font("examples/assets/fonts/NotoSansDisplay-VariableFont.ttf", "UI"); assert(err == .None)
 		_, arabic_error := ui.load_font("examples/assets/fonts/Amiri-Regular.ttf", "Arabic"); assert(arabic_error == .None)
-		when ODIN_OS == .Darwin {
-			_, jp_error := ui.load_font("/System/Library/Fonts/ヒラギノ角ゴシック W3.ttc", "Japanese")
-			if jp_error != .None { fmt.eprintln("Japanese demo font unavailable:", jp_error) }
-		} else when ODIN_OS == .Linux {
-			_, jp_error := ui.load_font("/usr/share/fonts/noto-cjk/NotoSansCJK-Regular.ttc", "Japanese")
-			if jp_error != .None { fmt.eprintln("Japanese demo font unavailable (install noto-fonts-cjk):", jp_error) }
-		}
+		_, discovery_error := ui.discover_fonts(); assert(discovery_error == .None)
 		members := []ui.Font_Ref{"UI", "Arabic"}
-		if _, found := ui.find_font("Japanese"); found { members = []ui.Font_Ref{"UI", "Arabic", "Japanese"} }
 		_, stack_error := ui.font_stack("Editor", members); assert(stack_error == .None)
 	}
 	ui.paint(color = {0.055, 0.075, 0.11, 1})

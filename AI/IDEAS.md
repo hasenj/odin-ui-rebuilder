@@ -9,22 +9,11 @@ to that roadmap; they do not prescribe an execution order.
 
 ## System fonts and automatic fallback (23)
 
-Discover configurable platform font directories and index minimal face/style
-metadata and Unicode cmap coverage. Script labels alone are insufficient.
-Avoid eagerly loading or rasterizing every face. Use the index to narrow
-candidates on a cache miss, then load suitable faces lazily and validate shaping
-for complete clusters/script spans.
-
-Keep explicit font stacks as the first preference, with system fallback available
-even when application code provides no fallback list. Retain positive and negative
-fallback decisions and resolved glyph runs. Give catalog changes a generation so
-old misses can be retried; unchanged frames must never scan installed fonts.
-Color emoji and variation-sequence preferences need separate treatment rather
-than assuming cmap coverage establishes correct rendering.
-
-**Acceptance:** an app naming its preferred font displays and edits mixed-script
-text with suitable installed fallbacks, consistent measurements and bounded
-warm-frame work, without configuring every fallback face itself.
+The baseline catalog/fallback API is documented in [core/TEXT.md](../core/TEXT.md#system-font-catalog).
+Future extensions: background catalog refresh and directory watching, locale/style-aware
+candidate ranking, validation of shaped cluster output beyond cmap coverage, and
+color emoji/variation-sequence selection. Keep positive/negative decisions cached
+and preserve complete graphemes and joining context when trying another face.
 
 ## Redraw scheduling (25)
 

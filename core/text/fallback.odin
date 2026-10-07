@@ -40,14 +40,19 @@ source_weight :: proc(font: ^Font_Record, weight: c.long) -> c.long {
 }
 
 @(private)
+coverage_ignorable :: proc(ch: rune) -> bool {
+	return ch == '\u00ad' || ch == '\u034f' || ch == '\u061c' || ch == '\ufeff' ||
+		(ch >= '\u200b' && ch <= '\u200f') || (ch >= '\u202a' && ch <= '\u202e') ||
+		(ch >= '\u2060' && ch <= '\u206f') || (ch >= '\ufe00' && ch <= '\ufe0f') ||
+		(ch >= '\U000e0100' && ch <= '\U000e01ef')
+}
+
+@(private)
 font_covers :: proc(store: ^Store, font: ^Font_Record, value: string) -> bool {
 	for ch in value {
 		// These influence shaping/bidi, not visible character coverage. Keep
 		// variation selectors and joiners with their surrounding grapheme.
-		if ch == '\u00ad' || ch == '\u034f' || ch == '\u061c' || ch == '\ufeff' ||
-		   (ch >= '\u200b' && ch <= '\u200f') || (ch >= '\u202a' && ch <= '\u202e') ||
-		   (ch >= '\u2060' && ch <= '\u206f') || (ch >= '\ufe00' && ch <= '\ufe0f') ||
-		   (ch >= '\U000e0100' && ch <= '\U000e01ef') { continue }
+		if coverage_ignorable(ch) { continue }
 		covered, known := font.coverage[ch]
 		if !known {
 			store.coverage_queries += 1
@@ -64,7 +69,7 @@ choose_font :: proc(store: ^Store, value: string) -> Font {
 	for source in store.shaping_sources {
 		if font_covers(store, &store.fonts[int(source) - 1], value) { return source }
 	}
-	return 0
+	return catalog_choose(store, value)
 }
 
 @(private)

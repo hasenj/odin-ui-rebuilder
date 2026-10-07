@@ -227,3 +227,35 @@ Amiri font and check base-direction overrides, mixed-script run order, numbers,
 mirrored parentheses, isolates, joining controls, input validation, and warm
 cache reuse without new bidi/shaping/geometry work or Odin allocations.
 The pinned SheenBidi upstream test suite also passed separately on macOS.
+
+## System font catalog
+
+Call `ui.discover_fonts()` once during initialization to scan the conventional
+macOS/Linux font directories. Pass `[]string{...}` to use an explicit set instead.
+This is a synchronous startup operation, **never implicit in drawing**. Call it
+again explicitly after installing fonts; directory watching and background scans
+are not part of this version. Missing directories and unsupported files are skipped.
+
+Discovery reads family/style, collection face indices and Unicode cmap ranges,
+then closes each discovery face. It neither rasterizes glyphs nor creates a
+HarfBuzz font for every installed face. Only requested faces are opened for use.
+`find_font("Family")`, `find_font("Family Style")`, and ordinary string font
+references resolve catalog names case-insensitively; application aliases take
+precedence. Prefer a returned `Font` handle when keeping a chosen face.
+`font_catalog_count()`, `font_catalog_info(index)` and `load_catalog_font(index)`
+allow a font picker to enumerate metadata and resolve an exact style.
+
+Once discovered, the catalog automatically supplies fallback after the explicit
+font/stack. Selection tries a complete script run, then complete graphemes,
+preserving joining/bidi context. Unicode-page candidate lists and exact cmap
+ranges avoid scanning every font. Positive and negative choices are cached;
+shape/paragraph/geometry caches make unchanged frames allocation-free. Refresh
+invalidates fallback results, shaped paragraphs and editor caret measurements;
+existing font handles remain valid. Loaded faces remain alive until window teardown.
+
+Default preference is deterministic, with upright regular styles first. It is
+not yet locale-aware or typographically style-matched. The catalog includes
+scalable outline TTF/OTF and collection faces; bitmap/color emoji is excluded
+until the renderer has a corresponding path. Cmap coverage is a candidate
+filter, not a guarantee of support for every variation sequence or complex
+OpenType feature. Missing characters continue to use local tofu.
