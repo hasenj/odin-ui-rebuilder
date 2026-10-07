@@ -9,6 +9,7 @@ import "core:time"
 
 @(private) design_step: int
 @(private) design_root: string
+@(private) design_focus: ui.Identity
 
 // Deterministic design evidence and live refresh checks, using temporary files.
 capture_design :: proc() {
@@ -82,6 +83,17 @@ design_update :: proc() {
 		}
 	}
 	update()
+	if design_step == 1 {
+		for row in list.rows {
+			if browser.entries[row.index].info.name == "Notes.txt" { design_focus = row.id; ui.request_focus(row.id) }
+		}
+		assert(design_focus != (ui.Identity{}))
+	}
+	if design_step >= 2 {
+		assert(ui.direct_focus() == design_focus)
+		index := ui.virtual_list_focused_index(&list.view)
+		assert(index >= 0 && browser.entries[index].info.name == "Notes.txt")
+	}
 	if design_step <= 1 {
 		for name in ([]string{"coast", "oranges"}) {
 			path := fmt.aprintf("%s/%s.png", design_root, name)

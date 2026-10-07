@@ -8,7 +8,8 @@ Entry :: files.Entry
 Browser :: struct {
 	path, pending, error: string,
 	entries: [dynamic]Entry,
-	generation: u64,
+	generation, directory_generation, next_key: u64,
+	entry_keys: [dynamic]u64,
 	folders, reads: int,
 	initialized: bool,
 	state: files.State,
@@ -67,10 +68,24 @@ poll_browser :: proc(browser: ^Browser) -> bool {
 
 apply_snapshot :: proc(browser: ^Browser, result: files.Result) {
 	browser.refresh = browser.path == result.path
+	// Match unchanged names before retiring the old worker-owned snapshot.
+	previous: map[string]u64
+	if browser.refresh {
+		for entry, i in browser.entries { previous[entry.info.name] = browser.entry_keys[i] }
+	} else { browser.directory_generation += 1 }
+	keys := make([dynamic]u64, len(result.entries))
+	for entry, i in result.entries {
+		key, found := previous[entry.info.name]
+		if !found { browser.next_key += 1; key = browser.next_key }
+		keys[i] = key
+	}
+	delete(previous)
+	delete(browser.entry_keys)
+	browser.entry_keys = keys
 	files.retire(browser.service, files.Result{path = browser.path, entries = browser.entries})
 	delete(browser.error)
 	browser.path, browser.entries, browser.folders, browser.error = result.path, result.entries, result.folders, ""
-	browser.generation += 1 // Prevent pressed/focused indices activating a different file.
+	browser.generation += 1 // Rebuild the virtual key index and reset typeahead.
 }
 
 queue_directory :: proc(browser: ^Browser, path: string) {
@@ -79,6 +94,7 @@ queue_directory :: proc(browser: ^Browser, path: string) {
 }
 
 destroy_browser :: proc(browser: ^Browser) {
+	delete(browser.entry_keys)
 	files.destroy(browser.service)
 	files.destroy_result(files.Result{path = browser.path, entries = browser.entries})
 	delete(browser.pending)

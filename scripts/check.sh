@@ -11,7 +11,7 @@ for package in core core/edit core/text core/images core/files platform apps/fil
 done
 odin build tools/capture -out:bin/capture -o:speed -vet -strict-style \
     "-extra-linker-flags:$link_paths"
-for target in demo0 demo1 demo2 demo3 demo4 demo5 demo6 demo7 demo8 demo9 demo10 demo11 demo12 demo13 demo14 demo15 demo16 file-manager; do
+for target in demo0 demo1 demo2 demo3 demo4 demo5 demo6 demo7 demo8 demo9 demo10 demo11 demo12 demo13 demo14 demo15 demo16 demo17 file-manager; do
     ./scripts/build.sh "$target"
 done
 
@@ -23,6 +23,7 @@ done
 ./bin/demo15 --capture
 ./bin/demo16 --capture
 ./bin/demo16 --capture-light
+./bin/demo17 --capture
 ./bin/file-manager --capture
 
 if [ "$(uname -s)" = Darwin ]; then

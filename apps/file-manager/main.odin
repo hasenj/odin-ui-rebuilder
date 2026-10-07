@@ -55,7 +55,8 @@ update :: proc() {
 		delete(pending)
 	}
 	changed := poll_browser(&browser)
-	if changed { ui.clear_focus(); pressed_id = {} }
+	if changed { if !browser.refresh { ui.clear_focus() }; pressed_id = {} }
+	prepare_list_items()
 	if font == 0 {
 		err: ui.Text_Error
 		font, err = ui.load_font("examples/assets/fonts/NotoSansDisplay-VariableFont.ttf")
@@ -94,32 +95,17 @@ update :: proc() {
 	columns("Kind", "Size", true)
 	label("Name", 12, muted)
 	ui.close_rect()
-	// A new directory gets a fresh subtree, so old hover, focus and scrolling
-	// cannot transfer to an unrelated row with the same array index.
-	ui.open_identity(key = browser.generation)
-	ui.open_scroll({ui.current_rect().size.x, f32(len(browser.entries)) * row_height})
-	if changed && browser.refresh { ui.scroll_to({0, last_scroll}) }
-	viewport := ui.current_bounds()
-	if list.search.match >= 0 {
-		offset := ui.current_scroll().offset.y
-		top := f32(list.search.match) * row_height
-		if top < offset { offset = top }
-		if top + row_height > offset + viewport.size.y { offset = top + row_height - viewport.size.y }
-		ui.scroll_to({0, offset})
-	}
+	// Navigation gets a new scope; watching the same directory preserves item keys.
+	ui.open_identity(key = browser.directory_generation)
+	ui.open_virtual_list(&list.view, row_height, reveal = list.search.match)
 	last_scroll = ui.current_scroll().offset.y
-	canvas := ui.current_rect()
-	prepare_list(len(browser.entries), browser.generation, last_scroll, viewport.size.y)
 	if len(browser.entries) == 0 {
 		ui.pad(12)
 		label("Reading folder..." if browser.state == .Reading else "This folder is empty." if browser.error == "" else "Folder unavailable.", 13, muted)
 	}
-	for i in list.indices {
+	for i in ui.virtual_list_rows(&list.view) {
 		entry := browser.entries[i]
-		ui.open_rect_at({position = canvas.position + [2]f32{0, f32(i) * row_height},
-			size = {canvas.size.x, row_height}}, key = i)
-		append(&list.rows, Row_Identity{i, ui.current_identity()})
-		ui.focusable()
+		visible := ui.open_virtual_row(&list.view, i)
 		if i == list.search.match { ui.request_focus() }
 		publish_typeahead()
 		if activated(entry.directory) {
@@ -130,7 +116,7 @@ update :: proc() {
 			delete(path)
 		}
 		// Offscreen keyboard targets retain geometry without painting.
-		if i >= list.first && i < list.end {
+		if visible {
 			selected := i == list.search.match if list.search.match >= 0 else ui.focused()
 			active := selected || (entry.directory && ui.hovered())
 			amount := ui.animate_f32(1 if active else 0)
@@ -148,7 +134,7 @@ update :: proc() {
 		ui.close_rect()
 	}
 	view_scroll := ui.current_scroll()
-	ui.close_scroll()
+	ui.close_virtual_list(&list.view)
 	paint_scrollbar(view_scroll)
 	ui.close_identity()
 	ui.close_clip()

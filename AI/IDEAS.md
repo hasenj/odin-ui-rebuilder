@@ -38,23 +38,13 @@ resizing, scrolling, animations and explicit invalidation remain responsive.
 
 ## Reusable virtual lists (24)
 
-Extract the fixed-height list mechanism into a shared API. Keep work proportional
-to the visible range, with bounded extra work for keyboard navigation and reveal.
-Use stable application item keys across insertion and reordering.
-
-Define what happens to focus, active editing and retained component state when a
-row leaves the declared range. Options include retaining selected interaction
-participants or keeping durable state in application data; do not silently promise
-that omitted identity nodes persist. Accessibility must be able to represent and
-reveal offscreen items without building every row each frame.
-
-Variable-height lists can follow with cached measurements, estimated extents and
-scroll anchoring. Preserve the visible item and its relative offset when earlier
-rows change height or are inserted, rather than letting the viewport jump.
-
-**Acceptance:** a second app uses the shared API without duplicating range or
-navigation logic. Tests cover focus and durable state through scrolling,
-insertion and reordering before extending to variable heights.
+The shared fixed-height API and state policy are documented in
+[core/VIRTUAL_LIST.md](../core/VIRTUAL_LIST.md). Future extensions: variable-height
+rows with cached measurements/estimated extents, and anchoring to the visible
+item when earlier rows change size or are inserted. Accessibility should
+represent and reveal offscreen items without declaring every row each frame.
+Consider explicit pinning for active interaction beyond keyboard focus (e.g.
+dragging), without retaining the entire UI tree.
 
 ## Editing extensions (38)
 

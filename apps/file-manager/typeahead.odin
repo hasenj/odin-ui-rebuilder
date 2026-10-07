@@ -23,10 +23,7 @@ clear_typeahead :: proc() {
 }
 
 focused_row :: proc() -> int {
-	if list.generation == browser.generation {
-		for row in list.rows { if row.id == ui.direct_focus() { return row.index } }
-	}
-	return -1
+	return ui.virtual_list_focused_index(&list.view)
 }
 
 // Native text operations honor the active keyboard layout, dead keys and IME.

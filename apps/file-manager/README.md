@@ -21,8 +21,9 @@ Done and keeps the last successful listing while a new one loads. Failed
 navigation leaves it visible with an error. Directory metadata is watched on
 the worker roughly every 250 ms; additions/removals trigger a new snapshot.
 Navigation resets scrolling; a refresh preserves and clamps the current offset.
-Focus is cleared on snapshot replacement to avoid activating a different file
-at a reused row index.
+Unchanged filenames retain stable item keys and focus during watched refreshes;
+navigation resets the scope, and deleting the focused entry clears its focus.
+A snapshot change rebuilds the key index once; warm frames do no full-list scan.
 
 PNG/JPEG rows load thumbnails by path with `ui.image_file(..., max_extent = 128)`.
 Reading, decoding, thumbnail reduction and change checks all run off-thread;
@@ -31,7 +32,7 @@ keeping the last successful texture visible. Loading rows show `...`; failed
 initial loads show `!`. See [the image API](../../core/IMAGES.md) for cache lifetime
 and [the worker service](../../core/files/README.md) for polling limitations.
 
-The virtual list builds only visible rows plus at most five offscreen keyboard
+The shared [virtual-list API](../../core/VIRTUAL_LIST.md) builds only visible rows plus at most five offscreen keyboard
 focus targets (current entry, neighbors, first/last entry). Tab/Shift-Tab
 traverse entries in order and reveal the destination, even after manual
 scrolling. Per-frame row work depends on viewport height, not entry count.
@@ -70,7 +71,7 @@ search work. Results are scrolled into view before building the visible rows,
 keeping the same virtualization bounds. Native type-to-select currently needs
 the macOS text-input adapter; the Wayland adapter remains separate work.
 
-The sample uses the bundled Latin font. Unsupported glyphs display as tofu;
+The sample uses the bundled Latin font with a system font catalog scanned once
+at startup for automatic fallback. Unsupported glyphs display as tofu;
 invalid/control-containing names fall back to byte escapes. Navigation/matching
-always uses the original name. Long names and paths are clipped. System-font
-fallback, full-size previews, file operations and content search remain future work.
+always uses the original name. Long names and paths are clipped. Full-size previews, file operations and content search remain future work.

@@ -18,7 +18,7 @@ DONE means the stated scope is implemented, subject to the verification notes be
 
 ## Proposed next order
 
-24 (reusable virtual lists) → 25 (redraw scheduling) → 31 (accessibility) →
+25 (redraw scheduling) → 31 (accessibility) →
 38 (editing extensions).
 
 Other work can move forward when an application needs it.
@@ -51,7 +51,7 @@ Other work can move forward when an application needs it.
 | 21 | DONE | Single-line editing | Graphemes, bidi caret/selection, IME and undo/redo. |
 | 22 | DONE | [Local content-sized layout](../core/LAYOUT.md) | Bounded rows/columns and cross-axis stretch; no main-axis flex growth. |
 | 23 | DONE | [System fonts and fallback](../core/TEXT.md#system-font-catalog) | Directory/cmap catalog, lazy named faces and cached automatic fallback; explicit startup scan. |
-| 24 | PARTIAL | [Virtual lists](IDEAS.md#reusable-virtual-lists-24) | File-manager virtualization done; reusable API and item-state policy remain. |
+| 24 | DONE | [Virtual lists](../core/VIRTUAL_LIST.md) | Shared fixed-height keyed lists, bounded focus targets, reveal and explicit offscreen state policy. |
 | 25 | LATER | [Redraw scheduling](IDEAS.md#redraw-scheduling-25) | Idle without regular frames; wake for changes and timed work. |
 | 26 | LATER | [Host rendering and external GPU images](IDEAS.md#external-gpu-content-and-engine-integration-26) | External textures, UI textures and direct host-target HUD rendering. |
 | 27 | LATER | [Video](IDEAS.md#video-as-an-external-image-producer-27) | Playback as a GPU image producer; depends on 26. |
