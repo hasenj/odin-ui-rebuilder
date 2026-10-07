@@ -73,6 +73,7 @@ foreign freetype {
 	FT_New_Memory_Face :: proc(library: FT_Library, data: [^]u8, size, index: c.long, face: ^^FT_Face) -> c.int ---
 	FT_Done_Face :: proc(face: ^FT_Face) -> c.int ---
 	FT_Select_Charmap :: proc(face: ^FT_Face, encoding: c.uint) -> c.int ---
+	FT_Get_CMap_Format :: proc(charmap: rawptr) -> c.long ---
 	FT_Get_First_Char :: proc(face: ^FT_Face, glyph: ^c.uint) -> c.ulong ---
 	FT_Get_Next_Char :: proc(face: ^FT_Face, codepoint: c.ulong, glyph: ^c.uint) -> c.ulong ---
 	FT_Get_Char_Index :: proc(face: ^FT_Face, codepoint: c.ulong) -> c.uint ---

@@ -125,7 +125,8 @@ catalog_scan_file :: proc(library: native.FT_Library, catalog: ^Font_Catalog, pa
 		count = int(face.num_faces)
 		// Our atlas accepts scalable monochrome outlines. Color/bitmap emoji
 		// need a separate rendering path, so do not falsely advertise support.
-		if face.units_per_em > 0 && face.face_flags & (1 << 14) == 0 && native.FT_Select_Charmap(face, 0x756e6963) == 0 && face.family_name != nil {
+		// Format 13 last-resort cmaps map whole ranges to placeholder symbols.
+		if face.units_per_em > 0 && face.face_flags & (1 << 14) == 0 && native.FT_Select_Charmap(face, 0x756e6963) == 0 && face.family_name != nil && native.FT_Get_CMap_Format(face.charmap) != 13 {
 			record := Catalog_Face{info = {strings.clone(string(face.family_name)), strings.clone(string(face.style_name)), strings.clone(path), index}}
 			style := strings.to_lower(record.info.style)
 			record.rank = int(face.style_flags & 3) * 10
@@ -202,8 +203,12 @@ catalog_choose :: proc(store: ^Store, value: string) -> Font {
 	}
 	catalog.queries += 1
 	candidates: []int
+	have_page := false
 	for ch in value {
-		if !coverage_ignorable(ch) { candidates = catalog.pages[u32(ch) >> 8][:]; break }
+		if coverage_ignorable(ch) { continue }
+		page := catalog.pages[u32(ch) >> 8][:]
+		if !have_page || len(page) < len(candidates) { candidates = page; have_page = true }
+		if len(candidates) == 0 { break }
 	}
 	choice := 0
 	for index in candidates {

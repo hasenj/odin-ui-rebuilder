@@ -256,6 +256,7 @@ existing font handles remain valid. Loaded faces remain alive until window teard
 Default preference is deterministic, with upright regular styles first. It is
 not yet locale-aware or typographically style-matched. The catalog includes
 scalable outline TTF/OTF and collection faces; bitmap/color emoji is excluded
-until the renderer has a corresponding path. Cmap coverage is a candidate
+until the renderer has a corresponding path. Last-resort placeholder cmaps are
+also excluded. Cmap coverage is a candidate
 filter, not a guarantee of support for every variation sequence or complex
 OpenType feature. Missing characters continue to use local tofu.

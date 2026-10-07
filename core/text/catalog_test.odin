@@ -57,6 +57,23 @@ system_catalog_pipeline :: proc(t: ^testing.T) {
 	testing.expect_value(t, store.catalog_generation, generation + 1)
 	refreshed, re := shape(&store, latin, value, 24, 0); assert(re == .None)
 	for info in refreshed.infos { testing.expect(t, info.codepoint != 0) }
+	// Force relocation during lazy loading, for both the direct and wrapped
+	// paths. Font-record pointers must be reacquired after selecting fallback.
+	for width in ([]f32{-1, 180}) {
+		fresh: Store
+		base, be := load(&fresh, path, "Primary"); assert(be == .None)
+		_, be = discover_fonts(&fresh, []string{root}); assert(be == .None)
+		for len(fresh.fonts) < cap(fresh.fonts) {
+			_, be = font_stack(&fresh, []Font{base}, ""); assert(be == .None)
+		}
+		old_capacity := cap(fresh.fonts)
+		mixed, me := shape(&fresh, base, value, 24, 0, wrap_width = width); assert(me == .None)
+		testing.expect(t, cap(fresh.fonts) > old_capacity)
+		testing.expect(t, mixed.font == &fresh.fonts[int(base)-1])
+		for glyph in mixed.infos { testing.expect(t, glyph.codepoint != 0) }
+		_, me = prepare_quads(&fresh, mixed); assert(me == .None)
+		destroy(&fresh, nil)
+	}
 	destroy(&store, nil)
 	testing.expect_value(t, len(tracking.allocation_map), 0)
 }
