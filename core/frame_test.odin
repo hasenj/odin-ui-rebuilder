@@ -59,7 +59,7 @@ rect_frame_pipeline :: proc(t: ^testing.T) {
 	virtual_list_pipeline(t)
 	scroll_focus_pipeline(t)
 	nested_focus_pipeline(t)
-	when ODIN_OS == .Darwin || ODIN_OS == .Linux { capture_pipeline(t); local_layout_text_pipeline(t); image_file_pipeline(t); editor_frame_pipeline(t) }
+	when ODIN_OS == .Darwin || ODIN_OS == .Linux { capture_pipeline(t); local_layout_text_pipeline(t); image_file_pipeline(t); editor_frame_pipeline(t); bound_editor_pipeline(t) }
 }
 
 // Frame input -> nested/padded rect queries -> paint, including shared edges,

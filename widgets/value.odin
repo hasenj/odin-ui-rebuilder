@@ -69,7 +69,7 @@ number_input :: proc(value: ^f64, low: f64 = -1e12, high: f64 = 1e12, step: f64 
 	parsed, valid := strconv.parse_f64(ui.text_edit_value(&s.editor))
 	valid = valid && parsed >= low && parsed <= high
 	ui.open_rect_at(center)
-	result := field_editor(&s.editor, "", enabled, .Center)
+	result := field_editor_state(&s.editor, "", enabled, .Center)
 	ui.close_rect()
 	fill(bounds, colors.error if !valid else colors.focus if enabled && ui.focused() else colors.control_border, theme.radius, 1)
 	if result.changed { parsed, valid = strconv.parse_f64(ui.text_edit_value(&s.editor)); if valid && parsed >= low && parsed <= high { value^ = parsed } }

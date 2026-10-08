@@ -32,7 +32,7 @@ editor_frame_pipeline :: proc(t: ^testing.T) {
 	}
 	editor := state(Text_Edit, proc(e: ^Text_Edit) { init_text_edit(e, "abc سلام 123") }, destroy_text_edit)
 	request_focus()
-	result := edit_text(editor, "EditorTest", 24)
+	result := edit_text_state(editor, "EditorTest", 24)
 	assert(result.error == .None)
 	if editor_test_stage == 2 {
 		// Follow visual arrow positions across mixed-direction runs, and then

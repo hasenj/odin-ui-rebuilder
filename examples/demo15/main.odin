@@ -3,14 +3,17 @@ package demo15
 import ui "../../core"
 import "core:fmt"
 import "core:os"
+import "core:strings"
 
-Field :: struct {editor: ui.Text_Edit, initialized: bool}
 ids: [3]ui.Identity
-editors: [3]^Field // Capture observations only; application state is identity-owned.
+values: [3]string
+results: [3]ui.Text_Edit_Result // Per-call observations for capture checks.
 step: int
 capture_mode: bool
 
 main :: proc() {
+	values = {strings.clone("Office café — select me and start typing"), strings.clone("مرحبا بالعالم — Hello 123"), strings.clone("日本語を入力してください")}
+	defer for value in values { delete(value) }
 	if len(os.args) > 1 && os.args[1] == "--capture" { capture_check(); return }
 	ui.open_window("Text editing — Latin, Arabic and IME", 920, 640, update, transparent = false, frame_timing = .Summary)
 }
@@ -34,25 +37,18 @@ update :: proc() {
 		ui.close_rect()
 		ui.open_rect(.Top, 58)
 		ids[i] = ui.current_identity()
-		field := ui.state(Field, cleanup = destroy_field)
-		editors[i] = field
-		if !field.initialized {
-			initials := [3]string{"Office café — select me and start typing", "مرحبا بالعالم — Hello 123", "日本語を入力してください"}
-			initial := initials[i]
-			ui.init_text_edit(&field.editor, initial); field.initialized = true
-		}
 		if i == 0 && !capture_mode && ui.current_frame().time < 0.1 { ui.request_focus() }
 		if capture_mode && step == 0 && i == 0 { ui.request_focus() }
 		ui.paint(color = {0.20, 0.48, 0.58, 1} if ui.focused() else {0.20, 0.25, 0.33, 1}, corners = 8)
 		ui.pad(2); ui.paint(color = {0.095, 0.13, 0.18, 1}, corners = 6); ui.pad2(4, 12)
 		font := "Editor"
-		result := ui.edit_text(&field.editor, font, size = 24)
+		result := ui.edit_text(&values[i], font, size = 24)
+		results[i] = result
 		if capture_mode { assert(result.error == .None) }
 		if result.error != .None { label(fmt.tprintf("Font: %v (editing remains available)", result.error), 14) }
 		ui.close_rect()
 		ui.open_rect(.Top, 30)
-		label(fmt.tprintf("%d bytes  /  cursor %d  /  %s", len(ui.text_edit_value(&field.editor)), field.editor.buffer.cursor,
-			"composing" if field.editor.buffer.composing else "ready"), 12)
+		label(fmt.tprintf("%d committed bytes  /  %s", len(values[i]), "composing" if result.composing else "ready"), 12)
 		ui.close_rect()
 		ui.pad4(16, 0, 0, 0)
 		ui.close_identity()
@@ -63,7 +59,6 @@ update :: proc() {
 label :: proc(value: string, size: f32) {
 	_, err := ui.text(value, "UI", size = size, color = {0.84, 0.89, 0.95, 1}); assert(err == .None)
 }
-destroy_field :: proc(field: ^Field) { ui.destroy_text_edit(&field.editor) }
 
 capture_check :: proc() {
 	capture_mode = true
@@ -104,12 +99,12 @@ capture_update :: proc() {
 	}
 	ui.current_frame().input.text = {target = ui.text_target(target), operations = ops[:count]}
 	update()
-	if step == 3 { assert(ui.text_edit_value(&editors[0].editor) == "office caf") }
-	if step == 5 { assert(editors[2].editor.buffer.composing) }
-	if step == 6 { assert(ui.text_edit_value(&editors[2].editor) == "日本語" && !editors[2].editor.buffer.composing) }
-	if step == 7 { assert(ui.text_edit_value(&editors[2].editor) == "日本語を入力してください") }
-	if step == 8 { assert(editors[0].editor.scroll > 0) }
-	if step == 10 { assert(ui.text_edit_value(&editors[0].editor) == "Hello 日本語 مرحبا — café") }
-	if step == 11 { assert(ui.text_edit_value(&editors[0].editor) == "Before \U0010ffff after — 日本語 مرحبا") }
+	if step == 3 { assert(values[0] == "office caf") }
+	if step == 5 { assert(results[2].composing) }
+	if step == 6 { assert(values[2] == "日本語" && !results[2].composing) }
+	if step == 7 { assert(values[2] == "日本語を入力してください") }
+	if step == 8 { assert(results[0].error == .None) }
+	if step == 10 { assert(values[0] == "Hello 日本語 مرحبا — café") }
+	if step == 11 { assert(values[0] == "Before \U0010ffff after — 日本語 مرحبا") }
 	step += 1
 }

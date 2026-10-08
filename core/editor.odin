@@ -5,8 +5,8 @@ import "input"
 import fonts "text"
 import "core:math"
 
-// Application-owned editing data, or an identity-owned state record. The
-// builder handles one resolved, single-line rect; callers paint its chrome.
+// Low-level editing engine storage. Ordinary fields use edit_text(^string /
+// ^[dynamic]u8), which retains this internally under the field identity.
 Text_Edit :: struct {
 	buffer: edit.Buffer,
 	spans: [dynamic]fonts.Caret_Span,
@@ -22,18 +22,18 @@ Text_Edit :: struct {
 	caret_byte: int,
 	caret_time: f64,
 }
-Text_Edit_Result :: struct {changed, submitted: bool, error: Text_Error}
+Text_Edit_Result :: struct {changed, submitted: bool, error: Text_Error, composing, empty: bool}
 init_text_edit :: proc(editor: ^Text_Edit, value: string = "") { edit.init(&editor.buffer, value) }
 destroy_text_edit :: proc(editor: ^Text_Edit) { edit.destroy(&editor.buffer); delete(editor.spans); editor^ = {} }
 text_edit_value :: proc(editor: ^Text_Edit) -> string { return edit.value(&editor.buffer) }
 
 // Draw/operate within the current rect. Input is still available to all code;
 // text operations are associated with the identity that owned native input.
-edit_text :: proc(editor: ^Text_Edit, font: Font_Ref, size: f32 = 20, color: Color = {0.93, 0.95, 0.98, 1}, selection_color: Color = {0.18, 0.39, 0.68, 0.8}, align: Text_Align = .Start) -> Text_Edit_Result {
+edit_text_state :: proc(editor: ^Text_Edit, font: Font_Ref, size: f32 = 20, color: Color = {0.93, 0.95, 0.98, 1}, selection_color: Color = {0.18, 0.39, 0.68, 0.8}, align: Text_Align = .Start, enabled: bool = true, accept_input: bool = true) -> Text_Edit_Result {
 	assert(!active_state.layout.active, "Text editing requires resolved geometry")
 	frame := current_frame()
 	id := current_identity()
-	focusable()
+	focusable(enabled)
 	b := &editor.buffer
 	revision := b.revision
 	before_cursor, before_anchor := b.cursor, b.anchor
@@ -48,6 +48,7 @@ edit_text :: proc(editor: ^Text_Edit, font: Font_Ref, size: f32 = 20, color: Col
 	// Apply text already delivered to this field even if a click in this frame
 	// moves focus elsewhere. Never deliver it to the newly focused field.
 	for operation in snapshot.text.operations {
+		if !enabled || !accept_input { break }
 		target := operation.target if operation.target != 0 else snapshot.text.target
 		if target != text_target(id) { continue }
 		if operation.kind == .Command {
@@ -73,16 +74,17 @@ edit_text :: proc(editor: ^Text_Edit, font: Font_Ref, size: f32 = 20, color: Col
 	}
 	if err := prepare_editor(editor, handle, size); err != .None {
 		result.error = err
-		request_text_input(edit.value(b), edit.selection(b), Rect{r.position, {1.5, size}}, b.marked if b.composing else input.NO_TEXT_RANGE)
+		if enabled { request_text_input(edit.value(b), edit.selection(b), Rect{r.position, {1.5, size}}, b.marked if b.composing else input.NO_TEXT_RANGE) }
+		result.composing, result.empty = b.composing, len(b.bytes) == 0
 		result.changed = b.revision != revision
 		return result
 	}
-	if snapshot.mouse_cancelled || direct_focus() != id { editor.dragging = false }
+	if !enabled || snapshot.mouse_cancelled || direct_focus() != id { editor.dragging = false }
 	// Short lines can align within the field; overflowing lines retain the
 	// usual horizontal scrolling. Share this offset with hit testing and IME.
 	spare := max(0, r.size.x - editor.metrics.width - 2)
 	alignment_x := spare/2 if align == .Center else spare if align == .End else 0
-	if hovered() && .Left in pressed && !snapshot.mouse_cancelled {
+	if enabled && accept_input && hovered() && .Left in pressed && !snapshot.mouse_cancelled {
 		edit.finish_composition(b)
 		index, x := hit_caret(editor, snapshot.mouse_position.x - r.position.x - alignment_x + editor.scroll)
 		b.cursor = index
@@ -98,7 +100,7 @@ edit_text :: proc(editor: ^Text_Edit, font: Font_Ref, size: f32 = 20, color: Col
 	if direct_focus() != id { edit.finish_composition(b) }
 	if b.cursor != editor.caret_byte || b.revision != revision { editor.caret_x = caret_position(editor, b.cursor); editor.caret_byte = b.cursor }
 	if before_cursor != b.cursor || before_anchor != b.anchor || b.revision != revision || .Left in pressed { editor.caret_time = frame.time }
-	if direct_focus() == id {
+	if enabled && direct_focus() == id {
 		if editor.caret_x < editor.scroll { editor.scroll = editor.caret_x }
 		if editor.caret_x > editor.scroll + max(0, r.size.x - 2) { editor.scroll = editor.caret_x - max(0, r.size.x - 2) }
 	}
@@ -107,7 +109,7 @@ edit_text :: proc(editor: ^Text_Edit, font: Font_Ref, size: f32 = 20, color: Col
 	open_clip(r)
 	selection := edit.selection(b)
 	for span in editor.spans {
-		if span.end > selection.start && span.start < selection.end {
+		if enabled && span.end > selection.start && span.start < selection.end {
 			append(&frame.surfaces, Surface{position = origin + [2]f32{min(span.leading, span.trailing), 0},
 				size = {abs(span.trailing - span.leading), editor.metrics.height}, background = selection_color})
 		}
@@ -122,7 +124,7 @@ edit_text :: proc(editor: ^Text_Edit, font: Font_Ref, size: f32 = 20, color: Col
 		}
 	}
 	caret := Rect{origin + [2]f32{editor.caret_x, 0}, {1.5, editor.metrics.height}}
-	if direct_focus() == id {
+	if enabled && direct_focus() == id {
 		if b.composing || math.mod(frame.time - editor.caret_time, 1.0) < 0.6 {
 			append(&frame.surfaces, Surface{position = caret.position, size = caret.size, background = color})
 		}
@@ -130,6 +132,7 @@ edit_text :: proc(editor: ^Text_Edit, font: Font_Ref, size: f32 = 20, color: Col
 		request_text_input(edit.value(b), selection, caret, b.marked if b.composing else input.NO_TEXT_RANGE)
 	}
 	close_clip()
+	result.composing, result.empty = b.composing, len(b.bytes) == 0
 	result.changed = b.revision != revision
 	return result
 }

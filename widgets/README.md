@@ -121,13 +121,16 @@ platform widgets.
 - `radio(label, selected)` returns activation; `radio_group(items, ^index)` adds
   one Tab stop and arrow navigation to a static vertical group.
 - `toggle(label, ^bool)` animates its thumb and track.
-- `text_field(^ui.Text_Edit, placeholder, enabled, invalid)` returns core's edit
-  result (changed/submitted/error). Initialize/destroy the caller-owned editor
-  with `ui.init_text_edit` / `ui.destroy_text_edit`. This preserves core's IME,
-  selection, clipboard and configured font fallback. It is single-line.
-- `search_field(^ui.Text_Edit, placeholder)` places a search icon and clear button
-  inside a shared field border. Clearing returns focus to the editor; filtering is
-  application policy. Do not share one editor between independently editable fields.
+- `text_field(&value, placeholder, enabled, invalid)` binds an owned `string` or
+  `[dynamic]byte` directly. No editor object or initialization is required.
+  The result is optional; it reports committed changes, submission, errors and
+  composition/display-empty flags. Selection, undo and IME state follow identity.
+- `search_field(&value, placeholder)` uses the same binding with an integrated
+  search icon and clear button. Clearing also cancels preedit and restores focus.
+- Both accept `allocator = ...`, defaulting to `context.allocator`. Strings must
+  own storage from that allocator; byte arrays use their own allocator (a zero
+  array adopts the supplied allocator on its first edit). The application owns
+  and eventually frees the value. See [ownership and synchronization](../core/TEXT_EDITING.md#ownership-and-external-updates).
 - `number_input(^f64, low, high, step)` supports editing, plus/minus and Up/Down.
   The centered editor and inset-focus buttons share one border with dividers.
   Valid changes update the model; invalid drafts are marked and reverted on

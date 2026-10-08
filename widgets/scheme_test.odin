@@ -1,5 +1,6 @@
 package widgets
 
+import "core:strings"
 import ui "../core"
 import "core:testing"
 import "core:path/filepath"
@@ -9,7 +10,7 @@ import "core:image"
 
 @(private) scheme_step: int
 @(private) scheme_focus: ui.Identity
-@(private) scheme_editor: ui.Text_Edit
+@(private) scheme_editor: string
 @(private) scheme_geometry: [dynamic]ui.Surface
 
 // Change schemes while an editor owns focus, and switch three times inside one
@@ -18,7 +19,7 @@ import "core:image"
 color_schemes :: proc(t: ^testing.T) {
 	for scale in 1..=2 {
 		test_font = 0; scheme_step = 0; scheme_focus = {}; scheme_geometry = {}
-		ui.init_text_edit(&scheme_editor, "Keep")
+		scheme_editor = strings.clone("Keep")
 		paths: [3]string
 		for &path, i in paths {
 			path, _ = filepath.join({filepath.dir(#location().file_path), "../bin", fmt.tprintf("widget-schemes-%dx-%d.png", scale, i)})
@@ -30,8 +31,8 @@ color_schemes :: proc(t: ^testing.T) {
 		frames[1].path = paths[0]; frames[3].path = paths[1]; frames[4].path = paths[2]
 		result := ui.capture_frames(scheme_scene, frames[:])
 		testing.expect_value(t, result.error, ui.Capture_Error.None)
-		testing.expect_value(t, ui.text_edit_value(&scheme_editor), "Retained")
-		ui.destroy_text_edit(&scheme_editor); delete(scheme_geometry)
+		testing.expect_value(t, scheme_editor, "Retained")
+		delete(scheme_editor); delete(scheme_geometry)
 		for path, index in paths {
 			decoded, err := png.load(path)
 			if testing.expect(t, err == nil) {

@@ -1,5 +1,6 @@
 package ui
 
+import "base:runtime"
 import "primitives"
 import "input"
 import fonts "text"
@@ -42,6 +43,7 @@ current_frame :: proc() -> ^Frame {
 
 @(private)
 Frame_State :: struct {
+	allocator: runtime.Allocator,
 	frame: Frame,
 	update: Update,
 	rects: [dynamic]Rect_Context,
@@ -82,6 +84,7 @@ destroy_frame_state :: proc(state: ^Frame_State) {
 build_frame :: proc(renderer: platform.Renderer, elapsed: f64, size: [2]f32, user_data: rawptr) -> []Surface {
 	assert(active_state == nil, "Window updates cannot be nested")
 	state := cast(^Frame_State)user_data
+	if state.allocator.procedure == nil { state.allocator = context.allocator }
 	active_state = state
 	defer { active_state = nil }
 	state.frame.text_client = {}

@@ -62,7 +62,7 @@ Other work can move forward when an application needs it.
 | 32 | DONE | [Asynchronous assets](../core/files/README.md) | Worker directory/image loading, metadata polling and path-image caching. |
 | 33 | DONE | [File manager, first version](../apps/file-manager/README.md) | Compact read-only browser, thumbnails and type-to-select. |
 | 34 | DONE | [GPU shadows and outlines](../core/SHADOWS.md) | Rounded-rectangle outer shadows and hollow borders. |
-| 35 | DONE | [Standard controls](../widgets/README.md) | Semantic light/dark schemes, input/navigation controls and explicit button sizing. |
+| 35 | DONE | [Standard controls](../widgets/README.md) | Semantic light/dark schemes, value-bound text fields, navigation controls and explicit button sizing. |
 | 36 | DONE | [Panel and overlay widgets](../widgets/README.md#containers-and-overlays) | Menus, dialogs, panels, disclosures, tooltips and toasts. |
 | 37 | DONE | [Icon glyphs](../icons/default/README.md) | Generic glyph primitive and original ten-icon default font. |
 | 38 | LATER | [Editing extensions](IDEAS.md#editing-extensions-38) | Word/caret/history refinements and multiline editing. |

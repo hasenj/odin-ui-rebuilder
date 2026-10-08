@@ -7,32 +7,62 @@ The shared editor also accepts synthetic input for capture and testing.
 ## Build an editable field
 
 ```odin
-Field :: struct {editor: ui.Text_Edit}
-init_field :: proc(field: ^Field) {
-    ui.init_text_edit(&field.editor, "Initial text")
-}
-destroy_field :: proc(field: ^Field) {
-    ui.destroy_text_edit(&field.editor)
-}
+// Application data. No editor object or editor initialization.
+name := strings.clone("Initial text", app_allocator)
+defer delete(name, app_allocator)
 
+// Inside the UI builder:
 ui.open_rect(.Top, 48, key = field_id)
 {
-    field := ui.state(Field, init_field, destroy_field)
     ui.paint(color = background, corners = 6)
     ui.pad2(6, 12)
-    result := ui.edit_text(&field.editor, "UI", size = 20)
-    if result.changed { /* read ui.text_edit_value(&field.editor) */ }
+    result := ui.edit_text(&name, "UI", size = 20, allocator = app_allocator)
+    if result.changed { /* name now contains the committed edit */ }
     if result.submitted { /* Enter */ }
 }
 ui.close_rect()
 ```
 
-The caller owns appearance, layout and the buffer's lifetime. `Text_Edit` can
-instead live in application data when it must survive UI disappearance. Destroy
-it with `destroy_text_edit`. Do not reuse one editor instance for two fields or
-windows simultaneously. The value returned by `text_edit_value` borrows its
-buffer until the next edit/destruction. Programmatic edits go through
-`core/edit` operations, which advance the revision used by geometry caching.
+`edit_text` accepts a `^string` or `^[dynamic]u8` (also spelled `[dynamic]byte`).
+The optional result reports `changed`, `submitted`, `error`, `composing` and
+`empty` (the displayed editor is empty, for placeholder painting). Ignore it
+when no reaction is needed. `changed` means the committed model content changed
+in this call, not merely that the selection or IME preedit changed.
+
+The field's identity owns selection, undo/redo, caret geometry, horizontal
+scrolling and composition. Its private child identity leaves the application's
+own `ui.state` slot available. The binding never retains the model pointer:
+moving application storage with the same value does not reset editing state.
+Use stable item keys when declaring fields in a reorderable collection.
+
+### Ownership and external updates
+
+- A string must be empty or own its complete allocation from `allocator`, which
+  defaults to the caller's `context.allocator`. On a committed change the field
+  allocates a replacement and frees the old value through that allocator.
+  Do not pass a nonempty literal, borrowed substring or temporary string as an
+  owned model. The application releases the final string, using the same allocator.
+- A dynamic byte array uses its own stored allocator and reuses capacity. A
+  zero-initialized array needs no setup: its first edit adopts the supplied or
+  active allocator. The application eventually calls `delete(buffer)`.
+- Editor storage uses the window's persistent allocator independently of the
+  model allocator. Removing the field releases editor state, but never releases
+  or invalidates the application value. Reappearing fields start a new editing
+  session; keep them declared if their selection/history must survive.
+- External content changes are authoritative. They cancel composition, clear
+  stale undo history and clamp selection to the replacement. Already queued
+  text operations for that field are ignored for that synchronization call.
+  Equal contents preserve state, even if the allocation/address changed.
+
+IME preedit stays internal. Commit/unmark publishes the committed result;
+cancelling composition leaves the model unchanged. Multiple edits in one call
+publish the final committed value once. Disabled fields ignore input and cancel
+preedit. The search field's clear button clears the model and cancels preedit.
+
+Warm calls compare contents to detect external changes but do not copy or
+allocate. The editor retains its working buffer separately from either model
+representation. `edit_text_state` and `Text_Edit` remain low-level engine APIs
+for custom controls such as the numeric input; ordinary text fields need neither.
 
 `edit_text` registers focus, handles input for its identity, paints text,
 selection and caret, clips to its resolved rect, and scrolls horizontally to
@@ -59,8 +89,8 @@ Bidi boundary affinity is retained for visual/pointer movement; after an edit,
 the following grapheme's leading edge is preferred. Pass either one font or a named `font_stack` to select an ordered fallback
 list. Drawing, caret geometry and selection all use the same resolved faces.
 If no face covers a character, its missing-glyph symbol (tofu) is rendered in
-place; surrounding text and editing remain functional. System-font discovery
-and automatic fallback outside the explicit stack remain future work.
+place; surrounding text and editing remain functional. Call `discover_fonts()` once to enable cached automatic fallback from installed
+fonts; see [the text catalog API](TEXT.md#system-font-catalog).
 
 For a custom editor, use `text_caret_spans` to obtain caller-owned grapheme
 geometry and `text_hit_test` to map an X coordinate to a byte offset and visual

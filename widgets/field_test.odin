@@ -1,12 +1,13 @@
 package widgets
 
+import "core:strings"
 import ui "../core"
 import "core:testing"
 import "core:path/filepath"
 import "core:image/png"
 import "core:image"
 
-@(private) field_test_editor: ui.Text_Edit
+@(private) field_test_editor: string
 @(private) field_test_number: f64
 @(private) field_test_step: int
 
@@ -14,8 +15,8 @@ import "core:image"
 // native-style text delivery plus mouse caret placement in centered numbers.
 @(private)
 compound_fields :: proc(t: ^testing.T) {
-	ui.init_text_edit(&field_test_editor, "Files")
-	defer ui.destroy_text_edit(&field_test_editor)
+	field_test_editor = strings.clone("Files")
+	defer delete(field_test_editor)
 	field_test_number = 24; field_test_step = 0; test_font = 0
 	path, _ := filepath.join({filepath.dir(#location().file_path), "../bin/widget-fields-focus.png"})
 	defer delete(path)
@@ -32,7 +33,7 @@ compound_fields :: proc(t: ^testing.T) {
 	frames[11].input = {mouse_inside = true, mouse_position = {80, 95}, mouse_released = {.Left}}
 	result := ui.capture_frames(field_test_scene, frames[:])
 	if !testing.expect_value(t, result.error, ui.Capture_Error.None) { return }
-	testing.expect_value(t, ui.text_edit_value(&field_test_editor), "new")
+	testing.expect_value(t, field_test_editor, "new")
 	testing.expect_value(t, field_test_number, f64(123))
 	decoded, err := png.load(path)
 	if testing.expect(t, err == nil) {

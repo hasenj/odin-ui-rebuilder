@@ -2,10 +2,11 @@ package demo16
 import ui "../../core"
 import w "../../widgets"
 import "core:os"
+import "core:strings"
 import "core:fmt"
 
 font: ui.Font
-editors: [4]ui.Text_Edit
+values: [4]string
 checked, switched: bool = true, true
 mixed: w.Check_State = .Mixed
 radio_value, tab, inspector_tab, segment, selection, sort: int
@@ -22,11 +23,8 @@ light_mode: bool = true
 compare_schemes: bool
 
 main :: proc() {
-	ui.init_text_edit(&editors[0], "Project notes")
-	ui.init_text_edit(&editors[1], "Untitled/")
-	ui.init_text_edit(&editors[2], "notes.txt")
-	ui.init_text_edit(&editors[3])
-	defer for &editor in editors { ui.destroy_text_edit(&editor) }
+	values = {strings.clone("Project notes"), strings.clone("Untitled/"), strings.clone("notes.txt"), ""}
+	defer for value in values { delete(value) }
 	if len(os.args) > 1 && (os.args[1] == "--capture" || os.args[1] == "--capture-light") {
 		capture_mode = true
 		light_mode = os.args[1] == "--capture-light"
@@ -126,11 +124,11 @@ update :: proc() {
 			row(); w.progress(amount); end_row()
 		case 1:
 			row(); w.label("Name"); end_row()
-			row(); _ = w.text_field(&editors[0], "Folder name"); end_row()
-			row(); _ = w.text_field(&editors[1], invalid = true); end_row()
+			row(); w.text_field(&values[0], "Folder name"); end_row()
+			row(); w.text_field(&values[1], invalid = true); end_row()
 			row(20); w.label("Name cannot contain /", muted = true); end_row()
-			row(); _ = w.text_field(&editors[2], enabled = false); end_row()
-			row(); _ = w.search_field(&editors[3], "Find files"); end_row()
+			row(); w.text_field(&values[2], enabled = false); end_row()
+			row(); w.search_field(&values[3], "Find files"); end_row()
 			row(); _ = w.number_input(&number, 0, 100); end_row()
 		case 2:
 			row(); _ = w.checkbox("Show hidden files", &checked); end_row()
@@ -158,7 +156,7 @@ update :: proc() {
 		case 5:
 			if inspector_hidden { row(); if w.button("Reopen inspector") { inspector_hidden = false }; end_row() } else {
 				row(); _ = w.tabs({"General", "Details"}, &inspector_tab); end_row()
-				row(); _ = w.text_field(&editors[2]); end_row()
+				row(); w.text_field(&values[2]); end_row()
 				row(); w.label("Location     ~/Documents", muted = true); end_row()
 				row(); w.label("Size             12 KB", muted = true); end_row()
 				row(); _ = w.checkbox("Read only", &read_only); end_row()

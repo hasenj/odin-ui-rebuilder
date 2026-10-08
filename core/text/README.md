@@ -119,7 +119,7 @@ Load faces once, then register an immutable ordered stack:
 _, err := ui.font_stack("Body", {"Sans", "Arabic", "Japanese"})
 assert(err == .None)
 ui.text("Hello 日本語 مرحبا", "Body")
-ui.edit_text(&editor, "Body")
+ui.edit_text(&value, "Body") // value is an owned string or dynamic byte array
 ```
 
 The stack accepts font names or handles and returns a regular font handle.

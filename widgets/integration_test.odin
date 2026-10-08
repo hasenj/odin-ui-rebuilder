@@ -1,5 +1,6 @@
 package widgets
 
+import "core:strings"
 import ui "../core"
 import "core:testing"
 import "core:path/filepath"
@@ -13,7 +14,7 @@ import "core:image"
 @(private) test_amount, test_scroll_offset: f32
 @(private) test_number: f64 = 24
 @(private) test_radio: int
-@(private) test_editor: ui.Text_Edit
+@(private) test_editor: string
 @(private) test_font: ui.Font
 @(private) test_t: ^testing.T
 
@@ -25,7 +26,7 @@ widget_interactions :: proc(t: ^testing.T) {
 	test_t = t
 	test_step, test_clicks, test_selected, test_tab = 0, 0, 0, 0
 	test_check, test_modal = false, false; test_amount = 0; test_font = 0
-	ui.init_text_edit(&test_editor); defer ui.destroy_text_edit(&test_editor)
+	test_editor = strings.clone(""); defer delete(test_editor)
 	frames: [78]ui.Capture_Frame
 	for &frame, i in frames { frame = {size = {360, 340}, scale = 1, time = f64(i)*0.1} }
 	frames[1].input = {mouse_inside = true, mouse_position = {20, 20}, mouse_buttons = {.Left}, mouse_pressed = {.Left}}
@@ -171,7 +172,7 @@ test_scene :: proc() {
 	case 4: testing.expect_value(test_t, test_clicks, 1)
 	case 6: testing.expect(test_t, test_check)
 	case 8, 9: testing.expect_value(test_t, test_amount, f32(1))
-	case 12: testing.expect_value(test_t, ui.text_edit_value(&test_editor), "hello")
+	case 12: testing.expect_value(test_t, test_editor, "hello")
 	case 14: testing.expect_value(test_t, test_clicks, 1)
 	case 19: testing.expect_value(test_t, test_selected, 1)
 	case 23: testing.expect(test_t, test_modal)

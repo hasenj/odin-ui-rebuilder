@@ -11,13 +11,13 @@ list: ui.Virtual_List
 keys: [dynamic]Face_Key
 font, preview: ui.Font
 selected: Face_Key
-editor: ui.Text_Edit
+sample: [dynamic]u8
 initialized, capture: bool
 step: int
 
 main :: proc() {
-	ui.init_text_edit(&editor, "Hello 日本語 مرحبا — café")
-	defer ui.destroy_text_edit(&editor)
+	append(&sample, "Hello 日本語 مرحبا — café")
+	defer delete(sample)
 	defer ui.destroy_virtual_list(&list)
 	defer delete(keys)
 	if len(os.args) > 1 && os.args[1] == "--capture" {
@@ -86,7 +86,7 @@ update :: proc() {
 	ui.close_rect()
 	ui.open_rect(.Top, 44)
 	w.begin(preview)
-	result := w.text_field(&editor)
+	result := w.text_field(&sample)
 	assert(result.error == .None)
 	w.begin(font)
 	ui.close_rect()

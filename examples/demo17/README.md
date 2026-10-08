@@ -10,8 +10,8 @@ From the repository root:
 
 Scans conventional OS font directories once at startup, lists family/style
 metadata without eagerly loading every face, and lazily opens a selected face.
-The initial Helvetica/DejaVu selection uses named lookup. The editable sample
-uses automatic fallback for mixed Latin, Japanese and Arabic, with local tofu
+The initial Helvetica/DejaVu selection uses named lookup. The editable sample is a plain `[dynamic]u8` bound to `widgets.text_field`;
+no editor state is carried by the caller. It uses automatic fallback for mixed Latin, Japanese and Arabic, with local tofu
 where no installed outline font covers a grapheme. Color emoji is not supported.
 
 Rows use `ui.Virtual_List`; scroll, Tab through rows or reverse the list.
